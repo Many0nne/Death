@@ -58,7 +58,8 @@ export type Deps = {
 	roleOf: (any) -> string?, -- rôle effectif d'un joueur pour la lumière (attribut LightRole)
 	clock: () -> number,
 	soundParent: Instance?, -- parent des sons entendus par tous (SoundService)
-	connectPrompt: (any, (any) -> ()) -> (), -- branche ProximityPrompt.Triggered
+	-- branche ProximityPrompt.Triggered puis PromptButtonHoldBegan (joueur en argument)
+	connectPrompt: (any, (any) -> (), (any) -> ()) -> (),
 	delay: (number, () -> ()) -> (),
 	lineOfSight: (any, Vector3, Vector3, Instance) -> boolean, -- (joueur, depuis, vers, cible) : vue dégagée
 	log: (string) -> (),
@@ -88,9 +89,10 @@ local function defaultDeps(): Deps
 	local function roleOf(player): string?
 		return player:GetAttribute(LA.LightRole)
 	end
-	-- Cette méthode permet de brancher une invite lorsqu'elle est créée.
-	local function connectPrompt(prompt, fn)
-		prompt.Triggered:Connect(fn)
+	-- Cette méthode permet de brancher une invite lorsqu'elle est créée : début du maintien, puis déclenchement.
+	local function connectPrompt(prompt, onTriggered, onHoldBegan)
+		prompt.PromptButtonHoldBegan:Connect(onHoldBegan)
+		prompt.Triggered:Connect(onTriggered)
 	end
 	-- Cette méthode permet de différer une action (grésillement, fin de recharge) lorsque le service la programme.
 	local function delay(seconds: number, fn: () -> ())
@@ -131,7 +133,8 @@ function LightService.new(deps: Deps?)
 		roomNames = {} :: { [string]: string },
 		breaker = nil :: BasePart?,
 		prompts = {} :: { any }, -- { prompt, kind = "cut" | "restore" | "burn", wing?, room? }
-		flickering = {} :: { [string]: boolean }, -- lampes en train de grésiller (affichage piloté par _flicker)
+		flickering = {} :: { [string]: {} }, -- lampe en train de grésiller -> jeton du grésillement en cours
+		holds = {} :: { [any]: { [any]: number } }, -- invite -> joueur -> début du maintien (horloge du serveur)
 		sounds = {},
 		Changed = Signal.new(),
 	}, LightService)
@@ -307,33 +310,35 @@ function LightService:_applyAll(flicker: { string }?)
 			self:_showLamp(lamp.id, on)
 		end
 	end
-	if flicker and #flicker > 0 then
-		for _, id in flicker do
-			self.flickering[id] = true
-		end
-		self:_flicker(flicker, 1)
+	for _, id in flicker or {} :: { string } do
+		self:_flicker(id)
 	end
 	if self.breaker then
 		self.breaker:SetAttribute(LA.CutWing, self.sabotage:cutWing())
 	end
 end
 
--- Cette méthode permet de faire grésiller des lampes lorsqu'elles grillent : alternance éteinte / allumée selon
--- FLICKER, puis leur état réel (qui tient compte d'une coupure ou d'une remise à zéro survenue entre-temps).
-function LightService:_flicker(lampIds: { string }, step: number)
-	if step > #FLICKER then
-		for _, id in lampIds do
-			self.flickering[id] = nil
-			self:_showLamp(id, self.illumination:isLampOn(id))
+-- Cette méthode permet de faire grésiller une lampe lorsqu'elle grille : alternance éteinte / allumée selon FLICKER,
+-- puis son état réel ; un nouveau grésillement de la même lampe remplace le précédent (jeton).
+function LightService:_flicker(lampId: string)
+	local token = {}
+	self.flickering[lampId] = token
+	-- Cette méthode permet de jouer une étape du grésillement lorsque le délai de la précédente est écoulé.
+	local function step(index: number)
+		if self.flickering[lampId] ~= token then
+			return
 		end
-		return
+		if index > #FLICKER then
+			self.flickering[lampId] = nil
+			self:_showLamp(lampId, self.illumination:isLampOn(lampId))
+			return
+		end
+		self:_showLamp(lampId, index % 2 == 0)
+		self.deps.delay(FLICKER[index], function()
+			step(index + 1)
+		end)
 	end
-	for _, id in lampIds do
-		self:_showLamp(id, step % 2 == 0)
-	end
-	self.deps.delay(FLICKER[step], function()
-		self:_flicker(lampIds, step + 1)
-	end)
+	step(1)
 end
 
 -- Sons ---------------------------------------------------------------------------------------------------------
@@ -390,23 +395,30 @@ end
 -- Invites d'action -----------------------------------------------------------------------------------------------
 
 -- Cette méthode permet de créer une invite d'action réservée à un rôle lorsque le service démarre ; chaque client
--- l'active pour son joueur selon PromptRole et PromptAvailable (LightAttributes).
+-- l'active pour son joueur selon PromptRole, PromptAvailable et la vue depuis le personnage (PromptSight).
 function LightService:_makePrompt(parent: Instance, role: string, props: { [string]: any }, entry)
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "LightPrompt"
-	prompt.RequiresLineOfSight = true
+	-- Vue testée depuis le personnage (client et serveur, Shared.LineOfSight), jamais depuis la caméra
+	prompt.RequiresLineOfSight = false
 	for property, value in props do
 		(prompt :: any)[property] = value
 	end
 	prompt:SetAttribute(LA.PromptRole, role)
 	prompt:SetAttribute(LA.PromptAvailable, false)
+	prompt:SetAttribute(LA.PromptSight, true)
 	prompt:AddTag(LA.PromptTag)
 	prompt.Parent = parent
 	entry.prompt = prompt
 	entry.role = role
 	table.insert(self.prompts, entry)
+	-- Clés faibles : un joueur parti ne reste pas en mémoire
+	local holds = setmetatable({}, { __mode = "k" })
+	self.holds[prompt] = holds
 	self.deps.connectPrompt(prompt, function(player)
 		self:_onPrompt(player, entry)
+	end, function(player)
+		holds[player] = self.deps.clock()
 	end)
 	return prompt
 end
@@ -449,15 +461,12 @@ function LightService:_createPrompts()
 	for _, lamp in self.illumination:allLamps() do
 		local part = self.lampParts[lamp.id]
 		if part then
-			local prompt = self:_makePrompt(part, Role.Death, {
+			self:_makePrompt(part, Role.Death, {
 				ActionText = "Griller l'ampoule",
 				ObjectText = self.roomNames[lamp.roomId] or lamp.roomId,
 				HoldDuration = DeathRules.BURN_HOLD,
 				MaxActivationDistance = DeathRules.LAMP_DISTANCE,
-				-- Vue testée depuis le personnage par le client (PromptSight) et le serveur, pas depuis la caméra
-				RequiresLineOfSight = false,
 			}, { kind = "burn", room = lamp.roomId })
-			prompt:SetAttribute(LA.PromptSight, true)
 		end
 	end
 	self:_refreshPrompts()
@@ -485,9 +494,17 @@ function LightService:_refreshPrompts()
 end
 
 -- Cette méthode permet d'exécuter l'action d'une invite lorsqu'un joueur la déclenche, après contrôle du rôle, de la
--- distance et de la vue sur la cible depuis le personnage : le client n'est jamais cru sur parole.
+-- durée de maintien, de la distance et de la vue depuis le personnage : le client n'est jamais cru sur parole.
 function LightService:_onPrompt(player, entry)
 	if self.deps.roleOf(player) ~= entry.role then
+		return
+	end
+	local holds = self.holds[entry.prompt]
+	local began = holds[player]
+	holds[player] = nil
+	local hold = entry.prompt.HoldDuration
+	if hold > 0 and (began == nil or self.deps.clock() - began < hold - DeathRules.HOLD_TOLERANCE) then
+		self.deps.warn(string.format("%s : %s refusé, maintien trop court", player.Name, entry.kind))
 		return
 	end
 	local character = player.Character

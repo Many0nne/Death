@@ -27,8 +27,8 @@ return function(T, Loader)
 				return env.now
 			end,
 			soundParent = nil,
-			connectPrompt = function(prompt, fn)
-				env.triggers[prompt] = fn
+			connectPrompt = function(prompt, fn, holdBegan)
+				env.triggers[prompt] = { fn = fn, hold = holdBegan }
 			end,
 			delay = function(seconds, fn)
 				table.insert(env.delays, { at = env.now + seconds, fn = fn })
@@ -91,7 +91,14 @@ return function(T, Loader)
 
 		-- Cette méthode permet de déclencher une invite comme le ferait le joueur lorsqu'il la maintient.
 		function env.trigger(prompt, player)
-			env.triggers[prompt](player)
+			env.triggers[prompt].hold(player)
+			env.advance(prompt.HoldDuration)
+			env.triggers[prompt].fn(player)
+		end
+
+		-- Cette méthode permet de déclencher une invite sans la maintenir, comme un client modifié.
+		function env.triggerNow(prompt, player)
+			env.triggers[prompt].fn(player)
 		end
 
 		-- Cette méthode permet de retrouver le bloc d'une lampe lorsque le test lit son état affiché.
@@ -125,12 +132,13 @@ return function(T, Loader)
 			T.expectEqual(env.prompt("restore"):GetAttribute(LA.PromptRole), "Mortal")
 		end)
 
-		T.it("teste la vue d'une ampoule depuis le personnage, jamais depuis la caméra", function()
+		T.it("teste la vue depuis le personnage, jamais depuis la caméra", function()
 			-- Mesuré en jeu : la vue caméra perd la lampe de plafond sous un linteau de porte
 			local burn = env.prompt("burn", "Kitchen")
 			T.expectEqual(burn.RequiresLineOfSight, false)
 			T.expectEqual(burn:GetAttribute(LA.PromptSight), true)
-			T.expectEqual(env.prompt("restore"):GetAttribute(LA.PromptSight), nil)
+			T.expectEqual(env.prompt("restore").RequiresLineOfSight, false)
+			T.expectEqual(env.prompt("restore"):GetAttribute(LA.PromptSight), true)
 		end)
 
 		T.it("publie ce qui est possible au départ : couper et griller oui, rétablir non", function()
@@ -166,6 +174,9 @@ return function(T, Loader)
 			env.los = false
 			env.trigger(env.prompt("cut", "Day"), env.player("Death", env.atBreaker))
 			T.expectEqual(service.sabotage:cutWing(), nil, "disjoncteur hors de vue")
+			env.los = true
+			env.triggerNow(env.prompt("cut", "Day"), env.player("Death", env.atBreaker))
+			T.expectEqual(service.sabotage:cutWing(), nil, "sans maintien (client modifié)")
 		end)
 
 		T.it("un mortel rétablit, la Mort attend la recharge avant de recouper", function()
@@ -228,6 +239,21 @@ return function(T, Loader)
 			service:reset()
 			env.advance(1)
 			T.expectEqual(env.lamp("KitchenLamp"):GetAttribute(LA.LampOn), true)
+		end)
+
+		T.it("un second grésillement de la même lampe remplace le premier et finit éteint", function()
+			local service, env = setup()
+			local lamp = env.lamp("KitchenLamp")
+			service:burnRoom("Kitchen")
+			env.advance(0.1)
+			service:reset()
+			service:burnRoom("Kitchen")
+			env.advance(0.2)
+			-- Le premier grésillement serait fini ici : la lampe ne doit pas reprendre son état réel en avance
+			T.expect(service.flickering.KitchenLamp ~= nil, "second grésillement en cours")
+			env.advance(1)
+			T.expectEqual(service.flickering.KitchenLamp, nil)
+			T.expectEqual(lamp:FindFirstChild("Light").Enabled, false)
 		end)
 	end)
 

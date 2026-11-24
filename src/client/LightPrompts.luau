@@ -33,16 +33,25 @@ function LightPrompts.start()
 	end
 
 	-- Cette méthode permet de suivre une invite lorsqu'elle arrive sur le client.
+	-- Invites déjà suivies : le signal d'ajout se redéclenche quand une invite revient (streaming, reparentage)
+	local tracked: { [Instance]: boolean } = {}
+
+	-- Cette méthode permet de suivre une invite lorsqu'elle arrive sur le client (une seule fois par invite).
 	local function track(prompt: Instance)
 		if not prompt:IsA("ProximityPrompt") then
 			return
 		end
 		refresh(prompt)
+		if tracked[prompt] then
+			return
+		end
+		tracked[prompt] = true
 		prompt.AttributeChanged:Connect(function()
 			refresh(prompt)
 		end)
 		prompt.Destroying:Connect(function()
 			inSight[prompt] = nil
+			tracked[prompt] = nil
 		end)
 	end
 

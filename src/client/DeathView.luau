@@ -60,16 +60,15 @@ end
 function DeathView.start()
 	local localPlayer = Players.LocalPlayer
 	local indicator = makeIndicator(localPlayer)
-	-- Personnage suivi comme Mort -> { highlight, visibility, mutedSounds = { Sound -> volume d'origine } }
+	-- Personnage suivi comme Mort -> { highlight, visibility, muted = { Sound -> volume d'origine }, applied, added }
 	local tracked: { [Model]: any } = {}
 
 	-- Cette méthode permet de rendre au personnage son apparence et ses sons lorsqu'il n'est plus la Mort.
 	local function release(character: Model)
 		local state = tracked[character]
 		tracked[character] = nil
-		if state.highlight then
-			state.highlight:Destroy()
-		end
+		state.added:Disconnect()
+		state.highlight:Destroy()
 		for sound, volume in state.muted do
 			if sound.Parent then
 				sound.Volume = volume
@@ -110,7 +109,11 @@ function DeathView.start()
 			highlight.DepthMode = Enum.HighlightDepthMode.Occluded
 			highlight.Adornee = character
 			highlight.Parent = character
-			state = { highlight = highlight, visibility = 0, muted = {} }
+			-- applied : transparence locale posée sur le corps ; nil = à reposer (pièce ajoutée, accessoire)
+			state = { highlight = highlight, visibility = 0, muted = {}, applied = nil :: number? }
+			state.added = character.DescendantAdded:Connect(function()
+				state.applied = nil
+			end)
 			tracked[character] = state
 		end
 		mute(character, state)
@@ -123,7 +126,11 @@ function DeathView.start()
 			state.highlight.FillTransparency = SELF_VEIL.shadow
 				+ (SELF_VEIL.light - SELF_VEIL.shadow) * state.visibility
 		else
-			setLocalTransparency(character, 1 - state.visibility)
+			local transparency = 1 - state.visibility
+			if state.applied ~= transparency then
+				state.applied = transparency
+				setLocalTransparency(character, transparency)
+			end
 			state.highlight.Enabled = state.visibility > 0
 			state.highlight.FillTransparency = 1 - state.visibility
 		end
