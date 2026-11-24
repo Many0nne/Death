@@ -16,7 +16,7 @@ Describe 'dth-worktree.ps1 : cycle nominal' {
     $r = Invoke-Wt $sb @('feature/1-nominal', '-NoUp', '-Slot', '600') 'S-nom'
     $r.Code | Should Be 0
     $p.Dir | Should Exist
-    (Get-Content $p.Port) | Should Be '35500'
+    (Get-Content $p.Port) | Should Be '35530'
     $entry = Get-SbOwners $sb | Where-Object { $_.branch -eq 'feature/1-nominal' }
     @($entry.threads) -contains 'T-nom' | Should Be $true
   }
@@ -30,7 +30,7 @@ Describe 'dth-worktree.ps1 : cycle nominal' {
     $r = Invoke-Wt $sb @('feature/1-nominal', '-NoUp') 'S-nom'
     $r.Code | Should Be 0
     $r.Output | Should Match 'reutilise'
-    (Get-Content $p.Port) | Should Be '35500'
+    (Get-Content $p.Port) | Should Be '35530'
     @((Get-SbOwners $sb | Where-Object { $_.branch -eq 'feature/1-nominal' }).threads).Count | Should Be 1
   }
 
@@ -116,11 +116,11 @@ Describe 'dth-worktree.ps1 : reprise d''un worktree cree a la main' {
     (Get-Content (Join-Path $p.Dir 'en-cours.txt')) | Should Be 'travail non commite'
     (Get-Content -Raw $settings).Trim() | Should Be $before.Trim()
     (Invoke-Git $p.Dir branch --show-current) | Should Be $branch
-    (Get-Content $p.Port) | Should Be '35530'
+    (Get-Content $p.Port) | Should Be '35560'
   }
 
   It 'reprend un rojo serve lance a la main sur le port du worktree' {
-    $manual = Start-ManualRojo $sb $p.Dir 35530
+    $manual = Start-ManualRojo $sb $p.Dir 35560
     $r = Invoke-Wt $sb @($branch)
     $r.Output | Should Match 'repris'
     $r.Output | Should Match 'OK \(200\)'
@@ -139,7 +139,7 @@ Describe 'dth-worktree.ps1 : reprise d''un worktree cree a la main' {
   }
 
   It 'refuse un slot impose dont le port est pris par un processus qui n''est pas Rojo, sans rien reserver' {
-    $tcp = [System.Net.Sockets.TcpListener]::Create(35531)
+    $tcp = [System.Net.Sockets.TcpListener]::Create(35561)
     $tcp.Start()
     try {
       (Invoke-Wt $sb @('feature/13-port-pris', '-Slot', '631')).Output | Should Match 'deja pris'
@@ -152,10 +152,10 @@ Describe 'dth-worktree.ps1 : reprise d''un worktree cree a la main' {
     (Invoke-Wt $sb @($branch)).Output | Should Match 'OK \(200\)'
     $old = Get-SbRojoPid $sb $branch
     $r = Invoke-Wt $sb @($branch, '-Slot', '632')
-    $r.Output | Should Match 'ancien port 35530 arrete'
+    $r.Output | Should Match 'ancien port 35560 arrete'
     Start-Sleep -Milliseconds 500
     Test-Alive $old | Should Be $false
-    (Get-Content $p.Port) | Should Be '35532'
+    (Get-Content $p.Port) | Should Be '35562'
     Invoke-Wt $sb @($branch, '-Stop') | Out-Null
   }
 
@@ -359,7 +359,7 @@ Describe 'dth-worktree.ps1 : verrou Studio' {
   It 'reserve Studio pour la premiere branche et affiche le port a connecter' {
     $r = Invoke-Wt $sb @($a, '-AcquireStudio')
     $r.Code | Should Be 0
-    $r.Output | Should Match 'port 35506'
+    $r.Output | Should Match 'port 35536'
     Get-Holder | Should Be $a
   }
 
