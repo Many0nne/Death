@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<style>
+:root{--ink:#d8d2c4;--dim:#8a857a;--red:#b3362c;--paper:#e9e1cc;--paperInk:#2b2620}
+.grid{display:grid;gap:14px;grid-template-columns:1fr 1fr}
+@media (max-width:600px){.grid{grid-template-columns:1fr}}
+.cap{font:600 12px var(--font-sans);color:var(--muted-foreground);margin:0 0 6px;text-transform:uppercase;letter-spacing:.06em}
+.screen{position:relative;aspect-ratio:16/9;border-radius:var(--radius);overflow:hidden;color:var(--ink);font:12px var(--font-sans);border:1px solid var(--border)}
+.wide{grid-column:1/-1}
+/* lobby */
+.lobby{background:linear-gradient(180deg,#2a2d2b 0%,#1c1e1d 55%,#3a352c 56%,#2b2720 100%)}
+.neon{position:absolute;top:6%;height:4px;width:22%;background:#e8f2ea;box-shadow:0 0 18px 6px rgba(220,240,230,.35)}
+.neon.flick{opacity:.45}
+.win{position:absolute;top:16%;width:12%;height:34%;background:linear-gradient(#5b6462,#3d4443);border:3px solid #15171a;opacity:.8}
+.display{position:absolute;left:41%;top:17%;width:18%;padding:6px;background:#0b0c0b;border:2px solid #333;text-align:center;font:700 10px var(--font-mono);color:#e04a3a}
+.display b{display:block;font-size:20px;letter-spacing:.1em}
+.guichet{position:absolute;right:4%;top:22%;width:17%;height:31%;background:rgba(200,210,205,.18);backdrop-filter:blur(2px);border:3px solid #444;}
+.guichet .shadow{position:absolute;left:38%;bottom:0;width:26%;height:70%;background:#050505;border-radius:40% 40% 0 0;filter:blur(3px)}
+.row{position:absolute;bottom:20%;display:flex;gap:5px}
+.chair{width:22px;height:26px;background:#5d6b70;border-radius:3px 3px 0 0;position:relative}
+.chair.taken::after{content:"";position:absolute;left:4px;top:-14px;width:14px;height:14px;border-radius:50%;background:#c9b79c}
+.chair.empty{outline:1px dashed #d8d2c4;background:#3b4447}
+.inv{position:absolute;font:600 9px var(--font-sans);background:rgba(0,0,0,.7);padding:2px 5px;border-radius:3px}
+.dispenser{position:absolute;left:4%;bottom:18%;width:6%;height:30%;background:#8c2a22;border-radius:3px}
+.hudBar{position:absolute;left:0;right:0;bottom:0;display:flex;gap:8px;align-items:flex-end;padding:8px 10px;background:linear-gradient(transparent,rgba(0,0,0,.75))}
+.btn{background:rgba(20,20,20,.8);border:1px solid #555;padding:5px 8px;border-radius:3px;font-weight:600}
+.ticket{margin-left:auto;background:var(--paper);color:var(--paperInk);padding:6px 10px;font:11px var(--font-mono);border-left:4px dotted #9a907a;transform:rotate(-2deg)}
+.ticket b{font-size:18px;display:block}
+.top{position:absolute;top:8px;left:10px;right:10px;display:flex;justify-content:space-between;font-size:10px;color:var(--dim)}
+/* document */
+.docbg{background:#141412;display:grid;place-items:center}
+.paper{background:var(--paper);color:var(--paperInk);width:62%;padding:12px 14px;font:10px/1.45 var(--font-mono);transform:rotate(-1.2deg);box-shadow:0 8px 24px rgba(0,0,0,.6);position:relative}
+.paper h4{margin:0 0 6px;font:700 12px var(--font-mono);letter-spacing:.12em;text-align:center;border-bottom:1px solid #8a7f68;padding-bottom:4px}
+.stamp{position:absolute;right:10px;bottom:-10px;background:var(--paper);border:2px solid var(--red);color:var(--red);padding:2px 6px;font:700 11px var(--font-mono);transform:rotate(-14deg);opacity:.85}
+.keys{position:absolute;bottom:6px;width:100%;text-align:center;font-size:9px;color:var(--dim)}
+/* match */
+.house{background:radial-gradient(ellipse at 30% 60%,#3a3428 0%,#1a1916 45%,#0c0c0b 100%)}
+.glass{position:absolute;top:8px;left:50%;transform:translateX(-50%);text-align:center;font-size:18px}
+.mates{position:absolute;top:10px;left:10px;display:flex;gap:5px}
+.mate{width:26px;height:26px;border-radius:50%;background:#55534c;border:2px solid #777;display:grid;place-items:center;font-size:10px}
+.mate.agony{border-color:var(--red);animation:p 0.9s infinite}
+.mate.dead{opacity:.35}.mate.saved{border-color:#cfc6a8}
+@keyframes p{50%{box-shadow:0 0 0 4px rgba(179,54,44,.35)}}
+.note{position:absolute;left:10px;bottom:10px;background:#d9d0b8;color:#2b2620;font:italic 11px Georgia,serif;padding:6px 9px;transform:rotate(1.5deg);line-height:1.5}
+.note s{color:#6d6556}
+.held{position:absolute;right:12px;bottom:12px;display:flex;align-items:center;gap:6px;font-size:10px}
+.torch{width:46px;height:12px;background:#2c2c2c;border-radius:2px 6px 6px 2px;position:relative}
+.led{position:absolute;right:8px;top:3px;width:6px;height:6px;border-radius:50%;background:#e0a030;box-shadow:0 0 6px #e0a030}
+.prompt{position:absolute;left:50%;top:56%;transform:translateX(-50%);font-size:11px;background:rgba(0,0,0,.55);padding:3px 8px;border-radius:3px}
+.prompt kbd{border:1px solid #aaa;border-radius:2px;padding:0 4px;margin-right:4px}
+.breath{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 100%,rgba(200,220,230,.18),transparent 45%);pointer-events:none}
+/* death */
+.death{background:radial-gradient(ellipse at 40% 50%,#3a3a3a,#141414)}
+.threads{position:absolute;inset:0}
+.reg{position:absolute;top:10px;left:10px;display:flex;flex-direction:column;gap:3px;font:10px var(--font-mono)}
+.reg span{background:rgba(0,0,0,.55);padding:2px 6px}
+.reg .ok{color:#e04a3a}
+.res{position:absolute;right:12px;bottom:12px;text-align:right;font-size:10px;line-height:1.7}
+.wisp{display:inline-block;width:14px;height:14px;border-radius:50%;border:2px solid #ddd;margin-left:3px}
+.wisp.off{opacity:.25}
+.seal{display:inline-block;width:12px;height:12px;border-radius:50%;background:#7d241d;margin-left:3px}
+.seal.off{background:transparent;border:1px dashed #888}
+.eye{position:absolute;left:12px;bottom:12px;font-size:10px}
+/* bilan */
+.bilan{aspect-ratio:auto;background:#121211;padding:16px 12px 56px;display:grid;grid-template-columns:repeat(5,1fr);gap:8px;align-content:center}
+.card{background:var(--paper);color:var(--paperInk);padding:7px;font:9px/1.4 var(--font-mono);position:relative;min-height:120px}
+.card h5{margin:0 0 4px;font:700 9px var(--font-mono);letter-spacing:.08em}
+.card .stamp{font-size:9px;right:6px;bottom:8px;background:none}
+.card.dark{background:#26231e;color:#d8d2c4}
+.bilanBar{position:absolute;bottom:8px;left:0;right:0;display:flex;justify-content:center;gap:8px}
+</style></head><body>
+<div class="grid">
+
+<div class="wide">
+<p class="cap">1a · Le Hall, côté public (mortels)</p>
+<div class="screen lobby">
+  <div class="neon" style="left:8%"></div><div class="neon flick" style="left:39%"></div><div class="neon" style="left:70%"></div>
+  <div class="display" style="left:36%;width:26%">NUMÉRO APPELÉ<b>047</b>ATTENTE ~0:40</div>
+  <div class="guichet" style="right:3%;width:22%"><div class="shadow" style="left:20%;width:18%"></div><div class="shadow" style="left:62%;width:18%;opacity:.6"></div></div>
+  <div class="dispenser"></div>
+  <div class="row" style="left:16%"><div class="chair taken"></div><div class="chair taken"></div><div class="chair taken"></div><div class="chair empty"></div></div>
+  <div class="inv" style="left:36%;bottom:31%">＋ Inviter</div>
+  <div class="row" style="left:52%;opacity:.5"><div class="chair taken"></div><div class="chair taken"></div><div class="chair"></div></div>
+  <div class="top"><span>Mon banc = mon groupe</span><span>Pièces 1 840</span></div>
+  <div class="hudBar">
+    <span class="btn">Groupe 3/4</span><span class="btn">Privée</span><span class="btn">Vestiaire</span><span class="btn">⇄ Côté Mort</span>
+    <div class="ticket" style="padding:4px 8px">PRENDRE UN TICKET<b style="font-size:13px">Mortels · ~0:40</b></div>
+  </div>
+</div></div>
+
+<div class="wide">
+<p class="cap">1b · Le Hall, côté administration (Mort)</p>
+<div class="screen" style="background:linear-gradient(180deg,#1d1b17,#0f0e0c)">
+  <div style="position:absolute;left:0;right:0;top:12%;height:38%;background:rgba(200,210,205,.12);border-bottom:3px solid #444"></div>
+  <div class="row" style="left:22%;bottom:58%;filter:blur(2px);opacity:.6"><div class="chair taken"></div><div class="chair taken"></div><div class="chair taken"></div></div>
+  <div style="position:absolute;left:10%;right:10%;bottom:22%;height:16%;background:#3b2c1e;border-top:3px solid #5a4430"></div>
+  <div style="position:absolute;left:18%;bottom:38%;width:14px;height:22px;background:#c8a24a;box-shadow:0 0 30px 14px rgba(230,190,90,.25);border-radius:4px 4px 0 0"></div>
+  <div style="position:absolute;left:58%;bottom:38%;width:44px;height:18px;background:#d9cfb6;transform:rotate(-4deg)"></div>
+  <div class="inv" style="left:55%;bottom:47%">Âmes 312</div>
+  <div class="top"><span>Seule · autres Morts aux bureaux voisins</span><span class="inv" style="position:static;color:#e04a3a">Guichet en sous-effectif +25 %</span></div>
+  <div class="hudBar">
+    <span class="btn">Cape et faux</span><span class="btn">Registre</span><span class="btn">⇄ Côté public</span>
+    <div class="ticket" style="padding:4px 8px;background:#26231e;color:#d8d2c4">OUVRIR LE GUICHET<b style="font-size:13px">Mort · ~1:50</b></div>
+  </div>
+</div></div>
+
+<div class="wide">
+<p class="cap">2 · Salle d'attente (manche formée, 30 s max, pas d'invitation)</p>
+<div class="screen lobby">
+  <div class="neon" style="left:20%"></div><div class="neon flick" style="left:58%"></div>
+  <div class="display" style="left:5%;top:14%;width:16%">DÉPART DANS<b>0:22</b>3 / 5 PRÊTS</div>
+  <div class="guichet" style="left:35%;right:auto;width:30%;top:14%;height:40%"><div class="shadow" style="left:40%;width:20%"></div></div>
+  <div class="inv" style="left:43%;top:56%">Guichet · Kroket77</div>
+  <div class="row" style="left:30%;bottom:20%;gap:18px">
+    <div class="chair taken"></div><div class="chair taken"></div><div class="chair taken"></div><div class="chair taken"></div></div>
+  <div class="inv" style="left:28%;bottom:36%;color:#9c9">PRÊT</div><div class="inv" style="left:38%;bottom:36%;color:#9c9">PRÊT</div>
+  <div class="inv" style="left:47%;bottom:36%">…</div><div class="inv" style="left:56%;bottom:36%;color:#9c9">PRÊT</div>
+  <div class="top"><span>Les 4 mortels voient les tenues des autres · la Mort voit tout à travers le verre</span><span></span></div>
+  <div class="hudBar"><span class="btn">Tenue de la manche</span><span class="btn" style="margin-left:auto;border-color:#9c9;color:#9c9">Je suis prêt</span></div>
+</div></div>
+
+<div>
+<p class="cap">3 · Avis d’échéance (mortel, 15 s)</p>
+<div class="screen docbg">
+  <div class="paper"><h4>AVIS D'ÉCHÉANCE</h4>
+  Destinataire : <b>Lou_Blanc</b><br>Lieu : Maison Delaunay,<br>14 rue des Saules<br>Date : nuit du 3 au 4, 01 h 00<br><br>
+  Pour surseoir : trouver les clés,<br>réparer la voiture, fuir par le garage.
+  <span class="stamp">À ÉCHÉANCE</span></div>
+  <div class="keys">[E] Examiner · [F] Lampe · [Clic maintenu] Désamorcer</div>
+</div></div>
+
+<div>
+<p class="cap">3 bis · Registre de la nuit (Mort)</p>
+<div class="screen docbg">
+  <div class="paper" style="transform:rotate(1deg)"><h4>REGISTRE · NUIT DU 3 AU 4</h4>
+  N°048 Lou_Blanc ......... Âme [ ]<br>N°049 Kroket77 ......... Âme [ ]<br>N°050 MaelysR .......... Âme [ ]<br>N°051 xX_Vince_Xx ...... Âme [ ]<br><br>
+  Points fragiles relevés : 31<br>Pièges armés max : 4</div>
+  <div class="keys">[Q] Vision · [Maintenir E] Préparer · [Clic] Souffle · [R] Faucher</div>
+</div></div>
+
+<div>
+<p class="cap">4 · HUD mortel (objectifs repliés)</p>
+<div class="screen house">
+  <div class="breath"></div>
+  <div class="glass">⧗</div>
+  <div class="mates"><div class="mate">L</div><div class="mate agony">K</div><div class="mate saved">M</div><div class="mate dead">V</div></div>
+  <div class="prompt"><kbd>E</kbd>Examiner l'étagère</div>
+  <div class="note" style="font-size:10px;padding:3px 7px;transform:none;background:rgba(217,208,184,.85)">Réparer la voiture 2/3 <span style="font:9px var(--font-sans);opacity:.6">[Tab] tout voir</span></div>
+  <div class="held">Lampe <div class="torch"><div class="led"></div></div></div>
+</div></div>
+
+<div>
+<p class="cap">5 · HUD Mort (mêmes portraits + case Âme)</p>
+<div class="screen death">
+  <svg class="threads" viewBox="0 0 160 90" preserveAspectRatio="none">
+    <g stroke="#c33" stroke-width=".5" fill="#c33">
+      <line x1="30" y1="60" x2="70" y2="35"/><line x1="70" y1="35" x2="110" y2="55" stroke-dasharray="2 2"/>
+      <line x1="110" y1="55" x2="135" y2="30" stroke-dasharray="2 2"/>
+      <circle cx="30" cy="60" r="2"/><circle cx="70" cy="35" r="2.5"/><circle cx="110" cy="55" r="2"/><circle cx="135" cy="30" r="1.5" fill="none"/>
+    </g></svg>
+  <div class="glass">⧗</div>
+  <div class="mates"><div class="mate dead">L</div><div class="mate agony">K</div><div class="mate saved">M</div><div class="mate">V</div></div>
+  <div class="mates" style="top:42px;gap:5px;font:700 9px var(--font-mono)"><span style="width:30px;text-align:center;color:#e04a3a">✓</span><span style="width:30px;text-align:center">0:31</span><span style="width:30px;text-align:center;color:#777">—</span><span style="width:30px;text-align:center;color:#777">□</span></div>
+  <div class="eye">◐ Dans l'ombre</div>
+  <div class="res">Souffle<span class="wisp"></span><span class="wisp"></span><span class="wisp off"></span><br>Pièges<span class="seal"></span><span class="seal"></span><span class="seal"></span><span class="seal off"></span></div>
+</div></div>
+
+<div class="wide">
+<p class="cap">6 · Bilan</p>
+<div class="screen bilan">
+  <div class="card"><h5>CERTIFICAT DE DÉCÈS</h5>Lou_Blanc<br>Chute dans l'escalier<br>02 h 14<br>Piège : marche fêlée<span class="stamp">FAUCHÉE</span></div>
+  <div class="card"><h5>CERTIFICAT DE DÉCÈS</h5>Kroket77<br>Électrocution<br>03 h 02<br>Âme échappée<span class="stamp" style="color:#555;border-color:#555">ÉCHAPPÉE</span></div>
+  <div class="card"><h5>AVIS DE REPORT</h5>MaelysR<br>Fuite par le garage<br>04 h 41<br>+2 désamorçages<span class="stamp">ANNULÉ</span></div>
+  <div class="card"><h5>CERTIFICAT DE DÉCÈS</h5>xX_Vince_Xx<br>Lustre<br>03 h 30<br>Enchaînement ×2<span class="stamp">FAUCHÉE</span></div>
+  <div class="card dark"><h5>REGISTRE DE LA MORT</h5>2 âmes / 4<br><br>MOISSON<br><br>+2 âmes<br>+140 pièces</div>
+  <div class="bilanBar"><span class="btn">▶ Revoir la mort (lustre)</span><span class="btn" style="border-color:#d8d2c4">Rester ensemble · 8 s</span><span class="btn">Retour en salle</span></div>
+</div></div>
+
+</div></body></html>
