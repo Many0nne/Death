@@ -35,6 +35,7 @@ toujours avec lui.
 | Règles du jeu, pièges, lumière, âmes, prototype v0 | `docs/design.md` |
 | Hall, salle d'attente, groupes, HUD, bilan, monétisation, architecture des places | `docs/parcours-joueur.md` |
 | Maquettes de principe (disposition, pas le rendu) | `docs/maquettes.html` |
+| Plan de la carte sans Studio (généré : `lune run tools/house-map`) | `docs/plan/plan.svg`, `docs/plan/maison-3d.html` |
 
 ## Rojo et Studio
 - Mapping : `src/shared` → `ReplicatedStorage/Shared`, `src/server` → `ServerScriptService/Server`,

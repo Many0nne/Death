@@ -1,0 +1,210 @@
+<!doctype html>
+<!-- Gabarit de la vue 3D de la maison : tools/house-map.luau remplace le marqueur de données et écrit
+     docs/plan/maison-3d.html. Ouvrir ce fichier généré dans un navigateur (Three.js chargé depuis jsDelivr). -->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maison en 3D</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #1b1d22; color: #eee; font: 14px "Segoe UI", Helvetica, Arial, sans-serif; overflow: hidden; }
+  #ui { position: absolute; top: 12px; left: 12px; background: rgba(20,22,28,.88); padding: 10px 12px; border-radius: 8px; max-width: 320px; }
+  #ui h1 { font-size: 15px; margin: 0 0 8px; }
+  #ui button { background: #333844; color: #eee; border: 1px solid #555; border-radius: 5px; padding: 4px 9px; margin: 0 4px 6px 0; cursor: pointer; }
+  #ui button.on { background: #e8892b; border-color: #e8892b; color: #111; }
+  #ui label { display: block; margin: 4px 0; }
+  #ui .hint { color: #9aa; font-size: 12px; margin-top: 6px; }
+  #legend { position: absolute; bottom: 12px; left: 12px; background: rgba(20,22,28,.88); padding: 8px 12px; border-radius: 8px; font-size: 12px; columns: 2; column-gap: 18px; }
+  #legend span { display: inline-block; width: 11px; height: 11px; margin-right: 6px; vertical-align: -1px; border-radius: 2px; }
+  #tip { position: absolute; pointer-events: none; background: rgba(0,0,0,.8); padding: 4px 8px; border-radius: 4px; font-size: 12px; display: none; white-space: nowrap; }
+  .room-label { color: #fff; font-size: 12px; font-weight: 600; text-shadow: 0 0 3px #000, 0 0 3px #000; pointer-events: none; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div id="ui">
+  <h1>Maison : vue 3D</h1>
+  <div id="levels"></div>
+  <label>Hauteur de coupe : <input id="cut" type="range" min="1" max="12" step="0.5" value="7"> <b id="cutv">7</b> studs</label>
+  <label><input id="lights" type="checkbox"> Nuit (seulement la lumière des lampes)</label>
+  <label><input id="labels" type="checkbox" checked> Noms des pièces</label>
+  <div class="hint">Clic gauche : tourner · clic droit : déplacer · molette : zoom · survol : nom du bloc</div>
+</div>
+<div id="legend"></div>
+<div id="tip"></div>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
+
+const DATA = /*DATA*/null;
+const H = DATA.levelHeight;
+
+// Couleurs par type de bloc (mêmes codes que docs/plan/plan.svg)
+const COLORS = {
+  FloorLit: 0xe9dcc0, FloorDark: 0x5b6170, Ground: 0x6f8a66, Ceiling: 0x9a9aa0, Wall: 0xb4b4ba, Fence: 0x2f5a2a,
+  DoorLeaf: 0xd23b2f, Step: 0xc7c9d1, Landing: 0xb0b3bc, Partition: 0x5a5d66, Prop: 0x8b8f99, Trap: 0xe8892b,
+  Breaker: 0xffef5a, Lamp: 0xffd54a, Chandelier: 0xffb020, Car: 0x3b4a63, Street: 0x44454a, Lawn: 0x55654f,
+  KeySpot: 0x2f7de1, MortalSpawn: 0x2bb673, DeathSpawn: 0x8e2bd2, WetFloor: 0x3fc4e0, Exit: 0xff2e63,
+};
+const LEGEND = [
+  ["FloorLit", "Sol éclairé"], ["FloorDark", "Sol sombre"], ["Ground", "Terrain"], ["Wall", "Mur"],
+  ["Fence", "Clôture"], ["DoorLeaf", "Battant fermé"], ["Trap", "Meuble piège"], ["Prop", "Meuble"],
+  ["KeySpot", "Clés"], ["Lamp", "Lampe"], ["Chandelier", "Lustre piège"], ["WetFloor", "Sol mouillé"],
+  ["MortalSpawn", "Apparition mortel"], ["DeathSpawn", "Apparition Mort"], ["Breaker", "Disjoncteur"], ["Exit", "Sortie"],
+];
+const MARKERS = new Set(["KeySpot", "MortalSpawn", "DeathSpawn", "Exit"]);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setSize(innerWidth, innerHeight);
+renderer.localClippingEnabled = false;
+document.body.appendChild(renderer.domElement);
+const labelRenderer = new CSS2DRenderer();
+labelRenderer.setSize(innerWidth, innerHeight);
+Object.assign(labelRenderer.domElement.style, { position: "absolute", top: "0", pointerEvents: "none" });
+document.body.appendChild(labelRenderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1b1d22);
+const [bx0, bz0, bx1, bz1] = DATA.bounds;
+const cx = (bx0 + bx1) / 2, cz = -(bz0 + bz1) / 2;
+const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.5, 2000);
+camera.position.set(cx - 40, 130, cz + 140);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(cx, 0, cz);
+controls.update();
+
+const hemi = new THREE.HemisphereLight(0xffffff, 0x404050, 1.6);
+const sun = new THREE.DirectionalLight(0xffffff, 1.4);
+sun.position.set(-60, 120, 80);
+scene.add(hemi, sun);
+
+// Coupe horizontale : tout ce qui dépasse sol du niveau + hauteur de coupe est masqué
+const plane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 0);
+renderer.clippingPlanes = [plane];
+
+const pickables = [];
+const lampLights = [];
+// Repère du jeu : x vers l'est, z vers le nord ; Three.js : z vers la caméra, donc z = -z du jeu
+for (const b of DATA.boxes) {
+  const [x0, y0, z0, x1, y1, z1] = b.b;
+  let key = b.k;
+  if (key === "Floor") key = b.lit ? "FloorLit" : "FloorDark";
+  const color = COLORS[key] ?? 0xff00ff;
+  const sx = Math.max(x1 - x0, 0.05), sy = Math.max(y1 - y0, 0.05), sz = Math.max(z1 - z0, 0.05);
+  let mesh;
+  if (MARKERS.has(key)) {
+    mesh = new THREE.Mesh(new THREE.CylinderGeometry(key === "Exit" ? 2 : 1.1, key === "Exit" ? 2 : 1.1, 0.6, 20),
+      new THREE.MeshBasicMaterial({ color }));
+    mesh.position.set((x0 + x1) / 2, y0 + 0.3, -(z0 + z1) / 2);
+  } else {
+    const emissive = key === "Lamp" || key === "Chandelier";
+    const mat = new THREE.MeshStandardMaterial({
+      color, roughness: 0.9,
+      emissive: emissive ? color : 0x000000, emissiveIntensity: emissive ? 1 : 0,
+      transparent: key === "WetFloor", opacity: key === "WetFloor" ? 0.8 : 1,
+    });
+    mesh = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), mat);
+    mesh.position.set((x0 + x1) / 2, (y0 + y1) / 2, -(z0 + z1) / 2);
+    if (emissive) {
+      const light = new THREE.PointLight(0xffd9a0, 0, 24, 1.2);
+      light.position.copy(mesh.position);
+      light.position.y -= 0.8;
+      scene.add(light);
+      lampLights.push(light);
+    }
+  }
+  mesh.userData = { name: b.n, room: b.r, kind: key };
+  scene.add(mesh);
+  pickables.push(mesh);
+}
+
+// Noms des pièces, au sol de leur niveau
+const labelObjects = [];
+for (const l of DATA.labels) {
+  const div = document.createElement("div");
+  div.className = "room-label";
+  div.textContent = l.n;
+  const obj = new CSS2DObject(div);
+  obj.position.set(l.x, l.y, -l.z);
+  obj.userData.level = l.lvl;
+  scene.add(obj);
+  labelObjects.push(obj);
+}
+
+// Choix du niveau de coupe
+const LEVELS = [[-1, "Cave"], [0, "Rez"], [1, "Étage"], [null, "Tout"]];
+let level = 0;
+const levelsDiv = document.getElementById("levels");
+const buttons = LEVELS.map(([lvl, name]) => {
+  const btn = document.createElement("button");
+  btn.textContent = name;
+  btn.onclick = () => { level = lvl; apply(); };
+  levelsDiv.appendChild(btn);
+  return [lvl, btn];
+});
+const cutInput = document.getElementById("cut");
+const labelsInput = document.getElementById("labels");
+const lightsInput = document.getElementById("lights");
+// Cette fonction permet d'appliquer niveau, coupe, éclairage et noms lorsque l'utilisateur change un réglage.
+function apply() {
+  const cut = parseFloat(cutInput.value);
+  document.getElementById("cutv").textContent = cut;
+  plane.constant = level === null ? 1e6 : level * H + cut;
+  for (const [lvl, btn] of buttons) btn.classList.toggle("on", lvl === level);
+  for (const obj of labelObjects) {
+    obj.visible = labelsInput.checked && (level === null ? obj.userData.level === 0 : obj.userData.level === level);
+  }
+  const night = lightsInput.checked;
+  hemi.intensity = night ? 0.08 : 1.6;
+  sun.intensity = night ? 0 : 1.4;
+  for (const light of lampLights) light.intensity = night ? 60 : 0;
+}
+cutInput.oninput = apply;
+labelsInput.onchange = apply;
+lightsInput.onchange = apply;
+apply();
+
+document.getElementById("legend").innerHTML = LEGEND
+  .map(([k, t]) => `<div><span style="background:#${COLORS[k].toString(16).padStart(6, "0")}"></span>${t}</div>`)
+  .join("");
+
+// Survol : nom du bloc et de sa pièce, en ignorant ce que la coupe masque
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+const tip = document.getElementById("tip");
+renderer.domElement.addEventListener("pointermove", (e) => {
+  mouse.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  raycaster.setFromCamera(mouse, camera);
+  const hit = raycaster.intersectObjects(pickables).find((h) => plane.distanceToPoint(h.point) >= 0);
+  if (hit) {
+    const u = hit.object.userData;
+    tip.textContent = u.room ? `${u.name} — ${u.room}` : u.name;
+    tip.style.left = e.clientX + 14 + "px";
+    tip.style.top = e.clientY + 10 + "px";
+    tip.style.display = "block";
+  } else {
+    tip.style.display = "none";
+  }
+});
+
+addEventListener("resize", () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  labelRenderer.setSize(innerWidth, innerHeight);
+});
+renderer.setAnimationLoop(() => {
+  controls.update();
+  renderer.render(scene, camera);
+  labelRenderer.render(scene, camera);
+});
+</script>
+</body>
+</html>

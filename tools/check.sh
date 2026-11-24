@@ -36,6 +36,10 @@ else
 	echo "ok"
 fi
 
+echo "== plan"
+# docs/plan (plan 2D et vue 3D) se régénère depuis HouseLayout : lune run tools/house-map
+lune run tools/house-map -- --check || status=1
+
 echo "== tests"
 lune run tests/run.luau || status=1
 

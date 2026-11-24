@@ -21,3 +21,6 @@
 # Modèles Roblox binaires synchronisés par Rojo (viewmodels, Tools) : LFS, d'où `lfs: true` au checkout de la CI.
 # Limité à assets/rbx/ : les .rbxm d'animation déjà versionnés ailleurs (assets/*/export/) restent des blobs Git.
 assets/rbx/**/*.rbxm filter=lfs diff=lfs merge=lfs -text
+
+# Plan de la carte généré par tools/house-map.luau (comparé octet par octet par check.sh)
+docs/plan/* text eol=lf linguist-generated
