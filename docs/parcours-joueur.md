@@ -144,12 +144,20 @@ Tranchées :
 - Parties privées **payantes en Robux**, gains normaux.
 - En salle d'attente, les mortels voient le pseudo de la Mort, sans niveau ni tenue.
 
-Ouvertes (recommandation entre parenthèses) :
-1. Bonus « rôle en manque » (+25 % de monnaie pour le côté qui manque de joueurs) : oui.
-2. Achats donnant un avantage en manche (plus de pièges, plus de souffles) : non, voir « Monétisation ».
-3. Rendu des souffles et pièges de la Mort : à revoir plus tard.
+- Bonus « rôle en manque » : +25 % de monnaie pour le côté qui manque de joueurs.
+- Monétisation au lancement : **aucun achat qui change le gameplay**, uniquement cosmétiques, serveurs privés et
+  confort (voir « Monétisation »).
 
-## Monétisation (piste)
+Ouvertes :
+1. Rendu des souffles et pièges de la Mort : à revoir plus tard.
+2. Achats en manche propres à Roblox (ex. payer pour se relever) : écartés pour l'instant, à rouvrir avec une réflexion
+   sur l'équité.
+
+## Monétisation
+Décision de départ : rien qui change le gameplay. À garder en tête : sur Roblox, beaucoup de joueurs paient de petites
+sommes pour des avantages ponctuels (réapparition par exemple). Piste écartée pour l'instant à cause de l'équité ; à
+rouvrir après le lancement, avec les données de fréquentation.
+
 - **Sûr** : serveurs privés (Robux), cosmétiques (capes, faux, effets de fauchage, tenues, certificats de décès
   personnalisés), passe de saison cosmétique, emotes en salle d'attente.
 - **Acceptable** : bonus de monnaie (×2 pendant 1 h), emplacements de tenue supplémentaires, accès anticipé à une carte.
