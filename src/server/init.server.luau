@@ -3,7 +3,13 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local GameConfig = require(ReplicatedStorage.Shared.GameConfig)
 
 require(script.NightAmbience).apply(game:GetService("Lighting"))
-require(script.HouseBuilder).build(workspace)
-require(script.MatchService).get():start()
+local house = require(script.HouseBuilder).build(workspace)
+require(script.WaitingZone).build(workspace)
+
+-- Les modules de manche s'abonnent aux événements avant le démarrage du service
+local matchService = require(script.MatchService).get()
+require(script.MatchSpawner).start(matchService, house)
+require(script.EscapeService).start(matchService, house)
+matchService:start()
 
 print(string.format("Death : serveur prêt (%d mortels par manche)", GameConfig.MORTALS_PER_MATCH))

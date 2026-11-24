@@ -13,6 +13,12 @@ local GameConfig = {
 	INTERMISSION_DURATION = 10,
 	-- Mode test (Studio) : nombre minimal de mortels face à la Mort
 	TEST_MIN_MORTALS = 1,
+	-- Objectif de fuite (#7) : clés à trouver (une par pièce, hors garage), maintien des actions en secondes, rayon
+	-- de la sortie en studs (devant la porte du garage, entre la voiture et la porte)
+	ESCAPE_KEY_COUNT = 3,
+	KEY_PICKUP_DURATION = 1,
+	CAR_START_DURATION = 8,
+	EXIT_RADIUS = 4,
 }
 
 -- Cette méthode permet de savoir si une manche peut démarrer lorsque la file a réuni des mortels et une Mort.

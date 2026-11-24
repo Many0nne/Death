@@ -41,7 +41,7 @@ return function(T, Loader)
 					spawns += 1
 				end
 			end
-			T.expectEqual(spawns, 1, "seul le SpawnLocation du salon reste")
+			T.expectEqual(spawns, 0, "aucun SpawnLocation dans la maison (zone d'attente)")
 		end)
 
 		T.it("donne une PointLight à chaque lampe taguée", function()
@@ -72,9 +72,6 @@ return function(T, Loader)
 				if d:HasTag(MapTags.Room) then
 					-- un volume de pièce ne doit pas arrêter le faisceau d'une lampe torche
 					T.expectEqual(d.CanQuery, false, d.Name)
-				end
-				if d:IsA("SpawnLocation") then
-					T.expectEqual(d.CanCollide, true, "le SpawnLocation porte le personnage")
 				end
 			end
 		end)

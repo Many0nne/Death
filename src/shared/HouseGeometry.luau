@@ -384,20 +384,6 @@ function HouseGeometry.build(layout)
 	end
 	local carRoom = byId[layout.car.room]
 	carPieces(layout, carRoom, layout.car, pieces)
-	local spawnRoom = byId[layout.spawn.room]
-	table.insert(
-		pieces,
-		anchorPiece(
-			"SpawnLocation",
-			spawnRoom,
-			layout.spawn.x,
-			HouseGeometry.floorY(layout, spawnRoom.level),
-			layout.spawn.z,
-			Vector3.new(6, 0.2, 6),
-			{}
-		)
-	)
-	pieces[#pieces].kind = "Spawn"
 	local groups = {
 		[layout.car.id] = {
 			room = carRoom.id,
@@ -620,10 +606,10 @@ local function checkFurniture(layout, byId, plan, errors: { string })
 	local solids = {}
 	local floorAnchors = {}
 	for _, p in plan.pieces do
-		if p.kind == "Spawn" or (p.kind == "Anchor" and not table.find(p.tags, MapTags.KeySpot)) then
+		if p.kind == "Anchor" and not table.find(p.tags, MapTags.KeySpot) then
 			table.insert(floorAnchors, p)
 		end
-		if p.kind ~= "Prop" and p.kind ~= "Car" and p.kind ~= "Lamp" and p.kind ~= "Anchor" and p.kind ~= "Spawn" then
+		if p.kind ~= "Prop" and p.kind ~= "Car" and p.kind ~= "Lamp" and p.kind ~= "Anchor" then
 			continue
 		end
 		local room = byId[p.room]
@@ -733,7 +719,7 @@ end
 -- renvoie les erreurs (vide = constructible et praticable) et le plan calculé, ou nil s'il est incalculable.
 function HouseGeometry.validate(layout): ({ string }, any)
 	local errors: { string } = {}
-	for _, key in { "rooms", "doors", "lamps", "props", "anchors", "car", "spawn" } do
+	for _, key in { "rooms", "doors", "lamps", "props", "anchors", "car" } do
 		if type(layout[key]) ~= "table" then
 			table.insert(errors, "description sans " .. key)
 		end
@@ -745,10 +731,10 @@ function HouseGeometry.validate(layout): ({ string }, any)
 	checkRooms(layout, errors)
 	checkDoors(layout, byId, errors)
 	checkKinds(layout, errors)
-	for _, list in { layout.lamps, layout.props, layout.anchors, { layout.car, layout.spawn } } do
+	for _, list in { layout.lamps, layout.props, layout.anchors, { layout.car } } do
 		for _, item in list do
 			if not byId[item.room] then
-				table.insert(errors, tostring(item.id or "spawn") .. " : pièce inconnue " .. tostring(item.room))
+				table.insert(errors, tostring(item.id) .. " : pièce inconnue " .. tostring(item.room))
 			end
 		end
 	end

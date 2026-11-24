@@ -24,12 +24,12 @@ local COLORS = {
 }
 
 -- Blocs invisibles, avec leurs collisions : un volume de pièce ne gêne ni le joueur, ni le contact, ni les rayons
--- (faisceau de lampe torche) ; un ancrage reste détectable (Touched, GetPartsInPart) sans bloquer le passage ; le
--- SpawnLocation (dalle de 0,2 stud) porte le personnage.
+-- (faisceau de lampe torche) ; un ancrage reste détectable (Touched, GetPartsInPart) sans bloquer le passage.
+-- Aucun SpawnLocation dans la maison : les joueurs apparaissent dans la zone d'attente (Server.WaitingZone) et
+-- Server.MatchSpawner les place sur les ancrages d'apparition au début de la manche.
 local INVISIBLE = {
 	Zone = { CanCollide = false, CanTouch = false, CanQuery = false },
 	Anchor = { CanCollide = false, CanTouch = true, CanQuery = true },
-	Spawn = { CanCollide = true, CanTouch = true, CanQuery = false },
 }
 
 -- Cette méthode permet de poser tags et attributs d'un bloc calculé sur son instance lorsque la suite du jeu doit le
@@ -43,19 +43,9 @@ local function mark(instance: Instance, tags: { string }, attributes: { [string]
 	end
 end
 
--- Cette méthode permet d'instancier un bloc calculé (Part, lampe, ancrage ou SpawnLocation) lorsque la maison est
--- construite.
+-- Cette méthode permet d'instancier un bloc calculé (Part, lampe ou ancrage) lorsque la maison est construite.
 local function makePart(p): BasePart
-	local part: BasePart
-	if p.kind == "Spawn" then
-		local spawn = Instance.new("SpawnLocation")
-		spawn.Neutral = true
-		spawn.Duration = 0
-		spawn.Enabled = true
-		part = spawn
-	else
-		part = Instance.new("Part")
-	end
+	local part = Instance.new("Part")
 	part.Name = p.name
 	part.Anchored = true
 	part.Size = p.size
