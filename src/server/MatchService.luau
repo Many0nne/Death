@@ -93,6 +93,8 @@ function MatchService.new(deps: Deps?)
 		participants = {}, -- UserId -> Player de la manche en cours
 		names = {}, -- UserId -> nom, gardé pour le résultat si le joueur part
 		timeScale = 1,
+		timeScaleOwner = nil :: number?, -- UserId dont le DebugTimeScale est appliqué
+		leaving = nil, -- Player en cours de départ (encore listé par GetPlayers pendant PlayerRemoving)
 		shownTime = nil :: number?,
 		PhaseChanged = Signal.new(),
 		MatchStarted = Signal.new(),
@@ -208,7 +210,7 @@ function MatchService:startMatch(options: { test: boolean? }?): (boolean, string
 	if test and not self.deps.isStudio then
 		return false, "le mode test est réservé à Studio"
 	end
-	local players = self.deps.players:GetPlayers()
+	local players = self:_presentPlayers()
 	local mortalCount = #players - 1
 	local canStart = if test then GameConfig.canStartTestMatch else GameConfig.canStartMatch
 	if not canStart(mortalCount, #players > 0) then
@@ -241,9 +243,13 @@ function MatchService:startMatch(options: { test: boolean? }?): (boolean, string
 	-- Depuis l'écran de résultat : on repasse par l'attente pour que le cycle (et ses nettoyages) reste complet
 	if self.phase == Phase.Ended then
 		self:_returnToWaiting()
+		if self.phase ~= Phase.Waiting then
+			return false, "une manche a été relancée pendant le retour à l'attente"
+		end
 	end
 	self:_clearParticipants()
-	self.match = Match.new(deathId, mortalIds, GameConfig.MATCH_DURATION)
+	local match = Match.new(deathId, mortalIds, GameConfig.MATCH_DURATION)
+	self.match = match
 	self.participants = byId
 	self.names = {}
 	for id, player in byId do
@@ -259,6 +265,10 @@ function MatchService:startMatch(options: { test: boolean? }?): (boolean, string
 	self.shownTime = nil
 	self:_publishTime()
 	self:_setPhase(Phase.Running)
+	-- Un abonné de PhaseChanged a pu annuler ou relancer la manche : pas d'événement pour une manche disparue
+	if self.match ~= match then
+		return false, "la manche a été interrompue pendant son démarrage"
+	end
 	self.deps.log(
 		string.format(
 			"manche lancée%s : Mort = %s, %d mortel(s), sablier %d s",
@@ -301,7 +311,7 @@ function MatchService:_step(dt: number)
 			self:_returnToWaiting()
 		end
 	else
-		local count = #self.deps.players:GetPlayers()
+		local count = #self:_presentPlayers()
 		if GameConfig.canStartMatch(count - 1, count > 0) then
 			self.phaseClock += dt
 			if self.phaseClock >= GameConfig.INTERMISSION_DURATION then
@@ -348,7 +358,8 @@ end
 -- Cette méthode permet de publier le résultat puis de passer en phase Ended lorsque la manche vient de se terminer ;
 -- le résultat est écrit avant la phase pour qu'un client qui voit Ended le lise aussitôt.
 function MatchService:_endMatch()
-	local raw = self.match:result()
+	local match = self.match
+	local raw = match:result()
 	local result = {
 		reason = raw.reason,
 		death = { userId = raw.deathId, name = self.names[raw.deathId] },
@@ -371,6 +382,10 @@ function MatchService:_endMatch()
 	replicated:SetAttribute(A.EndReason, result.reason)
 	replicated:SetAttribute(A.Result, self.deps.encode(result))
 	self:_setPhase(Phase.Ended)
+	-- Un abonné de PhaseChanged a pu relancer ou annuler : MatchEnded ne doit pas tomber sur la manche suivante
+	if self.match ~= match then
+		return
+	end
 	self.deps.log(
 		string.format(
 			"manche terminée (%s) : %d sauvé(s), %d âme(s) fauchée(s), %d âme(s) échappée(s)",
@@ -406,6 +421,18 @@ function MatchService:_clearParticipants()
 	self.participants = {}
 end
 
+-- Cette méthode permet de lister les joueurs présents lorsqu'une manche peut démarrer, sans le joueur en train de
+-- partir (Players:GetPlayers le liste encore pendant PlayerRemoving).
+function MatchService:_presentPlayers(): { any }
+	local present = {}
+	for _, player in self.deps.players:GetPlayers() do
+		if player ~= self.leaving then
+			table.insert(present, player)
+		end
+	end
+	return present
+end
+
 -- Cette méthode permet de changer de phase, de la répliquer et de prévenir les abonnés lorsque le cycle avance.
 function MatchService:_setPhase(phase: string)
 	self.phase = phase
@@ -429,29 +456,44 @@ end
 -- Cette méthode permet de traiter le départ d'un joueur lorsqu'une manche est en cours : la Mort partie annule la
 -- manche, un mortel parti meurt sans être fauché (âme échappée, cause Left).
 function MatchService:_onPlayerRemoving(player)
+	local id = player.UserId
 	-- Le sablier accéléré par ce joueur reprend sa vitesse normale (personne d'autre ne pourrait le retirer)
-	if self.timeScale ~= 1 and player:GetAttribute(A.DebugTimeScale) ~= nil then
-		self.timeScale = 1
-		self.deps.log("sablier x1 (joueur parti)")
+	if id == self.timeScaleOwner then
+		self:_setTimeScale(1, nil, "joueur parti")
 	end
 	if self.phase ~= Phase.Running then
 		return
 	end
-	local id = player.UserId
-	if id == self.match.deathId then
+	self.leaving = player
+	local match = self.match
+	if id == match.deathId then
 		self.deps.warn("la Mort a quitté la partie")
 		self:stopMatch()
 	else
-		local state = self.match:stateOf(id)
+		local state = match:stateOf(id)
 		if state and not Match.isResolved(state) then
 			-- Le joueur reste dans `participants` le temps de l'événement : les abonnés reçoivent son Player
-			local change = self.match:kill(id, false, Match.DeathCause.Left)
+			local change = match:kill(id, false, Match.DeathCause.Left)
 			if change then
 				self:_applyChanges({ change })
 			end
 		end
-		self.participants[id] = nil
+		if self.match == match then
+			self.participants[id] = nil
+		end
 	end
+	self.leaving = nil
+end
+
+-- Cette méthode permet de changer la vitesse du sablier lorsque le mode test l'accélère ou la rétablit ; `owner`
+-- est le UserId dont l'attribut DebugTimeScale est appliqué (nil pour la vitesse normale).
+function MatchService:_setTimeScale(scale: number, owner: number?, reason: string?)
+	if scale == self.timeScale and owner == self.timeScaleOwner then
+		return
+	end
+	self.timeScale = scale
+	self.timeScaleOwner = owner
+	self.deps.log(string.format("sablier x%g%s", scale, if reason then " (" .. reason .. ")" else ""))
 end
 
 -- Cette méthode permet d'écouter les attributs de debug d'un joueur lorsqu'il rejoint le serveur, en Studio seulement.
@@ -469,10 +511,9 @@ end
 function MatchService:_onDebugAttribute(player, name: string)
 	local value = player:GetAttribute(name)
 	if value == nil then
-		-- DebugTimeScale retiré : le sablier reprend sa vitesse normale
-		if name == A.DebugTimeScale and self.timeScale ~= 1 then
-			self.timeScale = 1
-			self.deps.log("sablier x1")
+		-- DebugTimeScale retiré par le joueur qui l'avait imposé : le sablier reprend sa vitesse normale
+		if name == A.DebugTimeScale and player.UserId == self.timeScaleOwner then
+			self:_setTimeScale(1, nil)
 		end
 		return
 	end
@@ -497,15 +538,17 @@ function MatchService:_onDebugAttribute(player, name: string)
 			self.deps.warn(string.format("DebugSetState %s refusé pour %s : %s", value, player.Name, tostring(err)))
 		end
 	elseif name == A.DebugTimeScale then
-		if type(value) == "number" and value > 0 then
-			self.timeScale = value
-			self.deps.log(string.format("sablier x%g", value))
+		-- `value == value` écarte NaN ; math.huge est refusé aussi (sablier vidé en une frame sans le dire)
+		if type(value) == "number" and value == value and value > 0 and value < math.huge then
+			self:_setTimeScale(value, player.UserId)
 		else
-			self.deps.warn("DebugTimeScale attend un nombre positif")
+			self.deps.warn("DebugTimeScale attend un nombre positif fini")
 		end
 	elseif name == A.DebugTimeLeft then
 		player:SetAttribute(name, nil)
-		if self.phase == Phase.Running and type(value) == "number" then
+		if type(value) ~= "number" or value ~= value then
+			self.deps.warn("DebugTimeLeft attend un nombre")
+		elseif self.phase == Phase.Running then
 			self.match:setTimeLeft(value)
 			self:_step(0)
 		end

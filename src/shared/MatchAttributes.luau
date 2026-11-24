@@ -3,8 +3,9 @@
 return table.freeze({
 	-- Sur ReplicatedStorage (état de la manche)
 	Phase = "MatchPhase", -- Match.Phase
-	TimeLeft = "MatchTimeLeft", -- secondes restantes au sablier, entier arrondi au-dessus (nil hors manche)
-	Duration = "MatchDuration", -- durée totale du sablier en secondes (nil hors manche)
+	-- secondes restantes au sablier, entier arrondi au-dessus ; figé pendant Ended, nil en Waiting
+	TimeLeft = "MatchTimeLeft",
+	Duration = "MatchDuration", -- durée totale du sablier en secondes ; gardée pendant Ended, nil en Waiting
 	EndReason = "MatchEndReason", -- Match.EndReason, pendant la phase Ended
 	-- Résultat JSON de la dernière manche (HttpService:JSONDecode) : { reason, death = { userId, name },
 	-- mortals = { { userId, name, state, soul?, cause? } }, saved, reaped, escaped }. Gardé jusqu'à la manche suivante.

@@ -140,12 +140,15 @@ function Match:_apply(userId: number, to: string, reaped: boolean, cause: string
 	mortal.state = to
 	if to == State.Dead then
 		mortal.soul = if reaped then Match.SoulFate.Reaped else Match.SoulFate.Escaped
-		-- Cause par défaut : fauché, mort au bout de l'agonie, ou accident direct depuis l'état vivant
-		mortal.cause = cause
-			or if reaped
-				then Match.DeathCause.Reaped
-				elseif from == State.Agony then Match.DeathCause.Agony
-				else Match.DeathCause.Accident
+		-- Un fauchage a toujours la cause Reaped, et seule une âme fauchée l'a ; sinon cause donnée, ou par défaut
+		-- mort au bout de l'agonie ou accident direct depuis l'état vivant
+		if reaped then
+			mortal.cause = Match.DeathCause.Reaped
+		elseif cause and cause ~= Match.DeathCause.Reaped then
+			mortal.cause = cause
+		else
+			mortal.cause = if from == State.Agony then Match.DeathCause.Agony else Match.DeathCause.Accident
+		end
 	end
 	return { userId = userId, from = from, to = to, soul = mortal.soul, cause = mortal.cause }
 end
