@@ -285,6 +285,29 @@ return function(T, Loader)
 			T.expect(mentions(errors, "Breaker : tag inconnu"), "tag")
 		end)
 
+		T.it("refuse une apparition dans un meuble", function()
+			local broken = deepCopy(HouseLayout)
+			local spawn = byId(broken.anchors, "MortalSpawn2")
+			spawn.x, spawn.z = 34, 4
+			T.expect(mentions(HouseGeometry.validate(broken), "MortalSpawn2 est dans LivingSofa"))
+		end)
+
+		T.it("refuse une porte extérieure percée dans un mur intérieur", function()
+			local broken = deepCopy(HouseLayout)
+			local front = byId(broken.doors, "EntryHall")
+			front.rooms, front.leaf = { "Entry" }, "FrontDoor"
+			local errors = HouseGeometry.validate(broken)
+			T.expect(mentions(errors, "EntryHall : porte extérieure sur un mur partagé avec HallDown"))
+		end)
+
+		T.it("signale une description incomplète au lieu de planter", function()
+			local broken = deepCopy(HouseLayout)
+			broken.car = nil
+			local errors, partial = HouseGeometry.validate(broken)
+			T.expect(mentions(errors, "description sans car"), "voiture manquante")
+			T.expectEqual(partial, nil)
+		end)
+
 		T.it("renvoie le plan calculé avec une description valide", function()
 			local errors, validPlan = HouseGeometry.validate(HouseLayout)
 			T.expectEqual(#errors, 0)

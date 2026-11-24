@@ -75,7 +75,10 @@ local function makePart(p): BasePart
 	if p.kind == "Lamp" then
 		part.Material = Enum.Material.Neon
 		part.Color = NightLighting.lampColor
+		-- Une lampe n'arrête ni le joueur ni un rayon (lampe torche, vue) ; #5 retrouve le lustre par son tag
 		part.CanCollide = false
+		part.CanQuery = false
+		part.CanTouch = false
 		part.CastShadow = false
 		local light = Instance.new("PointLight")
 		light.Name = "Light"

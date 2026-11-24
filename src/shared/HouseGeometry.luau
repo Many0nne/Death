@@ -98,9 +98,8 @@ local function doorOnWall(door, wall): boolean
 	return door.along == wall.along and math.abs(line - wall.line) < EPS
 end
 
--- Cette méthode permet de découper un mur en rectangles pleins autour de ses ouvertures lorsque des portes le
--- percent ; renvoie aussi une erreur si deux ouvertures se chevauchent le long du mur. Limite assumée : deux portes
--- superposées (même u, niveaux différents d'une cage) sont refusées, le découpage se fait par colonnes.
+-- Cette méthode permet de découper un mur en colonnes pleines autour de ses portes lorsqu'elles le percent ; deux
+-- ouvertures qui se chevauchent le long du mur (même superposées sur deux niveaux) sont signalées comme erreur.
 function HouseGeometry.splitWall(
 	u0: number,
 	u1: number,
@@ -479,8 +478,10 @@ local function checkRooms(layout, errors: { string })
 		if not layout.wings[room.wing or ""] then
 			table.insert(errors, room.id .. " : aile électrique inconnue " .. tostring(room.wing))
 		end
-		if not layout.levels[room.level] then
-			table.insert(errors, room.id .. " : niveau inconnu " .. tostring(room.level))
+		for level = room.level, room.level + (room.levels or 1) - 1 do
+			if not layout.levels[level] then
+				table.insert(errors, room.id .. " : niveau inconnu " .. tostring(level))
+			end
 		end
 		if room.x1 - room.x0 < 8 or room.z1 - room.z0 < 8 then
 			table.insert(errors, room.id .. " : pièce de moins de 8 studs de côté")
@@ -549,6 +550,21 @@ local function checkDoors(layout, byId, errors: { string })
 				table.insert(errors, door.id .. " : plus haute que le plafond de " .. roomId)
 			end
 		end
+		if #door.rooms == 1 then
+			-- Porte extérieure : aucune autre pièce ne doit avoir de mur sur la même ligne, en face de l'ouverture
+			for _, other in layout.rooms do
+				if other.id ~= door.rooms[1] and HouseGeometry.spansLevel(other, door.level) then
+					for _, wall in HouseGeometry.walls(layout, other) do
+						if doorOnWall(door, wall) and overlaps(opening.u0, opening.u1, wall.u0, wall.u1) then
+							table.insert(
+								errors,
+								door.id .. " : porte extérieure sur un mur partagé avec " .. other.id
+							)
+						end
+					end
+				end
+			end
+		end
 	end
 end
 
@@ -588,11 +604,25 @@ local function checkStairs(layout, errors: { string })
 	end
 end
 
--- Cette méthode permet de vérifier les blocs posés dans les pièces (dedans, sans boucher une porte ni se chevaucher)
--- lorsque l'on valide la description.
+-- Cette méthode permet de savoir si deux blocs du plan se recouvrent lorsque l'on cherche un meuble ou un ancrage mal
+-- placé.
+local function piecesOverlap(a: Piece, b: Piece): boolean
+	local aMin, aMax = a.center - a.size / 2, a.center + a.size / 2
+	local bMin, bMax = b.center - b.size / 2, b.center + b.size / 2
+	return overlaps(aMin.X, aMax.X, bMin.X, bMax.X)
+		and overlaps(aMin.Y, aMax.Y, bMin.Y, bMax.Y)
+		and overlaps(aMin.Z, aMax.Z, bMin.Z, bMax.Z)
+end
+
+-- Cette méthode permet de vérifier les blocs posés dans les pièces (dedans, sans boucher une porte ni se chevaucher,
+-- ancrages au sol hors des meubles) lorsque l'on valide la description.
 local function checkFurniture(layout, byId, plan, errors: { string })
 	local solids = {}
+	local floorAnchors = {}
 	for _, p in plan.pieces do
+		if p.kind == "Spawn" or (p.kind == "Anchor" and not table.find(p.tags, MapTags.KeySpot)) then
+			table.insert(floorAnchors, p)
+		end
 		if p.kind ~= "Prop" and p.kind ~= "Car" and p.kind ~= "Lamp" and p.kind ~= "Anchor" and p.kind ~= "Spawn" then
 			continue
 		end
@@ -620,25 +650,25 @@ local function checkFurniture(layout, byId, plan, errors: { string })
 				local blocks = if door.along == "X"
 					then overlaps(minV.X, maxV.X, u0, u1) and overlaps(minV.Z, maxV.Z, line - 3, line + 3)
 					else overlaps(minV.Z, maxV.Z, u0, u1) and overlaps(minV.X, maxV.X, line - 3, line + 3)
-				if blocks and minV.Y < o.y1 then
+				if blocks and overlaps(minV.Y, maxV.Y, o.y0, o.y1) then
 					table.insert(errors, p.name .. " : bouche la porte " .. door.id)
 				end
 			end
 		end
 		for _, other in solids do
-			if other.group ~= nil and other.group == p.group then
-				continue
-			end
-			local oMin, oMax = other.center - other.size / 2, other.center + other.size / 2
-			if
-				overlaps(minV.X, maxV.X, oMin.X, oMax.X)
-				and overlaps(minV.Y, maxV.Y, oMin.Y, oMax.Y)
-				and overlaps(minV.Z, maxV.Z, oMin.Z, oMax.Z)
-			then
+			if not (other.group ~= nil and other.group == p.group) and piecesOverlap(p, other) then
 				table.insert(errors, p.name .. " chevauche " .. other.name)
 			end
 		end
 		table.insert(solids, p)
+	end
+	-- Apparitions, carrelage mouillé et sortie : au sol, hors des meubles (on doit pouvoir s'y tenir)
+	for _, anchor in floorAnchors do
+		for _, solid in solids do
+			if piecesOverlap(anchor, solid) then
+				table.insert(errors, anchor.name .. " est dans " .. solid.name)
+			end
+		end
 	end
 end
 
@@ -699,11 +729,18 @@ local function checkNames(plan, errors: { string })
 	end
 end
 
--- Cette méthode permet de relever toutes les incohérences de la description lorsque les tests ou le générateur la
--- vérifient ; une liste vide signifie que la maison est constructible et praticable. Renvoie aussi le plan calculé
--- (nil si la description ne permet pas de le calculer) pour éviter un second calcul.
+-- Cette méthode permet de relever les incohérences de la description lorsque les tests ou le générateur la vérifient ;
+-- renvoie les erreurs (vide = constructible et praticable) et le plan calculé, ou nil s'il est incalculable.
 function HouseGeometry.validate(layout): ({ string }, any)
 	local errors: { string } = {}
+	for _, key in { "rooms", "doors", "lamps", "props", "anchors", "car", "spawn" } do
+		if type(layout[key]) ~= "table" then
+			table.insert(errors, "description sans " .. key)
+		end
+	end
+	if #errors > 0 then
+		return errors, nil
+	end
 	local byId = HouseGeometry.roomsById(layout)
 	checkRooms(layout, errors)
 	checkDoors(layout, byId, errors)

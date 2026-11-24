@@ -5,10 +5,19 @@ local NightLighting = require(ReplicatedStorage.Shared.NightLighting)
 
 local NightAmbience = {}
 
--- Cette méthode permet de reprendre l'effet de cette classe déjà présent sous Lighting (place de départ, ou ambiance
--- appliquée deux fois) ou de le créer, lorsqu'un seul exemplaire doit décider du rendu.
+-- Cette méthode permet de garder un seul effet de cette classe sous Lighting (le premier présent, sinon un nouveau)
+-- lorsque la place de départ en contient déjà : les autres exemplaires sont retirés pour ne pas fausser le rendu.
 local function effect(lighting: Instance, className: string, name: string, properties: { [string]: any }): Instance
-	local instance = lighting:FindFirstChildOfClass(className)
+	local instance = nil
+	for _, child in lighting:GetChildren() do
+		if child.ClassName == className then
+			if instance then
+				child:Destroy()
+			else
+				instance = child
+			end
+		end
+	end
 	if not instance then
 		instance = Instance.new(className)
 	end
