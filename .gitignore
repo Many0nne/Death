@@ -1,0 +1,16 @@
+# Place construite par Rojo
+/*.rbxl
+/*.rbxlx
+/*.rbxl.lock
+/*.rbxlx.lock
+
+sourcemap.json
+
+# Définitions de types Roblox pour luau-lsp (téléchargées par tools/check.sh)
+tools/globalTypes*.d.luau
+
+__pycache__/
+*.blend1
+
+# Worktrees des tâches parallèles (un dossier par branche, briefs et état d'exécution)
+/worktrees/
