@@ -7,7 +7,7 @@ WaitingZone.MODEL_NAME = "WaitingZone"
 -- Plateforme : sol à y = 0 comme le rez-de-chaussée, centre à 30 studs au sud de la façade (z = 0)
 WaitingZone.CENTER = Vector3.new(40, 0, -30)
 WaitingZone.SIZE = 32 -- côté de la plateforme carrée
-local WALL_HEIGHT = 8 -- plus haut qu'un saut (≈ 6,4 studs)
+local WALL_HEIGHT = 10 -- plus haut qu'un saut (JumpHeight 7,2 studs par défaut)
 local THICKNESS = 1
 local COLOR = Color3.fromRGB(110, 110, 114)
 

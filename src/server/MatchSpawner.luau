@@ -2,7 +2,7 @@
 -- - MatchStarted : chaque mortel sur son point d'apparition (un par point), la Mort sur l'un des siens (Shared.SpawnPlan) ;
 -- - un participant qui réapparaît pendant la manche (personnage rechargé) revient à son point, un mortel en agonie
 --   là où il est tombé (un reset ne le met pas hors d'atteinte de la Mort), un mortel mort ou sauvé reste dehors ;
--- - un mortel sauvé quitte la maison aussitôt, et tout le monde la quitte au retour à l'attente (PhaseChanged Waiting) ;
+-- - un mortel sauvé ou mort quitte la maison aussitôt (spectateur ; l'âme errante dans la maison est prévue en v2), et tout le monde la quitte au retour à l'attente (PhaseChanged Waiting) ;
 -- - un joueur qui rejoint pendant une manche n'a pas de rôle : il reste dans la zone d'attente (spectateur).
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -10,6 +10,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local MapTags = require(Shared.MapTags)
 local Match = require(Shared.Match)
+local GameConfig = require(Shared.GameConfig)
 local SpawnPlan = require(Shared.SpawnPlan)
 local WaitingZone = require(script.Parent.WaitingZone)
 
@@ -52,14 +53,33 @@ local function moveTo(player: Player, cframe: CFrame): boolean
 	return true
 end
 
+-- Cette méthode permet de trouver le sol sous un joueur lorsqu'il tombe en agonie : point debout (sans la rotation
+-- du corps), DROP_HEIGHT au-dessus du sol ; nil s'il n'y a pas de sol dans les 15 studs (chute dans le vide).
+local function groundBelow(player: Player): CFrame?
+	local root = rootOf(player)
+	if not root then
+		return nil
+	end
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = { player.Character :: Model }
+	local hit = workspace:Raycast(root.Position, Vector3.new(0, -15, 0), params)
+	return hit and CFrame.new(hit.Position + Vector3.new(0, DROP_HEIGHT, 0))
+end
+
 -- Cette méthode permet de brancher les apparitions sur le service de manche lorsque le serveur démarre ; `house` est
 -- le modèle construit par Server.HouseBuilder (ancrages MortalSpawn et DeathSpawn).
 function MatchSpawner.start(matchService, house: Instance)
 	local mortalSpawns = sortedAnchors(house, MapTags.MortalSpawn)
 	local deathSpawns = sortedAnchors(house, MapTags.DeathSpawn)
+	-- Vérifié au démarrage du serveur : une manche complète ne peut pas échouer faute de points d'apparition
+	assert(
+		#mortalSpawns >= GameConfig.MORTALS_PER_MATCH and #deathSpawns >= 1,
+		string.format("maison avec %d apparition(s) de mortel et %d de la Mort", #mortalSpawns, #deathSpawns)
+	)
 	local rng = Random.new()
 	local placements: { [number]: CFrame } = {} -- UserId -> point d'apparition de la manche en cours
-	local fallen: { [number]: CFrame } = {} -- UserId -> où un mortel est tombé en agonie
+	local fallen: { [number]: CFrame? } = {} -- UserId -> où un mortel est tombé en agonie
 	local returned = 0 -- compteur des retours, pour étaler les joueurs dans la zone d'attente
 
 	-- Cette méthode permet de tirer un index de 1 à n lorsque SpawnPlan répartit les points.
@@ -134,11 +154,10 @@ function MatchSpawner.start(matchService, house: Instance)
 		if not change.player then
 			return
 		end
-		if change.to == Match.MortalState.Saved then
+		if change.to == Match.MortalState.Saved or change.to == Match.MortalState.Dead then
 			sendBack(change.player)
 		elseif change.to == Match.MortalState.Agony then
-			local root = rootOf(change.player)
-			fallen[change.userId] = root and root.CFrame
+			fallen[change.userId] = groundBelow(change.player)
 		end
 	end)
 

@@ -226,7 +226,10 @@ function EscapeService.start(matchService, house: Instance)
 		key:SetAttribute(MapTags.Attributes.AnchorId, spotId)
 		local prompt = makePrompt(key, "Clés", "Ramasser", GameConfig.KEY_PICKUP_DURATION, true)
 		prompt.Triggered:Connect(function(player)
-			collect(player, spotId)
+			local ok, err = collect(player, spotId)
+			if not ok then
+				warn("[Fuite] clé refusée pour " .. player.Name .. " : " .. tostring(err))
+			end
 		end)
 		key.Parent = spot.Parent
 		keyParts[spotId] = key
