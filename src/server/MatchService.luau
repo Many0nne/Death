@@ -226,8 +226,11 @@ function MatchService:startMatch(options: { test: boolean? }?): (boolean, string
 	for _, player in players do
 		table.insert(ids, player.UserId)
 		byId[player.UserId] = player
-		if self.deps.isStudio then
-			forced[player.UserId] = player:GetAttribute(A.DebugRole)
+		local forcedRole = if self.deps.isStudio then player:GetAttribute(A.DebugRole) else nil
+		if forcedRole == Match.Role.Death or forcedRole == Match.Role.Mortal then
+			forced[player.UserId] = forcedRole
+		elseif forcedRole ~= nil then
+			self.deps.warn(string.format("DebugRole ignoré pour %s : %s", player.Name, tostring(forcedRole)))
 		end
 	end
 	local deathId, mortalIds = Match.assignRoles(ids, forced, self.deps.pick)
@@ -235,6 +238,10 @@ function MatchService:startMatch(options: { test: boolean? }?): (boolean, string
 		return false, "aucun joueur ne peut être la Mort (tous forcés Mortal)"
 	end
 
+	-- Depuis l'écran de résultat : on repasse par l'attente pour que le cycle (et ses nettoyages) reste complet
+	if self.phase == Phase.Ended then
+		self:_returnToWaiting()
+	end
 	self:_clearParticipants()
 	self.match = Match.new(deathId, mortalIds, GameConfig.MATCH_DURATION)
 	self.participants = byId
@@ -313,7 +320,12 @@ end
 -- Cette méthode permet de répliquer des changements d'état de mortels et de prévenir les abonnés lorsque les règles
 -- en produisent ; elle clôt la manche si la dernière transition l'a terminée.
 function MatchService:_applyChanges(changes: { Match.Change })
+	-- Un abonné peut annuler ou relancer la manche pendant la boucle : on s'arrête dès qu'elle n'est plus la même
+	local match = self.match
 	for _, change in changes do
+		if self.match ~= match then
+			return
+		end
 		local player = self.participants[change.userId]
 		if player then
 			player:SetAttribute(A.MortalState, change.to)
@@ -328,7 +340,7 @@ function MatchService:_applyChanges(changes: { Match.Change })
 			cause = change.cause,
 		})
 	end
-	if self.phase == Phase.Running and self.match.phase == Phase.Ended then
+	if self.match == match and self.phase == Phase.Running and match.phase == Phase.Ended then
 		self:_endMatch()
 	end
 end
@@ -417,6 +429,11 @@ end
 -- Cette méthode permet de traiter le départ d'un joueur lorsqu'une manche est en cours : la Mort partie annule la
 -- manche, un mortel parti meurt sans être fauché (âme échappée, cause Left).
 function MatchService:_onPlayerRemoving(player)
+	-- Le sablier accéléré par ce joueur reprend sa vitesse normale (personne d'autre ne pourrait le retirer)
+	if self.timeScale ~= 1 and player:GetAttribute(A.DebugTimeScale) ~= nil then
+		self.timeScale = 1
+		self.deps.log("sablier x1 (joueur parti)")
+	end
 	if self.phase ~= Phase.Running then
 		return
 	end

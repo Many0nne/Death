@@ -15,7 +15,8 @@ return table.freeze({
 	MortalState = "MortalState", -- Match.MortalState (mortels seulement)
 	SoulFate = "SoulFate", -- Match.SoulFate (mortels morts seulement)
 
-	-- Debug, sur un Player, en contexte serveur, Studio seulement (lus par MatchService)
+	-- Debug, sur un Player, en contexte serveur, Studio seulement (lus par MatchService). Une commande par attribut et
+	-- par frame : les signaux différés de Roblox ne livrent que la dernière valeur écrite dans la même frame.
 	DebugStart = "DebugStartMatch", -- true : démarre une manche en mode test avec les joueurs présents
 	DebugStop = "DebugStopMatch", -- true : annule la manche en cours, retour à l'attente sans résultat
 	DebugRole = "DebugRole", -- "Death" ou "Mortal" : rôle imposé aux manches suivantes (nil pour le tirage)
