@@ -83,12 +83,28 @@ return function(T, Loader)
 			T.expectEqual(#Escape.drawKeySpots(spots, 5, pickFixed(1), "Garage"), 3)
 		end)
 
-		T.it("trouve assez d'emplacements dans la maison, hors garage", function()
-			T.expectEqual(exitRoom, "Garage")
+		T.it("trouve assez d'emplacements dans la maison, hors de la pièce de la sortie", function()
+			T.expectEqual(exitRoom, "Driveway")
+			local roomOf = {}
+			for _, spot in houseSpots do
+				roomOf[spot.id] = spot.room
+			end
 			for seed = 1, 20 do
 				local chosen = Escape.drawKeySpots(houseSpots, GameConfig.ESCAPE_KEY_COUNT, pickSeeded(seed), exitRoom)
 				T.expectEqual(#chosen, GameConfig.ESCAPE_KEY_COUNT)
-				T.expect(not table.find(chosen, "GarageWorkbenchKeySpot"), "clé dans le garage")
+				for _, id in chosen do
+					T.expect(roomOf[id] ~= exitRoom, "clé près de la sortie : " .. id)
+				end
+			end
+			-- L'exclusion tient pour une pièce qui a des emplacements (la sortie n'en a pas)
+			for seed = 1, 20 do
+				for _, id in Escape.drawKeySpots(houseSpots, GameConfig.ESCAPE_KEY_COUNT, pickSeeded(seed), "Kitchen") do
+					T.expect(roomOf[id] ~= "Kitchen", "clé dans la pièce exclue : " .. id)
+				end
+			end
+			-- Aucun emplacement près du but : ni au garage (voiture), ni devant la maison (sortie)
+			for _, spot in houseSpots do
+				T.expect(spot.room ~= "Garage" and spot.room ~= "FrontYard", "clé trop près du but : " .. spot.id)
 			end
 		end)
 	end)

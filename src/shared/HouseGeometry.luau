@@ -21,11 +21,21 @@ export type Rect = { u0: number, u1: number, y0: number, y1: number }
 
 local HouseGeometry = {}
 
--- Réglages des lampes : portée et intensité des PointLight par type de lampe.
+-- Réglages des lampes : portée et intensité des PointLight par type de lampe. height = hauteur du centre au-dessus du
+-- sol (sinon sous le plafond) ; pole = largeur du poteau posé sous la lampe (lampadaire). Dehors, seules les lampes à
+-- hauteur fixe sont permises (pas de plafond).
 HouseGeometry.LAMP_STYLES = {
 	Ceiling = { size = Vector3.new(2, 0.4, 2), range = 18, brightness = 1.2 },
 	Chandelier = { size = Vector3.new(3, 1.5, 3), height = 8.5, range = 22, brightness = 1.5 },
+	-- Applique (porche, façade) : au-dessus d'une porte, à un demi-mur de la façade (bord du volume de la zone)
+	Wall = { size = Vector3.new(1.2, 1.2, 1.2), height = 8.5, range = 16, brightness = 1.3 },
+	-- Lampadaire (rue, jardin) : tête sur un poteau
+	Post = { size = Vector3.new(1.6, 1.2, 1.6), height = 9.5, range = 24, brightness = 1.5, pole = 0.6 },
 }
+
+-- Hauteur qu'un personnage atteint en sautant depuis un meuble (saut Roblox ≈ 7,2 studs, plus une marge) : dehors, un
+-- meuble ne doit pas servir de marchepied par-dessus la clôture ou sur un toit.
+HouseGeometry.JUMP_REACH = 7.5
 
 -- Cette méthode permet de donner la hauteur du sol d'un niveau lorsque l'on place une pièce, une porte ou un meuble.
 function HouseGeometry.floorY(layout, level: number): number
@@ -52,10 +62,53 @@ function HouseGeometry.roomsById(layout): { [string]: any }
 	return byId
 end
 
--- Cette méthode permet de donner le rectangle intérieur (entre les murs) d'une pièce lorsque l'on y pose un objet.
+-- Cette méthode permet de savoir si une zone extérieure est close par une clôture d'un côté lorsque l'on construit
+-- ses limites ou que l'on cherche ses passages vers les zones voisines.
+local function fenced(room, side: string): boolean
+	return room.outdoor == true and room.fence ~= nil and table.find(room.fence, side) ~= nil
+end
+
+-- Cette méthode permet de savoir si un côté d'une pièce longe une pièce de la maison lorsque l'on retire l'épaisseur
+-- de son mur du volume d'une zone extérieure (la lumière du dehors s'arrête au milieu du seuil).
+local function touchesIndoor(layout, room, side: string): boolean
+	for _, other in layout.rooms do
+		if other.outdoor or not (other.level <= room.level and room.level < other.level + (other.levels or 1)) then
+			continue
+		end
+		local alongX = side == "South" or side == "North"
+		local line = if side == "South"
+			then room.z0
+			elseif side == "North" then room.z1
+			elseif side == "West" then room.x0
+			else room.x1
+		local facing = if side == "South"
+			then other.z1
+			elseif side == "North" then other.z0
+			elseif side == "West" then other.x1
+			else other.x0
+		local a0, a1 = if alongX then room.x0 else room.z0, if alongX then room.x1 else room.z1
+		local b0, b1 = if alongX then other.x0 else other.z0, if alongX then other.x1 else other.z1
+		if math.abs(line - facing) < EPS and a0 < b1 - EPS and b0 < a1 - EPS then
+			return true
+		end
+	end
+	return false
+end
+
+-- Cette méthode permet de donner le rectangle intérieur (entre les murs) d'une pièce lorsque l'on y pose un objet ;
+-- une zone extérieure ne perd une épaisseur de mur que du côté de ses clôtures et de la maison.
 function HouseGeometry.interior(layout, room)
-	local w = layout.WALL
-	return { x0 = room.x0 + w, x1 = room.x1 - w, z0 = room.z0 + w, z1 = room.z1 - w }
+	-- Cette méthode permet de donner le retrait d'un côté lorsqu'il porte un mur ou une clôture.
+	local function inset(side: string): number
+		local walled = not room.outdoor or fenced(room, side) or touchesIndoor(layout, room, side)
+		return if walled then layout.WALL else 0
+	end
+	return {
+		x0 = room.x0 + inset("West"),
+		x1 = room.x1 - inset("East"),
+		z0 = room.z0 + inset("South"),
+		z1 = room.z1 - inset("North"),
+	}
 end
 
 -- Cette méthode permet de créer un bloc à partir de ses coins lorsque la géométrie raisonne en intervalles.
@@ -81,6 +134,84 @@ function HouseGeometry.walls(layout, room)
 		{ side = "West", along = "Z", line = room.x0, inner = room.x0 + w, u0 = room.z0 + w, u1 = room.z1 - w },
 		{ side = "East", along = "Z", line = room.x1, inner = room.x1 - w, u0 = room.z0 + w, u1 = room.z1 - w },
 	}
+end
+
+-- Cette méthode permet de lister les murs réellement posés (quatre murs d'une pièce, clôtures d'une zone extérieure)
+-- lorsque l'on construit la maison ou cherche ce qui fait face à une porte ; une clôture va d'un coin à l'autre.
+function HouseGeometry.builtWalls(layout, room)
+	local walls = HouseGeometry.walls(layout, room)
+	if not room.outdoor then
+		return walls
+	end
+	local w = layout.WALL
+	local built = {}
+	for _, wall in walls do
+		if fenced(room, wall.side) then
+			if wall.along == "Z" then
+				wall.u0 = room.z0 + (if fenced(room, "South") then w else 0)
+				wall.u1 = room.z1 - (if fenced(room, "North") then w else 0)
+			end
+			table.insert(built, wall)
+		end
+	end
+	return built
+end
+
+-- Cette méthode permet de donner la hauteur des murs posés par une pièce lorsque l'on les découpe autour des portes :
+-- jusqu'au plafond dans la maison, hauteur de clôture dehors.
+local function wallTop(layout, room): number
+	if room.outdoor then
+		return HouseGeometry.floorY(layout, room.level) + layout.FENCE_HEIGHT
+	end
+	return HouseGeometry.topY(layout, room)
+end
+
+export type Link = { a: string, b: string, length: number, along: string, line: number, u0: number, u1: number }
+
+-- Cette méthode permet de lister les passages libres entre zones extérieures voisines lorsque l'on parcourt la carte :
+-- deux zones qui partagent un bord d'au moins une largeur de porte, sans clôture de part ni d'autre, sont reliées.
+function HouseGeometry.outdoorLinks(layout): { Link }
+	local links = {}
+	local outdoor = {}
+	for _, room in layout.rooms do
+		if room.outdoor then
+			table.insert(outdoor, room)
+		end
+	end
+	for i, a in outdoor do
+		for j = i + 1, #outdoor do
+			local b = outdoor[j]
+			if a.level ~= b.level then
+				continue
+			end
+			-- Bord commun : côté de a, côté de b, ligne du bord et segment partagé (u le long du bord)
+			local sideA, sideB, along, line, u0, u1 = nil, nil, "X", 0, 0, 0
+			if math.abs(a.x1 - b.x0) < EPS or math.abs(b.x1 - a.x0) < EPS then
+				sideA = if math.abs(a.x1 - b.x0) < EPS then "East" else "West"
+				sideB = if sideA == "East" then "West" else "East"
+				along, line = "Z", if sideA == "East" then a.x1 else a.x0
+				u0, u1 = math.max(a.z0, b.z0), math.min(a.z1, b.z1)
+			elseif math.abs(a.z1 - b.z0) < EPS or math.abs(b.z1 - a.z0) < EPS then
+				sideA = if math.abs(a.z1 - b.z0) < EPS then "North" else "South"
+				sideB = if sideA == "North" then "South" else "North"
+				along, line = "X", if sideA == "North" then a.z1 else a.z0
+				u0, u1 = math.max(a.x0, b.x0), math.min(a.x1, b.x1)
+			end
+			local length = u1 - u0
+			if
+				sideA
+				and length >= layout.DOOR_WIDTH - EPS
+				and not fenced(a, sideA)
+				and not fenced(b, sideB :: string)
+			then
+				table.insert(
+					links,
+					{ a = a.id, b = b.id, length = length, along = along, line = line, u0 = u0, u1 = u1 }
+				)
+			end
+		end
+	end
+	return links
 end
 
 -- Cette méthode permet de donner l'ouverture d'une porte dans le repère d'un mur (u le long du mur, y vertical)
@@ -201,14 +332,14 @@ local function stairPieces(layout, room, out: { Piece })
 end
 
 -- Cette méthode permet de produire sol, plafond, murs percés, volume de pièce et escalier d'une pièce lorsque l'on
--- construit la maison.
+-- construit la maison ; une zone extérieure n'a ni plafond ni murs, seulement son terrain et ses clôtures.
 local function roomPieces(layout, room, out: { Piece }, problems: { string })
 	local base = HouseGeometry.floorY(layout, room.level)
 	local top = HouseGeometry.topY(layout, room)
 	table.insert(
 		out,
 		piece(
-			"Floor",
+			if room.outdoor then "Ground" else "Floor",
 			room.id .. "Floor",
 			room,
 			Vector3.new(room.x0, base - layout.SLAB, room.z0),
@@ -227,7 +358,8 @@ local function roomPieces(layout, room, out: { Piece }, problems: { string })
 			)
 		)
 	end
-	for _, wall in HouseGeometry.walls(layout, room) do
+	local wallKind = if room.outdoor then "Fence" else "Wall"
+	for _, wall in HouseGeometry.builtWalls(layout, room) do
 		local openings = {}
 		for _, door in layout.doors do
 			if table.find(door.rooms, room.id) and doorOnWall(door, wall) then
@@ -241,12 +373,13 @@ local function roomPieces(layout, room, out: { Piece }, problems: { string })
 				end
 			end
 		end
-		local rects, problem = HouseGeometry.splitWall(wall.u0, wall.u1, base, top, openings)
+		local rects, problem = HouseGeometry.splitWall(wall.u0, wall.u1, base, wallTop(layout, room), openings)
 		if problem then
 			table.insert(problems, string.format("%s, mur %s : %s", room.id, wall.side, problem))
 		end
 		for i, r in rects do
-			table.insert(out, wallPiece("Wall", string.format("%sWall%s%d", room.id, wall.side, i), room, wall, r))
+			local name = string.format("%s%s%s%d", room.id, wallKind, wall.side, i)
+			table.insert(out, wallPiece(wallKind, name, room, wall, r))
 		end
 	end
 	local inner = HouseGeometry.interior(layout, room)
@@ -257,6 +390,7 @@ local function roomPieces(layout, room, out: { Piece }, problems: { string })
 	zone.attributes[Attr.WingId] = room.wing
 	zone.attributes[Attr.Level] = room.level
 	zone.attributes[Attr.Dark] = not room.lit
+	zone.attributes[Attr.Outdoor] = room.outdoor == true
 	table.insert(out, zone)
 	if room.stairs then
 		stairPieces(layout, room, out)
@@ -360,7 +494,26 @@ function HouseGeometry.build(layout)
 		roomPieces(layout, room, pieces, problems)
 	end
 	for _, lamp in layout.lamps do
-		table.insert(pieces, lampPiece(layout, byId[lamp.room], lamp))
+		local room = byId[lamp.room]
+		local p = lampPiece(layout, room, lamp)
+		table.insert(pieces, p)
+		local style = HouseGeometry.LAMP_STYLES[lamp.kind or "Ceiling"]
+		if style.pole then
+			-- Poteau plein du sol jusque sous la tête du lampadaire : un meuble comme un autre (collisions, portes)
+			local base = HouseGeometry.floorY(layout, room.level)
+			local half = style.pole / 2
+			local headBottom = p.center.Y - p.size.Y / 2
+			table.insert(
+				pieces,
+				piece(
+					"Prop",
+					lamp.id .. "Pole",
+					room,
+					Vector3.new(lamp.x - half, base, lamp.z - half),
+					Vector3.new(lamp.x + half, headBottom, lamp.z + half)
+				)
+			)
+		end
 	end
 	for _, prop in layout.props do
 		propPieces(layout, byId[prop.room], prop, pieces)
@@ -384,6 +537,33 @@ function HouseGeometry.build(layout)
 	end
 	local carRoom = byId[layout.car.room]
 	carPieces(layout, carRoom, layout.car, pieces)
+	for _, s in layout.scenery or {} do
+		-- Décor hors de la carte (rue, terrains voisins) : un sol sans pièce, au niveau du terrain
+		local y = HouseGeometry.floorY(layout, s.level or 0)
+		table.insert(
+			pieces,
+			piece(s.kind, s.id, nil, Vector3.new(s.x0, y - layout.SLAB, s.z0), Vector3.new(s.x1, y, s.z1))
+		)
+	end
+	if layout.bounds then
+		-- Limite invisible autour du terrain, bien plus haute que tout ce qu'on peut escalader (joueurs empilés, toits)
+		local b = layout.bounds
+		local y0, y1 = HouseGeometry.floorY(layout, 0), HouseGeometry.floorY(layout, 0) + b.height
+		local t = layout.WALL * 2
+		for name, r in
+			{
+				West = { b.x0 - t, b.x0, b.z0 - t, b.z1 + t },
+				East = { b.x1, b.x1 + t, b.z0 - t, b.z1 + t },
+				South = { b.x0, b.x1, b.z0 - t, b.z0 },
+				North = { b.x0, b.x1, b.z1, b.z1 + t },
+			}
+		do
+			table.insert(
+				pieces,
+				piece("Boundary", "Boundary" .. name, nil, Vector3.new(r[1], y0, r[3]), Vector3.new(r[2], y1, r[4]))
+			)
+		end
+	end
 	local groups = {
 		[layout.car.id] = {
 			room = carRoom.id,
@@ -432,24 +612,117 @@ function HouseGeometry.covered(rect, covers): boolean
 	return true
 end
 
--- Cette méthode permet de lister les pièces reliées par une porte intérieure lorsque l'on vérifie qu'on peut aller
--- partout depuis une pièce.
+-- Cette méthode permet de lister les voisins praticables de chaque pièce (portes sans battant, passages entre zones
+-- extérieures) lorsque l'on parcourt la carte ; une voisine reliée deux fois y figure deux fois.
+function HouseGeometry.neighbors(layout): { [string]: { string } }
+	local graph = {}
+	for _, room in layout.rooms do
+		graph[room.id] = {}
+	end
+	-- Cette méthode permet d'ajouter un passage dans les deux sens lorsqu'une porte ou un bord libre relie deux pièces.
+	local function link(a: string, b: string)
+		if graph[a] and graph[b] then
+			table.insert(graph[a], b)
+			table.insert(graph[b], a)
+		end
+	end
+	for _, door in layout.doors do
+		if #door.rooms == 2 then
+			link(door.rooms[1], door.rooms[2])
+		end
+	end
+	for _, l in HouseGeometry.outdoorLinks(layout) do
+		link(l.a, l.b)
+	end
+	return graph
+end
+
+-- Cette méthode permet de lister les pièces reliées par une porte intérieure ou un passage extérieur lorsque l'on
+-- vérifie qu'on peut aller partout depuis une pièce.
 function HouseGeometry.reachableRooms(layout, fromId: string): { [string]: boolean }
+	local graph = HouseGeometry.neighbors(layout)
 	local seen = { [fromId] = true }
 	local queue = { fromId }
 	while #queue > 0 do
 		local current = table.remove(queue, 1)
-		for _, door in layout.doors do
-			if #door.rooms == 2 and table.find(door.rooms, current) then
-				local other = if door.rooms[1] == current then door.rooms[2] else door.rooms[1]
-				if not seen[other] then
-					seen[other] = true
-					table.insert(queue, other)
-				end
+		for _, other in graph[current] or {} do
+			if not seen[other] then
+				seen[other] = true
+				table.insert(queue, other)
 			end
 		end
 	end
 	return seen
+end
+
+-- Cette méthode permet de vérifier une zone extérieure (à ciel ouvert, sur un seul niveau, clôtures sur des côtés
+-- connus qui ne la séparent pas d'une autre zone extérieure) lorsque l'on valide la description.
+local function checkOutdoorRoom(layout, room, errors: { string })
+	if room.roof or (room.levels or 1) ~= 1 or room.stairs then
+		table.insert(errors, room.id .. " : une zone extérieure est à ciel ouvert, sur un seul niveau")
+	end
+	for _, side in room.fence or {} do
+		if not table.find({ "South", "North", "West", "East" }, side) then
+			table.insert(errors, room.id .. " : côté de clôture inconnu " .. tostring(side))
+		end
+	end
+	for _, other in layout.rooms do
+		if other == room or not other.outdoor or other.level ~= room.level then
+			continue
+		end
+		-- Côté de `room` qui touche `other` sur une longueur non nulle
+		local touching = nil
+		if overlaps(room.z0, room.z1, other.z0, other.z1) then
+			if math.abs(room.x1 - other.x0) < EPS then
+				touching = "East"
+			elseif math.abs(room.x0 - other.x1) < EPS then
+				touching = "West"
+			end
+		elseif overlaps(room.x0, room.x1, other.x0, other.x1) then
+			if math.abs(room.z1 - other.z0) < EPS then
+				touching = "North"
+			elseif math.abs(room.z0 - other.z1) < EPS then
+				touching = "South"
+			end
+		end
+		if touching and fenced(room, touching) then
+			table.insert(errors, string.format("%s : clôture %s contre la zone %s", room.id, touching, other.id))
+		end
+	end
+	-- Terrain clos : derrière chaque côté sans clôture, tous les 0,5 stud, une autre pièce ou zone (pas le vide)
+	for _, wall in HouseGeometry.walls(layout, room) do
+		if fenced(room, wall.side) then
+			continue
+		end
+		local outward = if wall.side == "South" or wall.side == "West" then -0.25 else 0.25
+		local first, last =
+			if wall.along == "X" then room.x0 else room.z0, if wall.along == "X" then room.x1 else room.z1
+		for u = first + 0.25, last - 0.25, 0.5 do
+			local x = if wall.along == "X" then u else wall.line + outward
+			local z = if wall.along == "X" then wall.line + outward else u
+			local closed = false
+			for _, other in layout.rooms do
+				if
+					other ~= room
+					and HouseGeometry.spansLevel(other, room.level)
+					and x > other.x0
+					and x < other.x1
+					and z > other.z0
+					and z < other.z1
+				then
+					closed = true
+					break
+				end
+			end
+			if not closed then
+				table.insert(
+					errors,
+					string.format("%s : bord %s ouvert sur le vide vers (%.2f, %.2f)", room.id, wall.side, x, z)
+				)
+				break
+			end
+		end
+	end
 end
 
 -- Cette méthode permet de vérifier les pièces (taille, chevauchement, plafond, aile) lorsque l'on valide la
@@ -494,7 +767,9 @@ local function checkRooms(layout, errors: { string })
 				end
 			end
 		end
-		if room.roof and #covers > 0 then
+		if room.outdoor then
+			checkOutdoorRoom(layout, room, errors)
+		elseif room.roof and #covers > 0 then
 			table.insert(errors, room.id .. " : plafond posé sous une pièce du niveau au-dessus (dalle en double)")
 		elseif not room.roof and not HouseGeometry.covered(room, covers) then
 			table.insert(errors, room.id .. " : sans plafond et pas entièrement couverte par le niveau au-dessus")
@@ -527,20 +802,23 @@ local function checkDoors(layout, byId, errors: { string })
 			end
 			if not onWall then
 				table.insert(errors, door.id .. " : pas sur un mur de " .. roomId)
+			elseif #door.rooms == 1 and room.outdoor and not fenced(room, onWall.side) then
+				table.insert(errors, door.id .. " : battant sans clôture autour dans " .. roomId)
 			elseif opening.u0 < onWall.u0 + layout.WALL - EPS or opening.u1 > onWall.u1 - layout.WALL + EPS then
 				table.insert(errors, door.id .. " : déborde du mur de " .. roomId)
 			end
 			if not HouseGeometry.spansLevel(room, door.level) then
 				table.insert(errors, door.id .. " : niveau absent de " .. roomId)
-			elseif opening.y1 > HouseGeometry.topY(layout, room) + EPS then
-				table.insert(errors, door.id .. " : plus haute que le plafond de " .. roomId)
+			elseif opening.y1 > wallTop(layout, room) + EPS then
+				table.insert(errors, door.id .. " : plus haute que le mur (ou la clôture) de " .. roomId)
 			end
 		end
 		if #door.rooms == 1 then
-			-- Porte extérieure : aucune autre pièce ne doit avoir de mur sur la même ligne, en face de l'ouverture
+			-- Porte extérieure : aucune autre pièce ne doit avoir de mur (ou de clôture) sur la même ligne, en face de
+			-- l'ouverture ; une zone extérieure sans clôture de ce côté laisse le passage
 			for _, other in layout.rooms do
 				if other.id ~= door.rooms[1] and HouseGeometry.spansLevel(other, door.level) then
-					for _, wall in HouseGeometry.walls(layout, other) do
+					for _, wall in HouseGeometry.builtWalls(layout, other) do
 						if doorOnWall(door, wall) and overlaps(opening.u0, opening.u1, wall.u0, wall.u1) then
 							table.insert(
 								errors,
@@ -628,7 +906,9 @@ local function checkFurniture(layout, byId, plan, errors: { string })
 			continue
 		end
 		for _, door in layout.doors do
-			if table.find(door.rooms, room.id) and HouseGeometry.spansLevel(room, door.level) then
+			-- Une porte extérieure (un seul côté décrit) se dégage aussi du côté dehors, quelle que soit la zone
+			local concerned = table.find(door.rooms, room.id) ~= nil or #door.rooms == 1
+			if concerned and HouseGeometry.spansLevel(room, door.level) then
 				-- Dégagement : toute la largeur de la porte plus 0,5 stud, sur 3 studs de chaque côté du mur
 				local o = HouseGeometry.doorOpening(layout, door)
 				local line = if door.along == "X" then door.z else door.x
@@ -658,6 +938,65 @@ local function checkFurniture(layout, byId, plan, errors: { string })
 	end
 end
 
+-- Cette méthode permet de vérifier les passages dehors lorsque l'on valide la description : un bord libre entre deux
+-- zones garde une largeur de porte sans meuble, et aucun meuble de jardin ne sert de marchepied vers un lampadaire.
+local function checkOutdoorPassages(layout, byId, plan, errors: { string })
+	local solids = {}
+	for _, p in plan.pieces do
+		if (p.kind == "Prop" or p.kind == "Car") and byId[p.room].outdoor then
+			table.insert(solids, p)
+		end
+	end
+	for _, link in HouseGeometry.outdoorLinks(layout) do
+		-- Intervalles bouchés le long du bord, sur 3 studs de part et d'autre
+		local blocked = {}
+		for _, p in solids do
+			if p.room ~= link.a and p.room ~= link.b then
+				continue
+			end
+			local minV, maxV = p.center - p.size / 2, p.center + p.size / 2
+			local across0, across1 =
+				if link.along == "X" then minV.Z else minV.X, if link.along == "X" then maxV.Z else maxV.X
+			if overlaps(across0, across1, link.line - 3, link.line + 3) then
+				local a0 = if link.along == "X" then minV.X else minV.Z
+				local a1 = if link.along == "X" then maxV.X else maxV.Z
+				if overlaps(a0, a1, link.u0, link.u1) then
+					table.insert(blocked, { u0 = math.max(a0, link.u0), u1 = math.min(a1, link.u1), y0 = 0, y1 = 1 })
+				end
+			end
+		end
+		local free = HouseGeometry.splitWall(link.u0, link.u1, 0, 1, blocked)
+		local widest = 0
+		for _, r in free do
+			if r.y0 == 0 and r.y1 == 1 then
+				widest = math.max(widest, r.u1 - r.u0)
+			end
+		end
+		if widest < layout.DOOR_WIDTH - EPS then
+			table.insert(errors, string.format("passage %s ↔ %s bouché par un meuble", link.a, link.b))
+		end
+	end
+	for _, lamp in layout.lamps do
+		local style = HouseGeometry.LAMP_STYLES[lamp.kind or "Ceiling"]
+		if not (style and style.pole) then
+			continue
+		end
+		local poleTop = HouseGeometry.floorY(layout, byId[lamp.room].level) + style.height - style.size.Y / 2
+		for _, p in solids do
+			local minV, maxV = p.center - p.size / 2, p.center + p.size / 2
+			local dx = math.max(minV.X - lamp.x, lamp.x - maxV.X, 0)
+			local dz = math.max(minV.Z - lamp.z, lamp.z - maxV.Z, 0)
+			if
+				p.name ~= lamp.id .. "Pole"
+				and dx * dx + dz * dz < 36
+				and maxV.Y + HouseGeometry.JUMP_REACH > poleTop
+			then
+				table.insert(errors, p.name .. " : marchepied vers le lampadaire " .. lamp.id)
+			end
+		end
+	end
+end
+
 -- Cette méthode permet de vérifier les lampes (pièces éclairées seulement, au moins une par pièce éclairée) lorsque
 -- l'on valide la description.
 local function checkLamps(layout, byId, errors: { string })
@@ -682,9 +1021,27 @@ end
 -- Cette méthode permet de vérifier les types (lampe, ancrage, piège, tag de meuble) lorsque l'on valide la
 -- description : un type inconnu ferait échouer la construction ou perdrait un tag sans bruit.
 local function checkKinds(layout, errors: { string })
+	local byId = HouseGeometry.roomsById(layout)
 	for _, lamp in layout.lamps do
-		if not HouseGeometry.LAMP_STYLES[lamp.kind or "Ceiling"] then
+		local style = HouseGeometry.LAMP_STYLES[lamp.kind or "Ceiling"]
+		if not style then
 			table.insert(errors, lamp.id .. " : type de lampe inconnu " .. tostring(lamp.kind))
+		elseif byId[lamp.room] and byId[lamp.room].outdoor and not style.height then
+			table.insert(errors, lamp.id .. " : lampe de plafond dehors")
+		end
+	end
+	for _, s in layout.scenery or {} do
+		if s.kind ~= "Street" and s.kind ~= "Lawn" then
+			table.insert(errors, tostring(s.id) .. " : type de décor inconnu " .. tostring(s.kind))
+		end
+		for _, room in layout.rooms do
+			if
+				HouseGeometry.spansLevel(room, s.level or 0)
+				and overlaps(s.x0, s.x1, room.x0, room.x1)
+				and overlaps(s.z0, s.z1, room.z0, room.z1)
+			then
+				table.insert(errors, tostring(s.id) .. " : décor posé sur la carte (" .. room.id .. ")")
+			end
 		end
 	end
 	for _, anchor in layout.anchors do
@@ -698,6 +1055,33 @@ local function checkKinds(layout, errors: { string })
 		end
 		if prop.tag and type(MapTags[prop.tag]) ~= "string" then
 			table.insert(errors, prop.id .. " : tag inconnu " .. tostring(prop.tag))
+		end
+		local room = byId[prop.room]
+		if
+			room
+			and room.outdoor
+			and (prop.y or 0) + prop.size[2] + HouseGeometry.JUMP_REACH > layout.FENCE_HEIGHT - EPS
+		then
+			table.insert(errors, prop.id .. " : meuble extérieur assez haut pour franchir la clôture")
+		end
+	end
+end
+
+-- Cette méthode permet de vérifier que toute la carte tient dans la limite du terrain et que le décor reste dehors
+-- lorsque l'on valide la description.
+local function checkBounds(layout, errors: { string })
+	local b = layout.bounds
+	if not b then
+		return
+	end
+	for _, room in layout.rooms do
+		if room.x0 < b.x0 - EPS or room.x1 > b.x1 + EPS or room.z0 < b.z0 - EPS or room.z1 > b.z1 + EPS then
+			table.insert(errors, room.id .. " : hors de la limite du terrain")
+		end
+	end
+	for _, s in layout.scenery or {} do
+		if overlaps(s.x0, s.x1, b.x0, b.x1) and overlaps(s.z0, s.z1, b.z0, b.z1) then
+			table.insert(errors, tostring(s.id) .. " : décor dans la limite du terrain")
 		end
 	end
 end
@@ -749,6 +1133,8 @@ function HouseGeometry.validate(layout): ({ string }, any)
 	end
 	checkNames(plan, errors)
 	checkFurniture(layout, byId, plan, errors)
+	checkOutdoorPassages(layout, byId, plan, errors)
+	checkBounds(layout, errors)
 	local reachable = HouseGeometry.reachableRooms(layout, layout.rooms[1].id)
 	for _, room in layout.rooms do
 		if not reachable[room.id] then

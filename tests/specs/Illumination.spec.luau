@@ -49,8 +49,9 @@ return function(T, Loader)
 		end)
 
 		T.it("situe un point dans sa pièce, et nulle part hors de la maison", function()
-			T.expectEqual(model:roomAt(at("Kitchen", 12, 10)), "Kitchen")
-			T.expectEqual(model:roomAt(at("Cave", 40, 14)), "Cave")
+			T.expectEqual(model:roomAt(at("Kitchen", 51, 28)), "Kitchen")
+			T.expectEqual(model:roomAt(at("Cave", 50, 26)), "Cave")
+			T.expectEqual(model:roomAt(at("Garden", 40, 80)), "Garden")
 			T.expectEqual(model:roomAt(at("MasterBedroom", 12, 10)), "MasterBedroom")
 			T.expectEqual(model:roomAt(Vector3.new(-20, 3, 10)), nil)
 		end)
@@ -73,40 +74,58 @@ return function(T, Loader)
 			end
 		end)
 
-		T.it("couvre au moins la moitié du sol de chaque pièce éclairée, coins sombres permis", function()
+		T.it("couvre au moins la moitié du sol de chaque pièce éclairée, des flaques de lumière dehors", function()
 			local report = {}
 			for _, room in HouseLayout.rooms do
 				if room.lit then
 					local c = coverage(model, room)
 					table.insert(report, string.format("%s %d%%", room.id, math.floor(c * 100 + 0.5)))
-					T.expect(c >= 0.5, string.format("%s : %.0f %% éclairé seulement", room.id, c * 100))
+					if room.outdoor then
+						-- Dehors, la nuit : quelques lumières, la majeure partie du terrain reste sombre
+						T.expect(c > 0.05 and c < 0.5, string.format("%s : %.0f %% éclairé dehors", room.id, c * 100))
+					else
+						T.expect(c >= 0.5, string.format("%s : %.0f %% éclairé seulement", room.id, c * 100))
+					end
 				end
 			end
 			-- Mesure de portée, reprise dans le compte rendu de la tâche
 			print("  Couverture des pièces éclairées : " .. table.concat(report, ", "))
 		end)
 
-		T.it("éclaire la moitié du seuil côté pièce éclairée, pas celle côté couloir", function()
-			-- Porte salon / couloir : mur mitoyen de z = 19,5 à 20,5, lustre au milieu du salon
-			T.expectEqual((model:isLit(at("Living", 40, 19.8))), true, "seuil côté salon")
-			T.expectEqual((model:isLit(at("HallDown", 40, 20.3))), false, "seuil côté couloir")
-			T.expectEqual(model:roomAt(at("Living", 40, 19.8)), "Living")
+		T.it("éclaire la moitié du seuil côté pièce éclairée, pas celle côté dégagement", function()
+			-- Porte entrée / dégagement : mur mitoyen de z = 19,5 à 20,5, lampe au milieu de l'entrée
+			T.expectEqual((model:isLit(at("Entry", 31, 19.8))), true, "seuil côté entrée")
+			T.expectEqual((model:isLit(at("HallDown", 31, 20.3))), false, "seuil côté dégagement")
+			T.expectEqual(model:roomAt(at("Entry", 31, 19.8)), "Entry")
 		end)
 
-		T.it("arrête la lumière aux murs : le couloir contre la cuisine reste sombre", function()
-			-- À 2 studs du mur, la lampe de la cuisine est à portée mais dans une autre pièce
-			T.expectEqual((model:isLit(at("HallDown", 12, 22))), false)
+		T.it("dehors, laisse la lumière passer d'une zone à l'autre (aucun mur)", function()
+			-- Devant de la maison, à 14 studs du lampadaire de l'allée et à plus de 50 de l'applique du porche
+			local lit, lampId = model:isLit(at("FrontYard", 89, -10))
+			T.expectEqual(lit, true)
+			T.expectEqual(lampId, "StreetLamp")
+			T.expectEqual(model:roomAt(at("FrontYard", 89, -10)), "FrontYard")
+			-- Une lampe extérieure n'entre pas dans la maison : le salon derrière la façade reste sur ses lampes
+			local m = Illumination.fromHouse(house)
+			m:burnRoom("Living")
+			T.expectEqual((m:isLit(at("Living", 20, 2))), false)
+			-- Seuil de la véranda (sombre) sur le jardin : la lanterne s'arrête au milieu du mur
+			m:burnRoom("Veranda")
+			T.expectEqual((m:isLit(at("Veranda", 10, 69.6))), false, "seuil côté véranda")
+			T.expectEqual((m:isLit(at("Garden", 10, 70.3))), true, "seuil côté jardin")
 		end)
 
-		T.it(
-			"arrête la lumière aux dalles : la chambre au-dessus de la cuisine ne profite pas de sa lampe",
-			function()
-				local m = Illumination.fromHouse(house)
-				m:burnRoom("MasterBedroom")
-				T.expectEqual((m:isLit(at("MasterBedroom", 12, 10))), false)
-				T.expectEqual((m:isLit(at("Kitchen", 12, 10))), true)
-			end
-		)
+		T.it("arrête la lumière aux murs : le dégagement contre l'entrée reste sombre", function()
+			-- À 1,5 stud du mur, la lampe de l'entrée est à portée mais dans une autre pièce
+			T.expectEqual((model:isLit(at("HallDown", 31, 21.5))), false)
+		end)
+
+		T.it("arrête la lumière aux dalles : la chambre au-dessus du salon ne profite pas de son lustre", function()
+			local m = Illumination.fromHouse(house)
+			m:burnRoom("MasterBedroom")
+			T.expectEqual((m:isLit(at("MasterBedroom", 12, 10))), false)
+			T.expectEqual((m:isLit(at("Living", 12, 10))), true)
+		end)
 
 		T.it("éteint une aile entière au disjoncteur et la rallume", function()
 			local m = Illumination.fromHouse(house)

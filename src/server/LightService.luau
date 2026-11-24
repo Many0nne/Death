@@ -206,7 +206,8 @@ function LightService:canPrepareAt(position: Vector3): boolean
 	return DeathRules.canPrepare(self.illumination, position)
 end
 
--- Cette méthode permet de savoir si une pièce a une lampe allumée lorsque l'on raisonne par pièce (fauchage, HUD).
+-- Cette méthode permet de savoir si une pièce a une de ses lampes allumée lorsque l'on raisonne par pièce (fauchage,
+-- HUD) ; dehors, préférer isLit : une zone peut être éclairée par la lampe d'une zone voisine.
 function LightService:isRoomLit(roomId: string): boolean
 	return self.illumination:isRoomLit(roomId)
 end

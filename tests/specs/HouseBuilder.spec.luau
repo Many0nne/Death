@@ -76,6 +76,32 @@ return function(T, Loader)
 			end
 		end)
 
+		T.it("construit le terrain : clôtures, portail tagué et décor hors carte dans son dossier", function()
+			T.expectEqual(countTagged(house, MapTags.Gate), 1, "portail")
+			T.expect(house:FindFirstChild("Garden"), "dossier Garden")
+			local scenery = house:FindFirstChild(HouseBuilder.SCENERY_FOLDER)
+			T.expect(scenery and #scenery:GetChildren() > 0, "décor hors carte")
+			local fences = 0
+			for _, d in house:GetDescendants() do
+				if d:IsA("BasePart") and string.find(d.Name, "Fence", 1, true) then
+					fences += 1
+					T.expectEqual(d.CanCollide, true, d.Name)
+				end
+			end
+			T.expect(fences > 0, "clôtures")
+			local boundaries = 0
+			for _, d in house[HouseBuilder.BOUNDS_FOLDER]:GetChildren() do
+				if string.find(d.Name, "Boundary", 1, true) == 1 then
+					boundaries += 1
+					-- Limite invisible : arrête les joueurs, jamais un rayon
+					T.expectEqual(d.Transparency, 1, d.Name)
+					T.expectEqual(d.CanCollide, true, d.Name)
+					T.expectEqual(d.CanQuery, false, d.Name)
+				end
+			end
+			T.expectEqual(boundaries, 4, "limite du terrain")
+		end)
+
 		T.it("remplace une maison déjà construite", function()
 			HouseBuilder.build(world)
 			local houses = 0
