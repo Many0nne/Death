@@ -30,7 +30,8 @@ function LineOfSight.clear(from: Vector3, to: Vector3, target: Instance?): boole
 	for _ = 0, MAX_SKIPS do
 		params.FilterDescendantsInstances = ignore
 		local hit = workspace:Raycast(from, to - from, params)
-		if hit == nil or (target ~= nil and hit.Instance:IsDescendantOf(target)) then
+		-- IsDescendantOf ne compte pas la cible elle-même (mesuré en jeu : le disjoncteur était jugé caché)
+		if hit == nil or (target ~= nil and (hit.Instance == target or hit.Instance:IsDescendantOf(target))) then
 			return true
 		end
 		-- Un ancrage invisible (apparition, carrelage mouillé) ne cache rien : on relance le rayon sans lui
