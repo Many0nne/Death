@@ -10,7 +10,7 @@ return table.freeze({
 	-- Résultat JSON de la dernière manche (HttpService:JSONDecode) : { reason, death = { userId, name },
 	-- mortals = { { userId, name, state, soul?, cause? } }, saved, reaped, escaped }. Gardé jusqu'à la manche suivante.
 	Result = "MatchResult",
-	-- Objectif de fuite (#7), nil en Waiting : clés trouvées / à trouver, voiture démarrée (sortie ouverte)
+	-- Objectif de fuite (#7), gardé pendant Ended, nil en Waiting : clés trouvées / à trouver, voiture démarrée (sortie ouverte)
 	KeysFound = "EscapeKeysFound",
 	KeysNeeded = "EscapeKeysNeeded",
 	CarStarted = "EscapeCarStarted",

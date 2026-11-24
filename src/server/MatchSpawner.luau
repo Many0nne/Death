@@ -1,6 +1,7 @@
 -- Apparitions de la manche (#11), abonné aux événements de Server.MatchService (son API n'est pas modifiée) :
 -- - MatchStarted : chaque mortel sur son point d'apparition (un par point), la Mort sur l'un des siens (Shared.SpawnPlan) ;
--- - un participant qui réapparaît pendant la manche (personnage rechargé) revient à son point, sauf mortel mort ou sauvé ;
+-- - un participant qui réapparaît pendant la manche (personnage rechargé) revient à son point, un mortel en agonie
+--   là où il est tombé (un reset ne le met pas hors d'atteinte de la Mort), un mortel mort ou sauvé reste dehors ;
 -- - un mortel sauvé quitte la maison aussitôt, et tout le monde la quitte au retour à l'attente (PhaseChanged Waiting) ;
 -- - un joueur qui rejoint pendant une manche n'a pas de rôle : il reste dans la zone d'attente (spectateur).
 local Players = game:GetService("Players")
@@ -58,6 +59,7 @@ function MatchSpawner.start(matchService, house: Instance)
 	local deathSpawns = sortedAnchors(house, MapTags.DeathSpawn)
 	local rng = Random.new()
 	local placements: { [number]: CFrame } = {} -- UserId -> point d'apparition de la manche en cours
+	local fallen: { [number]: CFrame } = {} -- UserId -> où un mortel est tombé en agonie
 	local returned = 0 -- compteur des retours, pour étaler les joueurs dans la zone d'attente
 
 	-- Cette méthode permet de tirer un index de 1 à n lorsque SpawnPlan répartit les points.
@@ -65,8 +67,8 @@ function MatchSpawner.start(matchService, house: Instance)
 		return rng:NextInteger(1, n)
 	end
 
-	-- Cette méthode permet de renvoyer le point d'apparition d'un joueur lorsqu'il doit (ré)apparaître dans la maison :
-	-- participant de la manche en cours, Mort ou mortel encore en jeu (ni mort ni sauvé) ; nil sinon.
+	-- Cette méthode permet de renvoyer le point où (ré)apparaître dans la maison lorsqu'un participant de la manche en
+	-- cours recharge son personnage : point d'apparition (Mort, mortel vivant), lieu de la chute (agonie) ; nil sinon.
 	local function spotOf(player: Player): CFrame?
 		if matchService:getPhase() ~= Match.Phase.Running then
 			return nil
@@ -77,7 +79,10 @@ function MatchSpawner.start(matchService, house: Instance)
 		end
 		if matchService:getRole(player) == Match.Role.Mortal then
 			local state = matchService:getMortalState(player)
-			if state == nil or Match.isResolved(state) then
+			if state == Match.MortalState.Agony then
+				return fallen[player.UserId] or spot
+			end
+			if state ~= Match.MortalState.Alive then
 				return nil
 			end
 		end
@@ -97,10 +102,13 @@ function MatchSpawner.start(matchService, house: Instance)
 	matchService.MatchStarted:Connect(function(info)
 		local plan, err = SpawnPlan.assign(info.deathId, info.mortalIds, #mortalSpawns, #deathSpawns, pick)
 		if not plan then
-			warn("[Apparitions] " .. tostring(err))
+			-- Personne ne pourrait entrer dans la maison : la manche est annulée plutôt que jouée dans le vide
+			warn("[Apparitions] manche annulée : " .. tostring(err))
+			matchService:stopMatch()
 			return
 		end
 		placements = {}
+		fallen = {}
 		for id, placement in plan do
 			local anchors = if placement.kind == Match.Role.Death then deathSpawns else mortalSpawns
 			placements[id] = anchors[placement.index].CFrame + Vector3.new(0, DROP_HEIGHT, 0)
@@ -115,6 +123,7 @@ function MatchSpawner.start(matchService, house: Instance)
 	matchService.PhaseChanged:Connect(function(phase)
 		if phase == Match.Phase.Waiting then
 			placements = {}
+			fallen = {}
 			for _, player in Players:GetPlayers() do
 				sendBack(player)
 			end
@@ -122,8 +131,14 @@ function MatchSpawner.start(matchService, house: Instance)
 	end)
 
 	matchService.MortalStateChanged:Connect(function(change)
-		if change.to == Match.MortalState.Saved and change.player then
+		if not change.player then
+			return
+		end
+		if change.to == Match.MortalState.Saved then
 			sendBack(change.player)
+		elseif change.to == Match.MortalState.Agony then
+			local root = rootOf(change.player)
+			fallen[change.userId] = root and root.CFrame
 		end
 	end)
 

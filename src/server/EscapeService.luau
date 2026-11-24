@@ -3,7 +3,9 @@
 -- - toutes les clés trouvées : la voiture du garage propose « Démarrer » (action maintenue) ;
 -- - voiture démarrée : la porte du garage s'ouvre, une balise marque la sortie, et un mortel vivant qui l'atteint est
 --   sauvé (MatchService:save) ;
--- - fin, annulation ou retour à l'attente : clés retirées, voiture et porte remises en place.
+-- - fin de manche : actions coupées, état figé pendant l'affichage du résultat ;
+-- - retour à l'attente (fin ou annulation) : clés retirées, voiture et porte remises en place, après le renvoi des
+--   joueurs dans la zone d'attente (Server.MatchSpawner est abonné avant).
 -- État répliqué pour le HUD (#9) sur ReplicatedStorage : MatchAttributes.KeysFound, KeysNeeded, CarStarted.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -38,15 +40,20 @@ local function findTagged(house: Instance, tag: string): Instance?
 end
 
 -- Cette méthode permet de créer une action maintenue (ProximityPrompt) lorsque l'on propose de ramasser une clé ou
--- de démarrer la voiture.
-local function makePrompt(parent: Instance, objectText: string, actionText: string, hold: number): ProximityPrompt
+-- de démarrer la voiture ; `lineOfSight` : l'action n'est pas proposée à travers un mur (clés près d'une cloison).
+local function makePrompt(
+	parent: Instance,
+	objectText: string,
+	actionText: string,
+	hold: number,
+	lineOfSight: boolean
+): ProximityPrompt
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.ObjectText = objectText
 	prompt.ActionText = actionText
 	prompt.HoldDuration = hold
 	prompt.MaxActivationDistance = 8
-	-- Les clés sont posées sur les meubles et la voiture est large : pas de ligne de vue exigée
-	prompt.RequiresLineOfSight = false
+	prompt.RequiresLineOfSight = lineOfSight
 	prompt.Parent = parent
 	return prompt
 end
@@ -73,12 +80,19 @@ function EscapeService.start(matchService, house: Instance)
 	local rng = Random.new()
 	local objective = nil -- Escape de la manche en cours
 	local keyParts: { [string]: BasePart } = {}
-	local carPrompt = makePrompt(car.PrimaryPart, "Voiture", "Démarrer", GameConfig.CAR_START_DURATION)
+	-- La voiture est large (12 studs) : son action se voit de tout le tour, sans ligne de vue vers le centre
+	local carPrompt = makePrompt(car.PrimaryPart, "Voiture", "Démarrer", GameConfig.CAR_START_DURATION, false)
 	carPrompt.Enabled = false
 	local beacon: BasePart? = nil
 	local exitClock = 0
 
-	-- Cette méthode permet de répliquer l'état de l'objectif lorsqu'il change (nil hors manche).
+	-- Cette méthode permet de savoir si l'objectif accepte des actions lorsqu'un joueur agit ou que la sortie est
+	-- surveillée : manche en cours seulement (pendant le résultat, l'état est figé).
+	local function active(): boolean
+		return objective ~= nil and matchService:getPhase() == Match.Phase.Running
+	end
+
+	-- Cette méthode permet de répliquer l'état de l'objectif lorsqu'il change (nil en attente).
 	local function publish()
 		ReplicatedStorage:SetAttribute(A.KeysFound, objective and objective.keysFound)
 		ReplicatedStorage:SetAttribute(A.KeysNeeded, objective and objective.keysNeeded)
@@ -116,7 +130,7 @@ function EscapeService.start(matchService, house: Instance)
 	-- Cette méthode permet de ramasser une clé pour le groupe lorsqu'un mortel vivant termine l'action ; la dernière
 	-- clé rend la voiture démarrable. Renvoie (true) ou (false, raison).
 	local function collect(player: Player, spotId: string): (boolean, string?)
-		if not objective then
+		if not active() then
 			return false, "aucune manche en cours"
 		end
 		if not canAct(player) then
@@ -147,7 +161,7 @@ function EscapeService.start(matchService, house: Instance)
 	-- Cette méthode permet de démarrer la voiture lorsqu'un mortel vivant termine l'action, toutes clés trouvées ;
 	-- renvoie (true) ou (false, raison).
 	local function startCar(player: Player): (boolean, string?)
-		if not objective then
+		if not active() then
 			return false, "aucune manche en cours"
 		end
 		if not canAct(player) then
@@ -164,8 +178,8 @@ function EscapeService.start(matchService, house: Instance)
 		return true
 	end
 
-	-- Cette méthode permet de retirer l'objectif lorsque la manche se termine, est annulée ou revient à l'attente
-	-- (idempotent) : clés, balise, porte et action de la voiture remises à l'état de départ.
+	-- Cette méthode permet de retirer l'objectif lorsque la manche revient à l'attente (fin ou annulation) ou qu'une
+	-- nouvelle commence (idempotent) : clés, balise, porte et action de la voiture remises à l'état de départ.
 	local function reset()
 		objective = nil
 		for _, part in keyParts do
@@ -184,8 +198,20 @@ function EscapeService.start(matchService, house: Instance)
 		publish()
 	end
 
+	-- Cette méthode permet de couper les actions lorsque la manche se termine : clés et voiture restent visibles
+	-- pendant le résultat, mais plus rien ne se déclenche.
+	local function freeze()
+		carPrompt.Enabled = false
+		for _, part in keyParts do
+			local prompt = part:FindFirstChildOfClass("ProximityPrompt")
+			if prompt then
+				prompt.Enabled = false
+			end
+		end
+	end
+
 	-- Cette méthode permet de poser une clé sur un emplacement lorsque la manche démarre : petit bloc doré, action
-	-- « Ramasser » maintenue.
+	-- « Ramasser » maintenue, proposée seulement en vue de la clé.
 	local function placeKey(spotId: string)
 		local spot = spots[spotId]
 		local key = Instance.new("Part")
@@ -195,9 +221,10 @@ function EscapeService.start(matchService, house: Instance)
 		key.Material = Enum.Material.Metal
 		key.Color = KEY_COLOR
 		key.Size = Vector3.new(0.8, 0.3, 0.5)
-		key.CFrame = CFrame.new(spot.Position.X, spot.Position.Y - spot.Size.Y / 2 + 0.15, spot.Position.Z)
+		-- Posée sur l'ancrage (et non dedans) : l'ancrage, détectable par les rayons, masquerait la clé à la ligne de vue
+		key.CFrame = CFrame.new(spot.Position.X, spot.Position.Y + spot.Size.Y / 2 + 0.15, spot.Position.Z)
 		key:SetAttribute(MapTags.Attributes.AnchorId, spotId)
-		local prompt = makePrompt(key, "Clés", "Ramasser", GameConfig.KEY_PICKUP_DURATION)
+		local prompt = makePrompt(key, "Clés", "Ramasser", GameConfig.KEY_PICKUP_DURATION, true)
 		prompt.Triggered:Connect(function(player)
 			collect(player, spotId)
 		end)
@@ -214,6 +241,10 @@ function EscapeService.start(matchService, house: Instance)
 
 	matchService.MatchStarted:Connect(function()
 		reset()
+		-- Un abonné précédent (MatchSpawner) a pu annuler la manche : rien à poser
+		if matchService:getPhase() ~= Match.Phase.Running then
+			return
+		end
 		local chosen = Escape.drawKeySpots(spotList, GameConfig.ESCAPE_KEY_COUNT, function(n)
 			return rng:NextInteger(1, n)
 		end, exitRoom)
@@ -226,14 +257,17 @@ function EscapeService.start(matchService, house: Instance)
 		for _, spotId in chosen do
 			placeKey(spotId)
 		end
+		-- Sans clé à trouver (carte sans emplacement), la voiture est démarrable tout de suite
+		carPrompt.Enabled = objective:canStartCar()
 		publish()
 		print("[Fuite] clés posées : " .. table.concat(chosen, ", "))
 	end)
-	matchService.MatchEnded:Connect(reset)
-	matchService.MatchCancelled:Connect(reset)
+	-- Une annulation passe aussi par PhaseChanged(Waiting) (MatchService:stopMatch)
 	matchService.PhaseChanged:Connect(function(phase)
-		if phase ~= Match.Phase.Running then
+		if phase == Match.Phase.Waiting then
 			reset()
+		elseif phase == Match.Phase.Ended then
+			freeze()
 		end
 	end)
 
@@ -244,7 +278,7 @@ function EscapeService.start(matchService, house: Instance)
 			return
 		end
 		exitClock = 0
-		if not (objective and objective:isComplete()) then
+		if not (active() and objective:isComplete()) then
 			return
 		end
 		local floor = exit.Position - Vector3.new(0, exit.Size.Y / 2, 0)
@@ -263,8 +297,8 @@ function EscapeService.start(matchService, house: Instance)
 				else
 					warn("[Fuite] sauvetage refusé pour " .. player.Name .. " : " .. tostring(err))
 				end
-				-- La sauvegarde peut terminer la manche (reset) : on arrête la boucle si l'objectif a disparu
-				if not objective then
+				-- La sauvegarde peut terminer la manche : plus personne n'est sauvé pendant le résultat
+				if not active() then
 					return
 				end
 			end
