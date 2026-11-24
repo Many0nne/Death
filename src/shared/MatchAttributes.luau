@@ -10,6 +10,10 @@ return table.freeze({
 	-- Résultat JSON de la dernière manche (HttpService:JSONDecode) : { reason, death = { userId, name },
 	-- mortals = { { userId, name, state, soul?, cause? } }, saved, reaped, escaped }. Gardé jusqu'à la manche suivante.
 	Result = "MatchResult",
+	-- Objectif de fuite (#7), nil en Waiting : clés trouvées / à trouver, voiture démarrée (sortie ouverte)
+	KeysFound = "EscapeKeysFound",
+	KeysNeeded = "EscapeKeysNeeded",
+	CarStarted = "EscapeCarStarted",
 
 	-- Sur chaque Player de la manche (nil pour un joueur hors manche)
 	Role = "Role", -- Match.Role
@@ -24,4 +28,7 @@ return table.freeze({
 	DebugState = "DebugSetState", -- "Agony", "Alive", "Dead", "Reaped" ou "Saved" : change l'état de ce mortel
 	DebugTimeScale = "DebugTimeScale", -- multiplicateur du sablier (ex. 10), gardé jusqu'au retrait (nil = x1)
 	DebugTimeLeft = "DebugTimeLeft", -- secondes : règle le temps restant du sablier
+	-- "Key" : ramasse une clé restante comme ce joueur ; "Car" : démarre la voiture comme ce joueur (lu par
+	-- Server.EscapeService, mêmes règles que les actions en jeu)
+	DebugEscape = "DebugEscape",
 })

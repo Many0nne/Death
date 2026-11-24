@@ -292,7 +292,4 @@ HouseLayout.anchors = {
 -- Voiture de fuite (blocs), capot vers la porte du garage (est).
 HouseLayout.car = { id = "EscapeCar", room = "Garage", x = 66, z = 14 }
 
--- Point d'apparition par défaut (SpawnLocation) tant que la boucle de manche (#2) ne téléporte pas les joueurs.
-HouseLayout.spawn = { room = "Living", x = 40, z = 15 }
-
 return HouseLayout
