@@ -89,6 +89,17 @@ return function(T, Loader)
 				end
 			end
 			T.expect(fences > 0, "clôtures")
+			local boundaries = 0
+			for _, d in scenery:GetChildren() do
+				if string.find(d.Name, "Boundary", 1, true) == 1 then
+					boundaries += 1
+					-- Limite invisible : arrête les joueurs, jamais un rayon
+					T.expectEqual(d.Transparency, 1, d.Name)
+					T.expectEqual(d.CanCollide, true, d.Name)
+					T.expectEqual(d.CanQuery, false, d.Name)
+				end
+			end
+			T.expectEqual(boundaries, 4, "limite du terrain")
 		end)
 
 		T.it("remplace une maison déjà construite", function()

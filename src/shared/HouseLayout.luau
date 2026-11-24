@@ -28,6 +28,9 @@ HouseLayout.DOOR_WIDTH = 5
 HouseLayout.DOOR_HEIGHT = 8
 -- Haie ou clôture en limite de terrain : plus haute qu'un saut, même depuis un meuble de jardin
 HouseLayout.FENCE_HEIGHT = 10
+-- Limite du terrain : un mur invisible de cette hauteur l'entoure (deux joueurs empilés, un toit ou un lampadaire
+-- ne permettent pas de passer la haie)
+HouseLayout.bounds = { x0 = -12, x1 = 104, z0 = -16, z1 = 90, height = 60 }
 -- Escalier tournant (cage sur deux niveaux) : deux volées côte à côte séparées par une cloison, palier de demi-niveau
 -- au fond ; la volée basse part de la porte du bas, la volée haute arrive au palier de la porte du haut.
 HouseLayout.STEP_RISE = 1
@@ -494,7 +497,7 @@ HouseLayout.lamps = {
 	{ id = "GuestBedroomLamp", room = "GuestBedroom", x = 51, z = 10 },
 	{ id = "TeenBedroomLamp", room = "TeenBedroom", x = 45, z = 44 },
 	{ id = "ShowerRoomLamp", room = "ShowerRoom", x = 58, z = 44 },
-	{ id = "PorchLamp", room = "FrontYard", x = 31, z = -1.1, kind = "Wall" },
+	{ id = "PorchLamp", room = "FrontYard", x = 31, z = -0.6, kind = "Wall" },
 	{ id = "StreetLamp", room = "Driveway", x = 102.5, z = -10, kind = "Post" },
 	{ id = "GardenLamp", room = "Garden", x = 24, z = 78, kind = "Post" },
 }
@@ -592,10 +595,10 @@ HouseLayout.props = {
 	{ id = "CourtyardWoodpile", room = "Courtyard", x = 60, z = 57.75, size = { 6, 2, 2 } },
 	{ id = "CourtyardBarbecue", room = "Courtyard", x = 75, z = 63, size = { 3, 2, 3 } },
 	-- Potager
-	{ id = "VegetableBedWest", room = "VegetableGarden", x = 92, z = 66, size = { 4, 1, 12 } },
-	{ id = "VegetableBedEast", room = "VegetableGarden", x = 100, z = 66, size = { 4, 1, 12 } },
+	{ id = "VegetableBedWest", room = "VegetableGarden", x = 94.5, z = 66, size = { 4, 1, 12 } },
+	{ id = "VegetableBedEast", room = "VegetableGarden", x = 100.5, z = 66, size = { 4, 1, 12 } },
 	-- Jardin
-	{ id = "GardenTable", room = "Garden", x = 24, z = 84, size = { 5, 2, 3 }, keySpot = true },
+	{ id = "GardenTable", room = "Garden", x = 36, z = 84, size = { 5, 2, 3 }, keySpot = true },
 	{ id = "GardenBench", room = "Garden", x = 60, z = 88, size = { 6, 2, 2 } },
 	-- Abri de jardin
 	{ id = "ShedShelf", room = "Shed", x = 102.75, z = 85, size = { 1.5, 7, 8 }, trap = "Shelf" },

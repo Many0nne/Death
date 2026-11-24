@@ -3,14 +3,15 @@
 --
 -- Règle : un point est éclairé s'il est dans le volume d'une pièce et à moins de `reach` d'une lampe allumée de cette
 -- même pièce (les murs et les dalles arrêtent la lumière ; elle déborde seulement sur la moitié du seuil de porte de
--- son côté, voir THRESHOLD). `reach` vaut
+-- son côté, voir THRESHOLD). Dehors, aucun mur ne sépare les zones : une lampe d'une zone extérieure éclaire tout
+-- point d'une zone extérieure à sa portée (le lampadaire de l'allée déborde sur le devant de la maison). `reach` vaut
 -- REACH_FACTOR fois la portée (Range) de la PointLight : au-delà, son apport ne domine plus la lumière ambiante.
 -- Une lampe est allumée si son aile a du courant (disjoncteur) et si elle n'est pas grillée.
 local MapTags = require(script.Parent.MapTags)
 
 local Attr = MapTags.Attributes
 
-export type Room = { id: string, wingId: string, min: Vector3, max: Vector3 }
+export type Room = { id: string, wingId: string, min: Vector3, max: Vector3, outdoor: boolean? }
 export type Lamp = { id: string, roomId: string, wingId: string, position: Vector3, reach: number }
 
 local Illumination = {}
@@ -32,6 +33,7 @@ function Illumination.new(rooms: { Room }, lamps: { Lamp })
 		lamps = {} :: { [string]: Lamp },
 		lampOrder = {} :: { string },
 		roomLamps = {} :: { [string]: { Lamp } },
+		outdoorLamps = {} :: { Lamp }, -- lampes des zones extérieures, qui éclairent toutes les zones extérieures
 		wingSet = {} :: { [string]: boolean },
 		unpowered = {} :: { [string]: boolean },
 		burnt = {} :: { [string]: boolean },
@@ -55,6 +57,9 @@ function Illumination.new(rooms: { Room }, lamps: { Lamp })
 		self.lamps[lamp.id] = lamp
 		table.insert(self.lampOrder, lamp.id)
 		table.insert(self.roomLamps[lamp.roomId], lamp)
+		if self.rooms[lamp.roomId].outdoor then
+			table.insert(self.outdoorLamps, lamp)
+		end
 		self.wingSet[lamp.wingId] = true
 	end
 	return self
@@ -75,6 +80,7 @@ function Illumination.fromHouse(house: Instance, reachFactor: number?)
 					wingId = part:GetAttribute(Attr.WingId),
 					min = center - part.Size / 2 - margin,
 					max = center + part.Size / 2 + margin,
+					outdoor = part:GetAttribute(Attr.Outdoor) == true,
 				})
 			elseif part:HasTag(MapTags.Lamp) then
 				local light = part:FindFirstChild("Light")
@@ -136,7 +142,8 @@ end
 function Illumination:isLit(position: Vector3): (boolean, string?)
 	for _, roomId in self.roomOrder do
 		if self:_contains(roomId, position) then
-			for _, lamp in self.roomLamps[roomId] do
+			local lamps = if self.rooms[roomId].outdoor then self.outdoorLamps else self.roomLamps[roomId]
+			for _, lamp in lamps do
 				if self:isLampOn(lamp.id) and (position - lamp.position).Magnitude <= lamp.reach then
 					return true, lamp.id
 				end

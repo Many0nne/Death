@@ -38,6 +38,8 @@ HouseBuilder.SCENERY_FOLDER = "Scenery"
 local INVISIBLE = {
 	Zone = { CanCollide = false, CanTouch = false, CanQuery = false },
 	Anchor = { CanCollide = false, CanTouch = true, CanQuery = true },
+	-- Limite du terrain : arrête les joueurs, jamais un rayon (vue, lampe torche)
+	Boundary = { CanCollide = true, CanTouch = false, CanQuery = false },
 }
 
 -- Cette méthode permet de poser tags et attributs d'un bloc calculé sur son instance lorsque la suite du jeu doit le

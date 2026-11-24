@@ -205,9 +205,16 @@ return function(T, Loader)
 			end
 		end)
 
-		T.it("n'a aucun cul-de-sac : chaque pièce a au moins deux sorties", function()
+		T.it("n'a aucun cul-de-sac : chaque pièce mène à au moins deux voisines", function()
 			for _, room in HouseLayout.rooms do
-				T.expect(#graph[room.id] >= 2, room.id .. " : une seule sortie")
+				local distinct, count = {}, 0
+				for _, other in graph[room.id] do
+					if not distinct[other] then
+						distinct[other] = true
+						count += 1
+					end
+				end
+				T.expect(count >= 2, room.id .. " : une seule voisine")
 			end
 		end)
 
@@ -262,73 +269,6 @@ return function(T, Loader)
 				street = street or s.kind == "Street"
 			end
 			T.expect(street, "rue")
-		end)
-
-		T.it("clôt le terrain : chaque bord extérieur longe une autre zone, la maison ou une clôture", function()
-			-- Cette méthode permet de savoir si un point juste derrière le bord d'une zone est dans une autre pièce ou
-			-- zone lorsque l'on échantillonne ses côtés sans clôture tous les 0,5 stud.
-			local function covered(x, z, self)
-				for _, other in HouseLayout.rooms do
-					if
-						other ~= self
-						and HouseGeometry.spansLevel(other, self.level)
-						and x > other.x0
-						and x < other.x1
-						and z > other.z0
-						and z < other.z1
-					then
-						return true
-					end
-				end
-				return false
-			end
-			for _, room in HouseLayout.rooms do
-				if not room.outdoor then
-					continue
-				end
-				local sides = {
-					South = {
-						room.x0,
-						room.x1,
-						function(u)
-							return u, room.z0 - 0.25
-						end,
-					},
-					North = {
-						room.x0,
-						room.x1,
-						function(u)
-							return u, room.z1 + 0.25
-						end,
-					},
-					West = {
-						room.z0,
-						room.z1,
-						function(u)
-							return room.x0 - 0.25, u
-						end,
-					},
-					East = {
-						room.z0,
-						room.z1,
-						function(u)
-							return room.x1 + 0.25, u
-						end,
-					},
-				}
-				for side, s in sides do
-					if room.fence and table.find(room.fence, side) then
-						continue
-					end
-					for u = s[1] + 0.25, s[2] - 0.25, 0.5 do
-						local x, z = s[3](u)
-						T.expect(
-							covered(x, z, room),
-							string.format("%s : bord %s ouvert sur le vide (%.2f, %.2f)", room.id, side, x, z)
-						)
-					end
-				end
-			end
 		end)
 
 		T.it("relie les zones extérieures voisines sans porte, mais pas par un bord trop court", function()
@@ -555,6 +495,31 @@ return function(T, Loader)
 	end)
 
 	T.describe("HouseGeometry.validate : extérieur", function()
+		T.it("refuse un terrain ouvert sur le vide (côté sans clôture ni voisin)", function()
+			local broken = deepCopy(HouseLayout)
+			byId(broken.rooms, "WestSide").fence = {}
+			T.expect(mentions(HouseGeometry.validate(broken), "WestSide : bord West ouvert sur le vide"))
+		end)
+
+		T.it("refuse un meuble qui bouche un passage entre deux zones extérieures", function()
+			local broken = deepCopy(HouseLayout)
+			table.insert(broken.props, { id = "Woodpile", room = "NorthPassage", x = 90, z = 52, size = { 2, 2, 7 } })
+			T.expect(mentions(HouseGeometry.validate(broken), "passage Driveway ↔ NorthPassage bouché"))
+		end)
+
+		T.it("refuse un meuble de jardin qui sert de marchepied vers un lampadaire", function()
+			local broken = deepCopy(HouseLayout)
+			local table_ = byId(broken.props, "GardenTable")
+			table_.x, table_.z = 24, 82
+			T.expect(mentions(HouseGeometry.validate(broken), "GardenTable : marchepied vers le lampadaire GardenLamp"))
+		end)
+
+		T.it("refuse une pièce hors de la limite du terrain", function()
+			local broken = deepCopy(HouseLayout)
+			broken.bounds.x1 = 100
+			T.expect(mentions(HouseGeometry.validate(broken), "Driveway : hors de la limite du terrain"))
+		end)
+
 		T.it("refuse une zone extérieure couverte", function()
 			local broken = deepCopy(HouseLayout)
 			byId(broken.rooms, "Garden").roof = true

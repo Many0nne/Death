@@ -65,8 +65,14 @@ for level = -1, 1 do
 				edges += 1
 			end
 		end
-		-- Cul-de-sac : une seule sortie sur toute la carte (une cage d'escalier mène à l'autre niveau)
-		degree = #graph[id]
+		-- Cul-de-sac : une seule voisine sur toute la carte (une cage d'escalier mène à l'autre niveau)
+		local distinct = {}
+		for _, other in graph[id] do
+			if not distinct[other] then
+				distinct[other] = true
+				degree += 1
+			end
+		end
 		if degree <= 1 then
 			table.insert(deadEnds, id)
 		end

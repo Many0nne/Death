@@ -99,6 +99,18 @@ return function(T, Loader)
 			T.expectEqual(model:roomAt(at("Entry", 31, 19.8)), "Entry")
 		end)
 
+		T.it("dehors, laisse la lumière passer d'une zone à l'autre (aucun mur)", function()
+			-- Devant de la maison, à 14 studs du lampadaire de l'allée et à plus de 50 de l'applique du porche
+			local lit, lampId = model:isLit(at("FrontYard", 89, -10))
+			T.expectEqual(lit, true)
+			T.expectEqual(lampId, "StreetLamp")
+			T.expectEqual(model:roomAt(at("FrontYard", 89, -10)), "FrontYard")
+			-- Une lampe extérieure n'entre pas dans la maison : le salon derrière la façade reste sur ses lampes
+			local m = Illumination.fromHouse(house)
+			m:burnRoom("Living")
+			T.expectEqual((m:isLit(at("Living", 20, 2))), false)
+		end)
+
 		T.it("arrête la lumière aux murs : le dégagement contre l'entrée reste sombre", function()
 			-- À 1,5 stud du mur, la lampe de l'entrée est à portée mais dans une autre pièce
 			T.expectEqual((model:isLit(at("HallDown", 31, 21.5))), false)
