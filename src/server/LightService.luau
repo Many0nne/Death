@@ -76,19 +76,13 @@ local function defaultDeps(): Deps
 		error("LightService : maison introuvable, HouseBuilder.build doit passer avant")
 	end
 
-	-- Cette méthode permet de vérifier qu'aucun décor ne cache la cible lorsque la Mort grille une ampoule à
-	-- distance ; les personnages sont ignorés (lampes et volumes de pièce ne répondent pas aux rayons).
+	-- Chargé ici : il lit le service Players, absent des tests Lune
+	local LineOfSight = require(Shared.LineOfSight)
+
+	-- Cette méthode permet de vérifier qu'aucun décor ne cache la lampe depuis le personnage lorsque la Mort grille une
+	-- ampoule à distance (même règle que l'affichage de l'invite, Client.LightPrompts).
 	local function lineOfSight(_player, from: Vector3, to: Vector3): boolean
-		local ignore = {}
-		for _, other in Players:GetPlayers() do
-			if other.Character then
-				table.insert(ignore, other.Character)
-			end
-		end
-		local params = RaycastParams.new()
-		params.FilterType = Enum.RaycastFilterType.Exclude
-		params.FilterDescendantsInstances = ignore
-		return workspace:Raycast(from, to - from, params) == nil
+		return LineOfSight.clear(from, to)
 	end
 	-- Cette méthode permet de lire le rôle répliqué d'un joueur lorsqu'une invite est déclenchée.
 	local function roleOf(player): string?
@@ -451,12 +445,15 @@ function LightService:_createPrompts()
 	for _, lamp in self.illumination:allLamps() do
 		local part = self.lampParts[lamp.id]
 		if part then
-			self:_makePrompt(part, Role.Death, {
+			local prompt = self:_makePrompt(part, Role.Death, {
 				ActionText = "Griller l'ampoule",
 				ObjectText = self.roomNames[lamp.roomId] or lamp.roomId,
 				HoldDuration = DeathRules.BURN_HOLD,
 				MaxActivationDistance = DeathRules.LAMP_DISTANCE,
+				-- Vue testée depuis le personnage par le client (PromptSight) et le serveur, pas depuis la caméra
+				RequiresLineOfSight = false,
 			}, { kind = "burn", room = lamp.roomId })
+			prompt:SetAttribute(LA.PromptSight, true)
 		end
 	end
 	self:_refreshPrompts()

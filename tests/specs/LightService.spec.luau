@@ -125,6 +125,14 @@ return function(T, Loader)
 			T.expectEqual(env.prompt("restore"):GetAttribute(LA.PromptRole), "Mortal")
 		end)
 
+		T.it("teste la vue d'une ampoule depuis le personnage, jamais depuis la caméra", function()
+			-- Mesuré en jeu : la vue caméra perd la lampe de plafond sous un linteau de porte
+			local burn = env.prompt("burn", "Kitchen")
+			T.expectEqual(burn.RequiresLineOfSight, false)
+			T.expectEqual(burn:GetAttribute(LA.PromptSight), true)
+			T.expectEqual(env.prompt("restore"):GetAttribute(LA.PromptSight), nil)
+		end)
+
 		T.it("publie ce qui est possible au départ : couper et griller oui, rétablir non", function()
 			T.expectEqual(env.prompt("cut", "Night"):GetAttribute(LA.PromptAvailable), true)
 			T.expectEqual(env.prompt("restore"):GetAttribute(LA.PromptAvailable), false)

@@ -16,6 +16,8 @@ return table.freeze({
 	PromptTag = "LightPrompt",
 	PromptRole = "PromptRole",
 	PromptAvailable = "PromptAvailable",
+	-- true : l'invite n'apparaît que si rien ne cache sa cible depuis le personnage (Shared.LineOfSight)
+	PromptSight = "PromptSight",
 
 	-- Debug, sur un Player, en contexte serveur, Studio seulement
 	DebugDeath = "DebugDeath", -- true : ce joueur joue la Mort hors manche (téléporté à une apparition de la Mort)
