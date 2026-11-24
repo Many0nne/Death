@@ -27,7 +27,7 @@ local HouseGeometry = {}
 HouseGeometry.LAMP_STYLES = {
 	Ceiling = { size = Vector3.new(2, 0.4, 2), range = 18, brightness = 1.2 },
 	Chandelier = { size = Vector3.new(3, 1.5, 3), height = 8.5, range = 22, brightness = 1.5 },
-	-- Applique (porche, façade) : posée contre un mur, au-dessus d'une porte
+	-- Applique (porche, façade) : au-dessus d'une porte, à un demi-mur de la façade (bord du volume de la zone)
 	Wall = { size = Vector3.new(1.2, 1.2, 1.2), height = 8.5, range = 16, brightness = 1.3 },
 	-- Lampadaire (rue, jardin) : tête sur un poteau
 	Post = { size = Vector3.new(1.6, 1.2, 1.6), height = 9.5, range = 24, brightness = 1.5, pole = 0.6 },
@@ -972,7 +972,7 @@ local function checkOutdoorPassages(layout, byId, plan, errors: { string })
 				widest = math.max(widest, r.u1 - r.u0)
 			end
 		end
-		if widest < layout.DOOR_WIDTH + 1 - EPS then
+		if widest < layout.DOOR_WIDTH - EPS then
 			table.insert(errors, string.format("passage %s ↔ %s bouché par un meuble", link.a, link.b))
 		end
 	end

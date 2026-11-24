@@ -8,12 +8,15 @@
 -- zones extérieures voisines communiquent librement par leur bord commun.
 --
 -- Plan (z vers le haut du schéma ; la rue est au sud, le jardin au nord) :
---   Étage (1)  z 36..56 : [Ch. enfant 0..24][Escalier 24..38][Ch. ado 38..52][Salle d'eau 52..64][Esc. garage 64..78]
+--   Étage (1)  z 36..56 : [Ch. enfant 0..24][Escalier 24..38][Ch. ado 38..52][Salle d'eau 52..64]
 --              z 32..36 :                                    (ch. ado et salle d'eau descendent jusqu'à z 32)
+--              z 28..48 :                                                                   [Esc. du garage 64..78]
 --              z 20..36 : [Dressing 0..12][SdB 12..24][Palier 24..38][Couloir est 38..64, z 20..32]
 --              z  0..20 : [Ch. parents 0..24, z 0..22][Bureau 24..38][Ch. d'amis 38..64][Grenier 64..92, z 0..28]
 --   Rez (0)    z 56..70 : [Véranda 0..50]                             [Cour 50..88][Potager 88..104, z 56..78]
---              z 34..56 : [Bibliothèque 0..24][Escalier 24..38][Buanderie 38..50][Esc. cave 50..64][Esc. 64..78][78..92]
+--              z 34..56 : [Bibliothèque 0..24][Escalier 24..38][Buanderie 38..50][Esc. cave 50..64]
+--              z 48..56 :                                                           [Passage nord 64..92]
+--              z 28..48 :                                        [Esc. du garage 64..78][Esc. de l'atelier 78..92]
 --              z 20..36 : [Salon 0..24, z 0..34][Dégagement 24..38][Cuisine 38..64]   [Garage 64..92, z 0..28]
 --              z  0..20 :                       [Entrée 24..38]    [Salle à manger 38..64]
 --   Cave (-1)  z  0..36 : [Cave à vin 18..38][Cellier 38..64, z 0..14 / Cave z 14..36][Atelier 64..92, z 0..28]
