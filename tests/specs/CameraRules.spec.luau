@@ -1,0 +1,51 @@
+-- CameraRules (#24) : mode de caméra selon la phase, le rôle et l'état du mortel ; test du regard pour les invites.
+return function(T, Loader)
+	local CameraRules = Loader.new():require("src/shared/CameraRules")
+	local Match = Loader.new():require("src/shared/Match")
+	local Mode = CameraRules.Mode
+
+	T.describe("CameraRules.modeFor", function()
+		T.it("met la Mort à la première personne pendant la manche", function()
+			T.expectEqual(CameraRules.modeFor("Running", "Death", nil), Mode.FirstPerson)
+		end)
+		T.it("met les mortels vivants ou en agonie à la première personne", function()
+			T.expectEqual(CameraRules.modeFor("Running", "Mortal", "Alive"), Mode.FirstPerson)
+			T.expectEqual(CameraRules.modeFor("Running", "Mortal", "Agony"), Mode.FirstPerson)
+		end)
+		T.it("laisse libre un mortel mort ou sauvé (spectateur)", function()
+			T.expectEqual(CameraRules.modeFor("Running", "Mortal", "Dead"), Mode.Free)
+			T.expectEqual(CameraRules.modeFor("Running", "Mortal", "Saved"), Mode.Free)
+		end)
+		T.it("laisse libre hors manche, au résultat et sans rôle", function()
+			T.expectEqual(CameraRules.modeFor("Waiting", "Death", nil), Mode.Free)
+			T.expectEqual(CameraRules.modeFor("Ended", "Mortal", "Alive"), Mode.Free)
+			T.expectEqual(CameraRules.modeFor("Running", nil, nil), Mode.Free)
+			T.expectEqual(CameraRules.modeFor(nil, nil, nil), Mode.Free)
+		end)
+		T.it("couvre tous les états de mortel de Match", function()
+			local expected = { Alive = Mode.FirstPerson, Agony = Mode.FirstPerson, Dead = Mode.Free, Saved = Mode.Free }
+			for _, state in Match.MortalState do
+				T.expectEqual(CameraRules.modeFor("Running", "Mortal", state), expected[state], state)
+			end
+		end)
+	end)
+
+	T.describe("CameraRules.isLookedAt", function()
+		local origin = Vector3.new(0, 5, 0)
+		T.it("accepte une cible dans l'axe du regard", function()
+			T.expectEqual(CameraRules.isLookedAt(origin, Vector3.new(0, 0, -1), Vector3.new(0, 5, -10)), true)
+		end)
+		T.it("refuse une cible de côté ou derrière", function()
+			T.expectEqual(CameraRules.isLookedAt(origin, Vector3.new(0, 0, -1), Vector3.new(10, 5, 0)), false)
+			T.expectEqual(CameraRules.isLookedAt(origin, Vector3.new(0, 0, -1), Vector3.new(0, 5, 10)), false)
+		end)
+		T.it("accepte le bord d'une grande cible hors du cône, pas une petite", function()
+			local target = Vector3.new(10, 5, -10) -- 45 degrés du regard
+			T.expectEqual(CameraRules.isLookedAt(origin, Vector3.new(0, 0, -1), target, 0), false)
+			T.expectEqual(CameraRules.isLookedAt(origin, Vector3.new(0, 0, -1), target, 6), true)
+		end)
+		T.it("accepte une cible collée à la caméra, même hors du cône", function()
+			T.expectEqual(CameraRules.isLookedAt(origin, Vector3.new(0, 0, -1), Vector3.new(2, 5, 2)), true)
+		end)
+	end)
+end

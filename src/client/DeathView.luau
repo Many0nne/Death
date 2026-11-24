@@ -125,7 +125,8 @@ function DeathView.start()
 		local step = FADE_RATE * dt
 		state.visibility = math.clamp(state.visibility + math.clamp(target - state.visibility, -step, step), 0, 1)
 		if player == localPlayer then
-			state.highlight.Enabled = true
+			-- Première personne verrouillée (#24) : pas de voile sur ses propres bras, l'indicateur suffit
+			state.highlight.Enabled = localPlayer.CameraMode ~= Enum.CameraMode.LockFirstPerson
 			state.highlight.FillTransparency = SELF_VEIL.shadow
 				+ (SELF_VEIL.light - SELF_VEIL.shadow) * state.visibility
 		else
