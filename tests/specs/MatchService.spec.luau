@@ -15,12 +15,14 @@ return function(T, Loader)
 		local holder = fields or {}
 		holder.attributes = {}
 		holder.AttributeChanged = Signal.new()
+		-- Cette méthode permet d'écrire un attribut lorsqu'il change, et de prévenir les abonnés comme en jeu.
 		function holder.SetAttribute(self, name, value)
 			if self.attributes[name] ~= value then
 				self.attributes[name] = value
 				self.AttributeChanged:Fire(name)
 			end
 		end
+		-- Cette méthode permet de lire un attribut lorsqu'un test ou le service le consulte.
 		function holder.GetAttribute(self, name)
 			return self.attributes[name]
 		end
@@ -42,10 +44,11 @@ return function(T, Loader)
 		local players = {
 			PlayerAdded = Signal.new(),
 			PlayerRemoving = Signal.new(),
-			GetPlayers = function()
-				return table.clone(env.list)
-			end,
 		}
+		-- Cette méthode permet de lister les faux joueurs présents lorsque le service compte les joueurs.
+		function players.GetPlayers()
+			return table.clone(env.list)
+		end
 		-- Cette méthode permet d'ajouter un faux joueur lorsqu'un test simule une arrivée sur le serveur.
 		function env.join(id)
 			local player = attributeHolder({ UserId = id, Name = "Joueur" .. id })
@@ -226,7 +229,12 @@ return function(T, Loader)
 			local service, env, players = setup(3)
 			service:startMatch({ test = true })
 			local leaver, other = players[2], players[3]
+			local event
+			service.MortalStateChanged:Connect(function(change)
+				event = change
+			end)
 			env.leave(leaver)
+			T.expectEqual(event.player, leaver)
 			T.expectEqual(service.match:stateOf(2), S.Dead)
 			T.expectEqual(service:getPhase(), Match.Phase.Running)
 			service:kill(other)
@@ -246,7 +254,12 @@ return function(T, Loader)
 			local service, env, players = setup(3)
 			service:startMatch({ test = true })
 			local death, mortal = players[1], players[2]
+			local cancelled = false
+			service.MatchCancelled:Connect(function()
+				cancelled = true
+			end)
 			env.leave(death)
+			T.expect(cancelled, "MatchCancelled attendu")
 			T.expectEqual(service:getPhase(), Match.Phase.Waiting)
 			T.expectEqual(mortal:GetAttribute(A.Role), nil)
 		end)
@@ -283,6 +296,9 @@ return function(T, Loader)
 			players[1]:SetAttribute(A.DebugTimeScale, 10)
 			env.step(1)
 			T.expectNear(service:getTimeLeft(), GameConfig.MATCH_DURATION - 10)
+			players[1]:SetAttribute(A.DebugTimeScale, nil)
+			env.step(1)
+			T.expectNear(service:getTimeLeft(), GameConfig.MATCH_DURATION - 11)
 		end)
 		T.it("DebugTimeLeft = 0 termine la manche aussitôt", function()
 			local service, _, players = setup(2)

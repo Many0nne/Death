@@ -7,7 +7,9 @@
 --   :kill(player, reaped?, cause?)  -> mort ; reaped = fauché par la Mort (depuis l'agonie seulement)
 --   :save(player)                   vivant -> sauvé
 -- Chaque appel renvoie (true) ou (false, raison). Événements : PhaseChanged(phase), MatchStarted(info),
--- MortalStateChanged(change), MatchEnded(result). Lecture : getPhase, getRole, getMortalState, getTimeLeft.
+-- MortalStateChanged(change), MatchEnded(result), MatchCancelled() (manche annulée, sans résultat).
+-- Un nettoyage de fin de manche (pièges, sons) écoute MatchEnded et MatchCancelled, ou PhaseChanged(Waiting).
+-- Lecture : getPhase, getRole, getMortalState, getTimeLeft.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
@@ -34,23 +36,13 @@ export type Deps = {
 	warn: (string) -> (),
 }
 
--- États de debug acceptés par DebugSetState
+-- États acceptés par DebugSetState : nom de l'état visé -> méthode de l'API et argument `reaped`
 local DEBUG_STATES = {
-	Agony = function(self, player)
-		return self:down(player)
-	end,
-	Alive = function(self, player)
-		return self:revive(player)
-	end,
-	Dead = function(self, player)
-		return self:kill(player, false)
-	end,
-	Reaped = function(self, player)
-		return self:kill(player, true)
-	end,
-	Saved = function(self, player)
-		return self:save(player)
-	end,
+	Agony = { method = "down" },
+	Alive = { method = "revive" },
+	Dead = { method = "kill", reaped = false },
+	Reaped = { method = "kill", reaped = true },
+	Saved = { method = "save" },
 }
 
 -- Cette méthode permet de construire les dépendances réelles (services Roblox) lorsque le service est créé en jeu.
@@ -59,23 +51,33 @@ local function defaultDeps(): Deps
 	local RunService = game:GetService("RunService")
 	local HttpService = game:GetService("HttpService")
 	local rng = Random.new()
+
+	-- Cette méthode permet de tirer un index de 1 à n lorsque la Mort est choisie.
+	local function pick(n: number): number
+		return rng:NextInteger(1, n)
+	end
+	-- Cette méthode permet d'encoder le résultat en JSON lorsqu'il est publié en attribut.
+	local function encode(value: any): string
+		return HttpService:JSONEncode(value)
+	end
+	-- Cette méthode permet d'écrire un message de manche dans la sortie lorsque le cycle avance.
+	local function log(message: string)
+		print("[Manche] " .. message)
+	end
+	-- Cette méthode permet de signaler un refus ou une anomalie de manche dans la sortie.
+	local function warnManche(message: string)
+		warn("[Manche] " .. message)
+	end
+
 	return {
 		players = Players,
 		replicated = ReplicatedStorage,
 		heartbeat = RunService.Heartbeat,
 		isStudio = RunService:IsStudio(),
-		pick = function(n)
-			return rng:NextInteger(1, n)
-		end,
-		encode = function(value)
-			return HttpService:JSONEncode(value)
-		end,
-		log = function(message)
-			print("[Manche] " .. message)
-		end,
-		warn = function(message)
-			warn("[Manche] " .. message)
-		end,
+		pick = pick,
+		encode = encode,
+		log = log,
+		warn = warnManche,
 	}
 end
 
@@ -96,6 +98,7 @@ function MatchService.new(deps: Deps?)
 		MatchStarted = Signal.new(),
 		MortalStateChanged = Signal.new(),
 		MatchEnded = Signal.new(),
+		MatchCancelled = Signal.new(),
 	}, MatchService)
 end
 
@@ -263,15 +266,18 @@ function MatchService:startMatch(options: { test: boolean? }?): (boolean, string
 end
 
 -- Cette méthode permet d'annuler la manche en cours ou d'écourter le résultat lorsque le mode test le demande ou
--- que la Mort quitte le serveur : retour à l'attente sans résultat. Renvoie false si rien n'est en cours.
+-- que la Mort quitte le serveur : retour à l'attente sans résultat (MatchCancelled si une manche tournait).
+-- Renvoie false si rien n'est en cours.
 function MatchService:stopMatch(): boolean
 	if self.phase == Phase.Waiting then
 		return false
 	end
-	if self.phase == Phase.Running then
-		self.deps.log("manche annulée")
-	end
+	local cancelled = self.phase == Phase.Running
 	self:_returnToWaiting()
+	if cancelled then
+		self.deps.log("manche annulée")
+		self.MatchCancelled:Fire()
+	end
 	return true
 end
 
@@ -418,12 +424,16 @@ function MatchService:_onPlayerRemoving(player)
 	if id == self.match.deathId then
 		self.deps.warn("la Mort a quitté la partie")
 		self:stopMatch()
-	elseif self.match:stateOf(id) and not Match.isResolved(self.match:stateOf(id)) then
-		self.participants[id] = nil
-		local change = self.match:kill(id, false, Match.DeathCause.Left)
-		if change then
-			self:_applyChanges({ change })
+	else
+		local state = self.match:stateOf(id)
+		if state and not Match.isResolved(state) then
+			-- Le joueur reste dans `participants` le temps de l'événement : les abonnés reçoivent son Player
+			local change = self.match:kill(id, false, Match.DeathCause.Left)
+			if change then
+				self:_applyChanges({ change })
+			end
 		end
+		self.participants[id] = nil
 	end
 end
 
@@ -442,6 +452,11 @@ end
 function MatchService:_onDebugAttribute(player, name: string)
 	local value = player:GetAttribute(name)
 	if value == nil then
+		-- DebugTimeScale retiré : le sablier reprend sa vitesse normale
+		if name == A.DebugTimeScale and self.timeScale ~= 1 then
+			self.timeScale = 1
+			self.deps.log("sablier x1")
+		end
 		return
 	end
 	if name == A.DebugStart then
@@ -455,12 +470,12 @@ function MatchService:_onDebugAttribute(player, name: string)
 		self:stopMatch()
 	elseif name == A.DebugState then
 		player:SetAttribute(name, nil)
-		local apply = DEBUG_STATES[value]
-		if not apply then
+		local target = DEBUG_STATES[value]
+		if not target then
 			self.deps.warn("DebugSetState inconnu : " .. tostring(value))
 			return
 		end
-		local ok, err = apply(self, player)
+		local ok, err = self[target.method](self, player, target.reaped)
 		if not ok then
 			self.deps.warn(string.format("DebugSetState %s refusé pour %s : %s", value, player.Name, tostring(err)))
 		end

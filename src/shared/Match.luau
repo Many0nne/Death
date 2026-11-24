@@ -140,7 +140,12 @@ function Match:_apply(userId: number, to: string, reaped: boolean, cause: string
 	mortal.state = to
 	if to == State.Dead then
 		mortal.soul = if reaped then Match.SoulFate.Reaped else Match.SoulFate.Escaped
-		mortal.cause = cause or (if reaped then Match.DeathCause.Reaped else Match.DeathCause.Accident)
+		-- Cause par défaut : fauché, mort au bout de l'agonie, ou accident direct depuis l'état vivant
+		mortal.cause = cause
+			or if reaped
+				then Match.DeathCause.Reaped
+				elseif from == State.Agony then Match.DeathCause.Agony
+				else Match.DeathCause.Accident
 	end
 	return { userId = userId, from = from, to = to, soul = mortal.soul, cause = mortal.cause }
 end

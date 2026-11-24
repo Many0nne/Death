@@ -20,6 +20,6 @@ return table.freeze({
 	DebugStop = "DebugStopMatch", -- true : annule la manche en cours, retour à l'attente sans résultat
 	DebugRole = "DebugRole", -- "Death" ou "Mortal" : rôle imposé aux manches suivantes (nil pour le tirage)
 	DebugState = "DebugSetState", -- "Agony", "Alive", "Dead", "Reaped" ou "Saved" : change l'état de ce mortel
-	DebugTimeScale = "DebugTimeScale", -- multiplicateur du sablier (ex. 10), gardé jusqu'au prochain changement
+	DebugTimeScale = "DebugTimeScale", -- multiplicateur du sablier (ex. 10), gardé jusqu'au retrait (nil = x1)
 	DebugTimeLeft = "DebugTimeLeft", -- secondes : règle le temps restant du sablier
 })
