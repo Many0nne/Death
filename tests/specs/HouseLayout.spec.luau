@@ -76,6 +76,15 @@ return function(T, Loader)
 				GuestBedroom = 1,
 				Garage = 0,
 				Cave = -1,
+				Dining = 0,
+				Laundry = 0,
+				Library = 0,
+				Veranda = 0,
+				Attic = 1,
+				TeenBedroom = 1,
+				Garden = 0,
+				Driveway = 0,
+				Shed = 0,
 			}
 			local rooms = HouseGeometry.roomsById(HouseLayout)
 			for id, level in expected do
@@ -92,7 +101,7 @@ return function(T, Loader)
 
 		T.it("garde les couloirs, l'escalier et la cave sombres", function()
 			local rooms = HouseGeometry.roomsById(HouseLayout)
-			for _, id in { "HallDown", "HallUp", "Stairs", "CaveStairs", "Cave", "Cellar" } do
+			for _, id in { "HallDown", "HallUp", "HallEast", "Stairs", "GarageStairs", "CaveStairs", "Cave", "Cellar" } do
 				T.expectEqual(rooms[id].lit, false, id)
 			end
 		end)
@@ -146,6 +155,208 @@ return function(T, Loader)
 				end
 				T.expectNear(previous, HouseLayout.LEVEL_HEIGHT, 1e-6, room.id .. " : palier haut")
 			end
+		end)
+	end)
+
+	T.describe("HouseLayout : plan en boucles (#25)", function()
+		local graph = HouseGeometry.neighbors(HouseLayout)
+
+		-- Cette méthode permet de compter pièces, passages et boucles indépendantes d'un niveau lorsque l'on vérifie que
+		-- le plan n'est pas linéaire (boucles = passages - pièces + composantes connexes).
+		local function levelGraph(level)
+			local rooms, count, edges = {}, 0, 0
+			for _, room in HouseLayout.rooms do
+				if HouseGeometry.spansLevel(room, level) then
+					rooms[room.id] = true
+					count += 1
+				end
+			end
+			for id in rooms do
+				for _, other in graph[id] do
+					if rooms[other] then
+						edges += 1
+					end
+				end
+			end
+			edges //= 2
+			local seen, components = {}, 0
+			for id in rooms do
+				if not seen[id] then
+					components += 1
+					local stack = { id }
+					seen[id] = true
+					while #stack > 0 do
+						for _, other in graph[table.remove(stack)] do
+							if rooms[other] and not seen[other] then
+								seen[other] = true
+								table.insert(stack, other)
+							end
+						end
+					end
+				end
+			end
+			return { rooms = count, loops = edges - count + components }
+		end
+
+		T.it("offre au moins deux boucles par niveau", function()
+			for level = -1, 1 do
+				local g = levelGraph(level)
+				T.expect(g.loops >= 2, string.format("niveau %d : %d boucle(s)", level, g.loops))
+			end
+		end)
+
+		T.it("n'a aucun cul-de-sac : chaque pièce a au moins deux sorties", function()
+			for _, room in HouseLayout.rooms do
+				T.expect(#graph[room.id] >= 2, room.id .. " : une seule sortie")
+			end
+		end)
+
+		T.it("relie chaque niveau au suivant par au moins deux escaliers", function()
+			local accesses = {}
+			for _, room in HouseLayout.rooms do
+				if room.stairs then
+					accesses[room.level] = (accesses[room.level] or 0) + 1
+				end
+			end
+			T.expect((accesses[-1] or 0) >= 2, "cave ↔ rez")
+			T.expect((accesses[0] or 0) >= 2, "rez ↔ étage")
+		end)
+
+		T.it("offre au moins deux fois la surface du prototype #3 (7 896 studs²)", function()
+			local total = 0
+			for _, room in HouseLayout.rooms do
+				total += (room.x1 - room.x0) * (room.z1 - room.z0) * (room.levels or 1)
+			end
+			T.expect(total >= 2 * 7896, total .. " studs²")
+		end)
+
+		T.it("varie la taille des pièces (petites pièces, grand séjour)", function()
+			local smallest, largest = math.huge, 0
+			for _, room in HouseLayout.rooms do
+				if not room.outdoor and not room.stairs then
+					local area = (room.x1 - room.x0) * (room.z1 - room.z0)
+					smallest = math.min(smallest, area)
+					largest = math.max(largest, area)
+				end
+			end
+			T.expect(largest >= 4 * smallest, string.format("%d / %d studs²", largest, smallest))
+		end)
+	end)
+
+	T.describe("HouseLayout : extérieur (#25)", function()
+		local rooms = HouseGeometry.roomsById(HouseLayout)
+
+		T.it("a un jardin éclairé par endroits, un abri, une allée et la rue derrière le portail", function()
+			T.expect(rooms.Garden and rooms.Garden.outdoor, "jardin")
+			T.expect(rooms.Driveway and rooms.Driveway.outdoor, "allée")
+			T.expect(rooms.Shed and not rooms.Shed.outdoor and rooms.Shed.roof, "abri couvert")
+			local outdoorLamps = 0
+			for _, lamp in HouseLayout.lamps do
+				if rooms[lamp.room].outdoor then
+					outdoorLamps += 1
+				end
+			end
+			T.expect(outdoorLamps >= 2 and outdoorLamps <= 4, outdoorLamps .. " lumières dehors (quelques-unes)")
+			local street = false
+			for _, s in HouseLayout.scenery do
+				street = street or s.kind == "Street"
+			end
+			T.expect(street, "rue")
+		end)
+
+		T.it("clôt le terrain : chaque bord extérieur longe une autre zone, la maison ou une clôture", function()
+			-- Cette méthode permet de savoir si un point juste derrière le bord d'une zone est dans une autre pièce ou
+			-- zone lorsque l'on échantillonne ses côtés sans clôture tous les 0,5 stud.
+			local function covered(x, z, self)
+				for _, other in HouseLayout.rooms do
+					if
+						other ~= self
+						and HouseGeometry.spansLevel(other, self.level)
+						and x > other.x0
+						and x < other.x1
+						and z > other.z0
+						and z < other.z1
+					then
+						return true
+					end
+				end
+				return false
+			end
+			for _, room in HouseLayout.rooms do
+				if not room.outdoor then
+					continue
+				end
+				local sides = {
+					South = {
+						room.x0,
+						room.x1,
+						function(u)
+							return u, room.z0 - 0.25
+						end,
+					},
+					North = {
+						room.x0,
+						room.x1,
+						function(u)
+							return u, room.z1 + 0.25
+						end,
+					},
+					West = {
+						room.z0,
+						room.z1,
+						function(u)
+							return room.x0 - 0.25, u
+						end,
+					},
+					East = {
+						room.z0,
+						room.z1,
+						function(u)
+							return room.x1 + 0.25, u
+						end,
+					},
+				}
+				for side, s in sides do
+					if room.fence and table.find(room.fence, side) then
+						continue
+					end
+					for u = s[1] + 0.25, s[2] - 0.25, 0.5 do
+						local x, z = s[3](u)
+						T.expect(
+							covered(x, z, room),
+							string.format("%s : bord %s ouvert sur le vide (%.2f, %.2f)", room.id, side, x, z)
+						)
+					end
+				end
+			end
+		end)
+
+		T.it("relie les zones extérieures voisines sans porte, mais pas par un bord trop court", function()
+			local linked = {}
+			for _, l in HouseGeometry.outdoorLinks(HouseLayout) do
+				linked[l.a .. "/" .. l.b] = true
+				linked[l.b .. "/" .. l.a] = true
+			end
+			T.expect(linked["FrontYard/Driveway"], "devant ↔ allée")
+			T.expect(linked["WestSide/Garden"], "côté ouest ↔ jardin")
+			T.expect(not linked["NorthPassage/VegetableGarden"], "bord de 4 studs : pas un passage")
+		end)
+
+		T.it("pose clôtures, terrain et décor hors carte", function()
+			local fences, grounds, scenery = 0, 0, 0
+			for _, p in plan.pieces do
+				if p.kind == "Fence" then
+					fences += 1
+					T.expectNear(p.size.Y, HouseLayout.FENCE_HEIGHT - (p.center.Y - p.size.Y / 2), 1e-6, p.name)
+				elseif p.kind == "Ground" then
+					grounds += 1
+				elseif p.kind == "Street" or p.kind == "Lawn" then
+					scenery += 1
+					T.expectEqual(p.room, nil, p.name)
+				end
+			end
+			T.expect(fences > 0 and grounds > 0, "clôtures et terrain")
+			T.expectEqual(scenery, #HouseLayout.scenery)
 		end)
 	end)
 
@@ -205,18 +416,47 @@ return function(T, Loader)
 			T.expectEqual(tagged(MapTags.trapKind("Chandelier"))[1].room, "Living", "le lustre est au salon")
 		end)
 
-		T.it("place plusieurs emplacements de clés, une sortie au garage, la voiture et le disjoncteur", function()
-			T.expect(#tagged(MapTags.KeySpot) >= 4, "emplacements de clés")
-			local exits = tagged(MapTags.Exit)
-			T.expectEqual(#exits, 1, "une sortie")
-			T.expectEqual(exits[1].room, "Garage")
-			local breakers = tagged(MapTags.Breaker)
-			T.expectEqual(#breakers, 1, "un disjoncteur")
-			T.expectEqual(breakers[1].room, "Cave")
-			T.expect(table.find(plan.groups.EscapeCar.tags, MapTags.EscapeCar), "voiture taguée")
-			T.expectEqual(plan.groups.EscapeCar.room, "Garage")
-			T.expectEqual(#tagged(MapTags.GarageDoor), 1, "porte du garage")
+		T.it("répartit environ 30 points fragiles dans la maison et dehors (docs/design.md)", function()
+			local rooms = {}
+			local total = 0
+			for _, p in tagged(MapTags.TrapCandidate) do
+				total += 1
+				rooms[p.room] = true
+			end
+			local roomCount = 0
+			for _ in rooms do
+				roomCount += 1
+			end
+			T.expect(total >= 25, total .. " candidats seulement")
+			T.expect(roomCount >= 20, roomCount .. " pièces avec un candidat seulement")
+			local byRoom = HouseGeometry.roomsById(HouseLayout)
+			local outdoor = false
+			for id in rooms do
+				outdoor = outdoor or byRoom[id].outdoor == true
+			end
+			T.expect(outdoor, "aucun candidat dehors")
 		end)
+
+		T.it(
+			"place plusieurs emplacements de clés, une sortie au bout de l'allée, la voiture et le disjoncteur",
+			function()
+				T.expect(#tagged(MapTags.KeySpot) >= 4, "emplacements de clés")
+				local exits = tagged(MapTags.Exit)
+				T.expectEqual(#exits, 1, "une sortie")
+				T.expectEqual(exits[1].room, "Driveway")
+				-- La sortie attend devant le portail de la rue
+				local gates = tagged(MapTags.Gate)
+				T.expectEqual(#gates, 1, "un portail")
+				local d = exits[1].center - gates[1].center
+				T.expect(math.sqrt(d.X * d.X + d.Z * d.Z) <= 10, "sortie loin du portail")
+				local breakers = tagged(MapTags.Breaker)
+				T.expectEqual(#breakers, 1, "un disjoncteur")
+				T.expectEqual(breakers[1].room, "Cave")
+				T.expect(table.find(plan.groups.EscapeCar.tags, MapTags.EscapeCar), "voiture taguée")
+				T.expectEqual(plan.groups.EscapeCar.room, "Garage")
+				T.expectEqual(#tagged(MapTags.GarageDoor), 1, "porte du garage")
+			end
+		)
 
 		T.it("pose un volume tagué par pièce avec son aile et son ombre", function()
 			local zones = tagged(MapTags.Room)
@@ -230,43 +470,42 @@ return function(T, Loader)
 	T.describe("HouseGeometry.validate : rejets", function()
 		T.it("refuse une porte qui n'est pas sur un mur des deux pièces", function()
 			local broken = deepCopy(HouseLayout)
-			byId(broken.doors, "KitchenHall").z = 15
-			T.expect(mentions(HouseGeometry.validate(broken), "KitchenHall : pas sur un mur"))
+			byId(broken.doors, "DiningKitchen").z = 15
+			T.expect(mentions(HouseGeometry.validate(broken), "DiningKitchen : pas sur un mur"))
 		end)
 
 		T.it("refuse un meuble qui bouche une porte", function()
 			local broken = deepCopy(HouseLayout)
-			local table_ = byId(broken.props, "KitchenTable")
-			table_.x, table_.z = 12, 17
-			T.expect(mentions(HouseGeometry.validate(broken), "KitchenTable : bouche la porte KitchenHall"))
+			local island = byId(broken.props, "KitchenIsland")
+			island.z = 22.5
+			T.expect(mentions(HouseGeometry.validate(broken), "KitchenIsland : bouche la porte DiningKitchen"))
 		end)
 
 		T.it("refuse deux pièces qui se chevauchent", function()
 			local broken = deepCopy(HouseLayout)
-			byId(broken.rooms, "Kitchen").x1 = 30
+			byId(broken.rooms, "Kitchen").x0 = 30
 			T.expect(mentions(HouseGeometry.validate(broken), "se chevauchent"))
 		end)
 
 		T.it("refuse une pièce sans plafond ni étage au-dessus", function()
 			local broken = deepCopy(HouseLayout)
-			byId(broken.rooms, "Garage").roof = nil
-			T.expect(mentions(HouseGeometry.validate(broken), "Garage : sans plafond"))
+			byId(broken.rooms, "Veranda").roof = nil
+			T.expect(mentions(HouseGeometry.validate(broken), "Veranda : sans plafond"))
 		end)
 
 		T.it("refuse une pièce coupée du reste de la maison", function()
 			local broken = deepCopy(HouseLayout)
-			for i, door in broken.doors do
-				if door.id == "GarageHall" then
+			for i = #broken.doors, 1, -1 do
+				if table.find(broken.doors[i].rooms, "Shed") then
 					table.remove(broken.doors, i)
-					break
 				end
 			end
-			T.expect(mentions(HouseGeometry.validate(broken), "Garage : inaccessible"))
+			T.expect(mentions(HouseGeometry.validate(broken), "Shed : inaccessible"))
 		end)
 
 		T.it("refuse une lampe dans une zone sombre", function()
 			local broken = deepCopy(HouseLayout)
-			table.insert(broken.lamps, { id = "HallLamp", room = "HallDown", x = 10, z = 24 })
+			table.insert(broken.lamps, { id = "HallLamp", room = "HallDown", x = 31, z = 28 })
 			T.expect(mentions(HouseGeometry.validate(broken), "HallLamp : lampe dans une zone sombre"))
 		end)
 	end)
@@ -275,7 +514,7 @@ return function(T, Loader)
 		T.it("refuse un type d'ancrage, de lampe, de piège ou de tag inconnu", function()
 			local broken = deepCopy(HouseLayout)
 			byId(broken.anchors, "Exit").kind = "Exitt"
-			byId(broken.lamps, "KitchenLamp").kind = "Wall"
+			byId(broken.lamps, "KitchenLamp").kind = "Spot"
 			byId(broken.props, "KitchenShelf").trap = "Shelff"
 			byId(broken.props, "Breaker").tag = "Brekaer"
 			local errors = HouseGeometry.validate(broken)
@@ -288,7 +527,7 @@ return function(T, Loader)
 		T.it("refuse une apparition dans un meuble", function()
 			local broken = deepCopy(HouseLayout)
 			local spawn = byId(broken.anchors, "MortalSpawn2")
-			spawn.x, spawn.z = 34, 4
+			spawn.x, spawn.z = 12, 6
 			T.expect(mentions(HouseGeometry.validate(broken), "MortalSpawn2 est dans LivingSofa"))
 		end)
 
@@ -312,6 +551,44 @@ return function(T, Loader)
 			local errors, validPlan = HouseGeometry.validate(HouseLayout)
 			T.expectEqual(#errors, 0)
 			T.expectEqual(#validPlan.pieces, #plan.pieces)
+		end)
+	end)
+
+	T.describe("HouseGeometry.validate : extérieur", function()
+		T.it("refuse une zone extérieure couverte", function()
+			local broken = deepCopy(HouseLayout)
+			byId(broken.rooms, "Garden").roof = true
+			T.expect(mentions(HouseGeometry.validate(broken), "Garden : une zone extérieure est à ciel ouvert"))
+		end)
+
+		T.it("refuse une clôture entre deux zones extérieures", function()
+			local broken = deepCopy(HouseLayout)
+			table.insert(byId(broken.rooms, "Garden").fence, "South")
+			T.expect(mentions(HouseGeometry.validate(broken), "Garden : clôture South contre la zone"))
+		end)
+
+		T.it("refuse un meuble de jardin qui sert de marchepied par-dessus la clôture", function()
+			local broken = deepCopy(HouseLayout)
+			byId(broken.props, "GardenTable").size[2] = 4
+			T.expect(mentions(HouseGeometry.validate(broken), "GardenTable : meuble extérieur assez haut"))
+		end)
+
+		T.it("refuse une lampe de plafond dehors", function()
+			local broken = deepCopy(HouseLayout)
+			byId(broken.lamps, "GardenLamp").kind = nil
+			T.expect(mentions(HouseGeometry.validate(broken), "GardenLamp : lampe de plafond dehors"))
+		end)
+
+		T.it("refuse un décor posé sur la carte", function()
+			local broken = deepCopy(HouseLayout)
+			byId(broken.scenery, "Street").z1 = -10
+			T.expect(mentions(HouseGeometry.validate(broken), "Street : décor posé sur la carte (FrontYard)"))
+		end)
+
+		T.it("refuse un portail sans clôture autour", function()
+			local broken = deepCopy(HouseLayout)
+			byId(broken.rooms, "Driveway").fence = { "East" }
+			T.expect(mentions(HouseGeometry.validate(broken), "Gate : battant sans clôture autour dans Driveway"))
 		end)
 	end)
 

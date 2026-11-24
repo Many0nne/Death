@@ -1,11 +1,13 @@
--- Zone d'attente (#11) : plateforme en blocs gris au sud de la maison, avec le seul SpawnLocation de la place. Les
--- joueurs y apparaissent en rejoignant le serveur (retardataires compris, spectateurs sans rôle) et y reviennent à la
--- fin de la manche (Server.MatchSpawner). Séparée de la maison par le vide : on ne peut pas y entrer à pied.
+-- Zone d'attente (#11) : plateforme en blocs gris au sud de la maison, au-delà de la rue et des terrains voisins
+-- (Shared.HouseLayout.scenery), avec le seul SpawnLocation de la place. Les joueurs y apparaissent en rejoignant le
+-- serveur (retardataires compris, spectateurs sans rôle) et y reviennent à la fin de la manche (Server.MatchSpawner).
+-- Séparée de la carte par le vide : on ne peut pas y entrer à pied.
 local WaitingZone = {}
 
 WaitingZone.MODEL_NAME = "WaitingZone"
--- Plateforme : sol à y = 0 comme le rez-de-chaussée, centre à 30 studs au sud de la façade (z = 0)
-WaitingZone.CENTER = Vector3.new(40, 0, -30)
+-- Plateforme : sol à y = 0 comme le rez-de-chaussée, centre à 110 studs au sud de la façade (z = 0) : la rue et les
+-- terrains voisins s'arrêtent à z = -64, la plateforme commence à z = -94
+WaitingZone.CENTER = Vector3.new(46, 0, -110)
 WaitingZone.SIZE = 32 -- côté de la plateforme carrée
 local WALL_HEIGHT = 10 -- plus haut qu'un saut (JumpHeight 7,2 studs par défaut)
 local THICKNESS = 1

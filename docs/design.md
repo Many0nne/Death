@@ -108,8 +108,26 @@ Lobby explorable, brumeux : la Mort y dépose ses âmes, essaie ses capes et ses
 réduite de l'idée de petit monde ouvert.
 
 ## Première carte : maison familiale de nuit
-Deux étages et une cave (disjoncteur). Pièces : cuisine, salon (lustre), salle de bain, escalier, chambres, garage
-(voiture de fuite).
+Maison à étage avec cave et terrain clos, au bord d'une rue (#25). Plan en boucles : on peut toujours contourner un
+piège ou la Mort, et la Mort peut couper par les pièces sombres. Description : `src/shared/HouseLayout.luau` ; mesures :
+`lune run tools/house-report`.
+
+- **Rez-de-chaussée** : entrée (porte d'entrée fermée à clé), grand salon (lustre, porte-fenêtre sur le côté),
+  salle à manger, cuisine, dégagement sombre au centre, bibliothèque sombre, buanderie, véranda ouverte sur le jardin,
+  garage (voiture de fuite). Pièces traversantes : entrée ↔ salon ↔ dégagement ↔ entrée, entrée ↔ salle à manger ↔
+  cuisine ↔ dégagement, salon ↔ bibliothèque ↔ véranda ↔ buanderie ↔ cuisine.
+- **Étage** : palier et couloir est sombres, bureau, suite des parents (chambre, dressing sombre, salle de bain),
+  chambre d'enfant, chambre d'amis, chambre d'ado et salle d'eau communicantes, grenier sombre au-dessus du garage.
+- **Cave** : cave (disjoncteur), cellier, cave à vin, atelier sous le garage, toutes sombres ; la Mort y apparaît.
+- **Accès entre niveaux** : escalier principal (dégagement ↔ palier) et escalier du garage (garage ↔ grenier) ;
+  escalier de la cave (cuisine ↔ cave) et escalier de l'atelier (garage ↔ atelier).
+- **Dehors** (nuit) : devant de la maison, allée du garage jusqu'au portail de la rue, côté ouest, passage nord, cour,
+  potager, jardin, abri de jardin. Haie haute tout autour (limite de la carte), rue et terrains voisins au-delà.
+  Lumières : applique du porche, lampadaire de l'allée, lanterne du jardin ; tout le reste est sombre.
+- **Fuite** : clés dans trois pièces tirées au hasard (hors allée), voiture au garage ; une fois la voiture démarrée,
+  la porte du garage s'ouvre et la sortie est au bout de l'allée, devant le portail.
+- **Mesures** (#25) : environ 13 500 studs² à l'intérieur et 6 500 dehors (prototype #3 : 7 900), aucun cul-de-sac,
+  au moins deux boucles par niveau, une trentaine de points fragiles répartis dans la maison et dehors.
 
 ## Prototype v0 (objectif : savoir si c'est amusant)
 - Maison en blocs gris, aucun travail graphique.

@@ -4,7 +4,8 @@
 -- détectables (CanTouch, CanQuery) ; les volumes de pièce (Room) ne répondent ni au contact ni aux rayons : pour
 -- savoir qui est dedans, utiliser GetPartBoundsInBox(zone.CFrame, zone.Size) ou GetPartsInPart(zone).
 local MapTags = {
-	-- Volume invisible de chaque pièce (CanQuery/CanCollide faux) : attributs RoomId, RoomName, WingId, Level, Dark
+	-- Volume invisible de chaque pièce (CanQuery/CanCollide faux) : attributs RoomId, RoomName, WingId, Level, Dark,
+	-- Outdoor (zone extérieure à ciel ouvert : jardin, allée…)
 	Room = "Room",
 	-- Toute lampe (Part néon + PointLight « Light ») : attributs LampId, RoomId, WingId ; voir aussi wingLamps/roomLamps
 	Lamp = "Lamp",
@@ -15,15 +16,17 @@ local MapTags = {
 	TrapCandidate = "TrapCandidate",
 	-- Emplacement candidat des clés (#7) : Part invisible posée sur un meuble
 	KeySpot = "KeySpot",
-	-- Sortie des mortels (devant la porte du garage)
+	-- Sortie des mortels (au bout de l'allée, devant le portail de la rue)
 	Exit = "Exit",
 	-- Disjoncteur en bloc (cave)
 	Breaker = "Breaker",
 	-- Voiture de fuite : Model en blocs (PrimaryPart « Body »)
 	EscapeCar = "EscapeCar",
-	-- Battants fermés des portes extérieures
+	-- Battants fermés des portes extérieures : porte du garage (ouverte par la fuite), porte d'entrée (fermée à clé)
 	GarageDoor = "GarageDoor",
 	FrontDoor = "FrontDoor",
+	-- Portail de la rue, dans la clôture au bout de l'allée (toujours fermé : limite de la carte)
+	Gate = "Gate",
 }
 
 MapTags.Attributes = {
@@ -32,6 +35,7 @@ MapTags.Attributes = {
 	WingId = "WingId",
 	Level = "Level",
 	Dark = "Dark",
+	Outdoor = "Outdoor",
 	LampId = "LampId",
 	TrapKind = "TrapKind",
 	AnchorId = "AnchorId",

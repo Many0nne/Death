@@ -38,5 +38,20 @@ return function(T, Loader)
 				T.expect(WaitingZone.contains(WaitingZone.spot(n).Position), "point " .. n)
 			end
 		end)
+
+		T.it("est séparée du terrain et du décor par le vide", function()
+			local c, half = WaitingZone.CENTER, WaitingZone.SIZE / 2
+			local rects = table.clone(HouseLayout.scenery)
+			for _, room in HouseLayout.rooms do
+				table.insert(rects, room)
+			end
+			for _, r in rects do
+				local apart = r.x1 < c.X - half - 8
+					or r.x0 > c.X + half + 8
+					or r.z1 < c.Z - half - 8
+					or r.z0 > c.Z + half + 8
+				T.expect(apart, r.id .. " touche la zone d'attente")
+			end
+		end)
 	end)
 end

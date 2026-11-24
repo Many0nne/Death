@@ -21,7 +21,15 @@ local COLORS = {
 	Prop = Color3.fromRGB(104, 104, 108),
 	DoorLeaf = Color3.fromRGB(62, 62, 66),
 	Car = Color3.fromRGB(88, 88, 94),
+	-- Dehors : terrain et haie à peine verdis, rue plus sombre que tout le reste
+	Ground = Color3.fromRGB(78, 84, 76),
+	Fence = Color3.fromRGB(70, 80, 70),
+	Lawn = Color3.fromRGB(72, 78, 70),
+	Street = Color3.fromRGB(52, 52, 56),
 }
+
+-- Dossier des blocs de décor hors de la carte (rue, terrains voisins), sans pièce
+HouseBuilder.SCENERY_FOLDER = "Scenery"
 
 -- Blocs invisibles, avec leurs collisions : un volume de pièce ne gêne ni le joueur, ni le contact, ni les rayons
 -- (faisceau de lampe torche) ; un ancrage reste détectable (Touched, GetPartsInPart) sans bloquer le passage.
@@ -119,6 +127,9 @@ function HouseBuilder.build(parent: Instance, layout: any?): Model
 		folder.Parent = house
 		folders[room.id] = folder
 	end
+	local scenery = Instance.new("Folder")
+	scenery.Name = HouseBuilder.SCENERY_FOLDER
+	scenery.Parent = house
 	local models = {}
 	for id, group in plan.groups do
 		local model = Instance.new("Model")
@@ -135,7 +146,7 @@ function HouseBuilder.build(parent: Instance, layout: any?): Model
 				models[p.group].PrimaryPart = part
 			end
 		else
-			part.Parent = folders[p.room]
+			part.Parent = if p.room then folders[p.room] else scenery
 		end
 	end
 	house.Parent = parent

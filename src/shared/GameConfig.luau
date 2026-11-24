@@ -13,8 +13,8 @@ local GameConfig = {
 	INTERMISSION_DURATION = 10,
 	-- Mode test (Studio) : nombre minimal de mortels face à la Mort
 	TEST_MIN_MORTALS = 1,
-	-- Objectif de fuite (#7) : clés à trouver (une par pièce, hors garage), maintien des actions en secondes, rayon
-	-- de la sortie en studs (devant la porte du garage, entre la voiture et la porte)
+	-- Objectif de fuite (#7) : clés à trouver (une par pièce, hors de la pièce de la sortie), maintien des actions en
+	-- secondes, rayon de la sortie en studs (au bout de l'allée, devant le portail de la rue)
 	ESCAPE_KEY_COUNT = 3,
 	KEY_PICKUP_DURATION = 1,
 	CAR_START_DURATION = 8,
