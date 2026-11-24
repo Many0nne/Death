@@ -282,9 +282,8 @@ function MatchService:startMatch(options: { test: boolean? }?): (boolean, string
 	return true
 end
 
--- Cette méthode permet d'annuler la manche en cours ou d'écourter le résultat lorsque le mode test le demande ou
--- que la Mort quitte le serveur : retour à l'attente sans résultat (MatchCancelled si une manche tournait).
--- Renvoie false si rien n'est en cours.
+-- Cette méthode permet d'annuler la manche (MatchCancelled, sans résultat) ou d'écourter le résultat lorsque le mode
+-- test le demande ou que la Mort part ; retour à l'attente, false si rien n'est en cours.
 function MatchService:stopMatch(): boolean
 	if self.phase == Phase.Waiting then
 		return false
