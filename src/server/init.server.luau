@@ -2,6 +2,8 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local GameConfig = require(ReplicatedStorage.Shared.GameConfig)
 
+require(script.NightAmbience).apply(game:GetService("Lighting"))
+require(script.HouseBuilder).build(workspace)
 require(script.MatchService).get():start()
 
 print(string.format("Death : serveur prêt (%d mortels par manche)", GameConfig.MORTALS_PER_MATCH))
