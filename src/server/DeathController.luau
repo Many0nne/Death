@@ -46,8 +46,8 @@ function DeathController.new(deps)
 		started = false,
 		roles = {} :: { [any]: string }, -- Player -> rôle effectif publié
 		characters = {} :: { [any]: Model }, -- Player -> personnage auquel le rôle a été appliqué
-		exposure = DeathRules.newExposure(),
-		death = nil :: any,
+		-- Player -> exposition, pour chaque joueur Mort (une seule en manche ; plusieurs possibles en bac à sable)
+		exposures = {} :: { [any]: DeathRules.Exposure },
 	}, DeathController)
 end
 
@@ -81,9 +81,7 @@ function DeathController:start()
 	players.PlayerRemoving:Connect(function(player)
 		self.roles[player] = nil
 		self.characters[player] = nil
-		if self.death == player then
-			self.death = nil
-		end
+		self.exposures[player] = nil
 	end)
 	self.deps.heartbeat:Connect(function(dt)
 		self:_step(dt)
@@ -98,14 +96,16 @@ function DeathController:roleOf(player): string?
 	return self.roles[player]
 end
 
--- Cette méthode permet de trouver le joueur qui joue la Mort lorsqu'un système agit sur elle (nil sinon).
+-- Cette méthode permet de trouver le joueur qui joue la Mort lorsqu'un système agit sur elle (nil sinon ; en bac à
+-- sable avec plusieurs Morts, la première trouvée).
 function DeathController:getDeath(): any
-	return self.death
+	return next(self.exposures)
 end
 
--- Cette méthode permet de savoir si la Mort est éclairée lorsqu'un système en dépend (silhouette, préparation).
-function DeathController:isExposed(): boolean
-	return self.death ~= nil and self.exposure.exposed
+-- Cette méthode permet de savoir si un joueur Mort est éclairé lorsqu'un système en dépend (silhouette, préparation).
+function DeathController:isExposed(player): boolean
+	local exposure = self.exposures[player]
+	return exposure ~= nil and exposure.exposed
 end
 
 -- Boucle -------------------------------------------------------------------------------------------------------
@@ -125,37 +125,35 @@ function DeathController:_computeRole(player): string?
 end
 
 -- Cette méthode permet d'avancer d'une frame lorsque le Heartbeat tombe : rôles publiés, puis vitesse et exposition
--- de la Mort selon la lumière à sa position.
+-- de chaque joueur Mort selon la lumière à sa position.
 function DeathController:_step(dt: number)
-	local death = nil
 	for _, player in self.deps.players:GetPlayers() do
 		local role = self:_computeRole(player)
 		local character = player.Character
 		if role ~= self.roles[player] or character ~= self.characters[player] then
 			self:_applyRole(player, role, character)
 		end
-		if role == Role.Death and not death then
-			death = player
+		if role == Role.Death then
+			self:_stepDeath(player, dt)
 		end
 	end
-	if death ~= self.death then
-		self.death = death
-		self.exposure = DeathRules.newExposure()
-	end
-	if not death then
-		return
-	end
-	local character = death.Character
+end
+
+-- Cette méthode permet de régler vitesse et exposition d'un joueur Mort lorsqu'une frame passe : silhouette dès
+-- qu'il est éclairé, invisible après un court délai d'ombre.
+function DeathController:_stepDeath(player, dt: number)
+	local character = player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart")
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 	if not root or not humanoid then
 		return
 	end
+	local exposure = self.exposures[player]
 	local lit = self.deps.lights:isLit(root.Position)
-	local was = self.exposure.exposed
-	local exposed = DeathRules.updateExposure(self.exposure, lit, dt)
-	if exposed ~= was or death:GetAttribute(LA.Exposed) == nil then
-		death:SetAttribute(LA.Exposed, exposed)
+	local was = exposure.exposed
+	local exposed = DeathRules.updateExposure(exposure, lit, dt)
+	if exposed ~= was or player:GetAttribute(LA.Exposed) == nil then
+		player:SetAttribute(LA.Exposed, exposed)
 	end
 	-- Réécrite à chaque frame : un autre script (ou un reset du personnage) ne peut pas la faire dériver
 	humanoid.WalkSpeed = DeathRules.speed(exposed)
@@ -169,7 +167,10 @@ function DeathController:_applyRole(player, role: string?, character: Model?)
 	self.characters[player] = character
 	player:SetAttribute(LA.LightRole, role)
 	if role ~= Role.Death then
+		self.exposures[player] = nil
 		player:SetAttribute(LA.Exposed, nil)
+	elseif previous ~= role then
+		self.exposures[player] = DeathRules.newExposure()
 	end
 	if previous ~= role then
 		self.deps.log(string.format("%s : rôle lumière %s", player.Name, tostring(role)))
@@ -199,13 +200,19 @@ end
 -- Cette méthode permet de suivre un joueur lorsqu'il rejoint le serveur : groupe de collision des pièces ajoutées
 -- plus tard (accessoires) et, en Studio, l'attribut DebugDeath.
 function DeathController:_watchPlayer(player)
-	player.CharacterAdded:Connect(function(character)
+	-- Cette méthode permet de ranger dans le bon groupe chaque pièce ajoutée à un personnage lorsqu'il s'équipe.
+	local function watchCharacter(character: Model)
 		character.DescendantAdded:Connect(function(part)
 			if part:IsA("BasePart") then
 				part.CollisionGroup = if self.roles[player] == Role.Death then GROUP_DEATH else GROUP_MORTALS
 			end
 		end)
-	end)
+	end
+	-- Personnage déjà présent au démarrage : CharacterAdded ne se déclenchera pas pour lui
+	if player.Character then
+		watchCharacter(player.Character)
+	end
+	player.CharacterAdded:Connect(watchCharacter)
 	if self.deps.isStudio then
 		player.AttributeChanged:Connect(function(name)
 			if name == LA.DebugDeath and player:GetAttribute(name) == true then

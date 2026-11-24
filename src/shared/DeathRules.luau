@@ -2,6 +2,8 @@
 -- préparer un piège, rôle effectif pour les actions de lumière, et réglages du disjoncteur et des ampoules.
 -- « D'ombre en ombre » : la Mort marche librement ; dans l'ombre elle est invisible pour les mortels, rapide et
 -- silencieuse ; à la lumière elle apparaît en silhouette et ralentit. La lumière révèle, elle ne bloque pas.
+-- Bac à sable (Studio, hors manche) : le joueur DebugDeath joue la Mort, les autres des mortels ; jeu publié hors
+-- manche : personne n'agit sur la lumière.
 local DeathRules = {}
 
 -- Réglages de départ, à ajuster en test (les mortels marchent à 16, vitesse par défaut de Roblox)
@@ -34,9 +36,8 @@ export type RoleContext = {
 	debugDeath: boolean, -- attribut DebugDeath : jouer la Mort sans manche (Studio)
 }
 
--- Cette méthode permet de décider qui agit comme la Mort ou comme mortel sur la lumière lorsque l'état de la manche
--- change : en manche, selon le rôle tiré (un mortel doit être vivant) ; hors manche, en Studio seulement, le bac à
--- sable fait de DebugDeath la Mort et des autres joueurs des mortels ; sinon personne.
+-- Cette méthode permet de décider qui agit comme la Mort ou comme mortel sur la lumière lorsque la manche change :
+-- en manche, selon le rôle tiré (un mortel doit être vivant), sinon selon le bac à sable ci-dessus.
 function DeathRules.lightRole(ctx: RoleContext): string?
 	if ctx.running then
 		if ctx.matchRole == DeathRules.Role.Death then

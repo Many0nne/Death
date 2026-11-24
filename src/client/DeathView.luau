@@ -80,16 +80,18 @@ function DeathView.start()
 		end
 	end
 
-	-- Cette méthode permet de couper les sons du personnage (pas, sauts) lorsque c'est la Mort ; les sons créés plus
-	-- tard par le script de sons de Roblox sont pris à la frame suivante.
+	-- Cette méthode permet de couper à chaque frame les sons du personnage (pas, chute, atterrissage) lorsque c'est la
+	-- Mort : le script de sons de Roblox réécrit leur volume à chaque mouvement.
 	local function mute(character: Model, state)
 		local root = character:FindFirstChild("HumanoidRootPart")
 		if not root then
 			return
 		end
 		for _, sound in root:GetChildren() do
-			if sound:IsA("Sound") and state.muted[sound] == nil then
-				state.muted[sound] = sound.Volume
+			if sound:IsA("Sound") then
+				if state.muted[sound] == nil then
+					state.muted[sound] = sound.Volume
+				end
 				sound.Volume = 0
 			end
 		end

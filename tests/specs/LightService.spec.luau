@@ -163,6 +163,9 @@ return function(T, Loader)
 			T.expectEqual(service.sabotage:cutWing(), nil, "mauvais rôle")
 			env.trigger(env.prompt("cut", "Day"), env.player("Death", env.atBreaker + Vector3.new(-20, 0, 0)))
 			T.expectEqual(service.sabotage:cutWing(), nil, "trop loin")
+			env.los = false
+			env.trigger(env.prompt("cut", "Day"), env.player("Death", env.atBreaker))
+			T.expectEqual(service.sabotage:cutWing(), nil, "disjoncteur hors de vue")
 		end)
 
 		T.it("un mortel rétablit, la Mort attend la recharge avant de recouper", function()
@@ -187,6 +190,13 @@ return function(T, Loader)
 			env.trigger(env.prompt("burn", "Kitchen"), env.player("Death", nearLamp))
 			T.expectEqual(service:isRoomLit("Kitchen"), false, "règle éteinte tout de suite")
 			T.expect(#env.delays > 0, "grésillement programmé")
+			-- Le grésillement est visuel : l'attribut répliqué suit la règle sans clignoter
+			local seen = {}
+			for _ = 1, 6 do
+				table.insert(seen, tostring(lamp:GetAttribute(LA.LampOn)))
+				env.advance(0.07)
+			end
+			T.expectEqual(table.concat(seen, ","), "false,false,false,false,false,false")
 			env.advance(1)
 			T.expectEqual(lamp:GetAttribute(LA.LampOn), false)
 			T.expectEqual(lamp.Material.Name, "SmoothPlastic")

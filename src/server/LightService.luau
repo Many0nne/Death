@@ -60,7 +60,7 @@ export type Deps = {
 	soundParent: Instance?, -- parent des sons entendus par tous (SoundService)
 	connectPrompt: (any, (any) -> ()) -> (), -- branche ProximityPrompt.Triggered
 	delay: (number, () -> ()) -> (),
-	lineOfSight: (any, Vector3, Vector3) -> boolean, -- (joueur, depuis, vers) : rien ne bloque la vue
+	lineOfSight: (any, Vector3, Vector3, Instance) -> boolean, -- (joueur, depuis, vers, cible) : vue dégagée
 	log: (string) -> (),
 	warn: (string) -> (),
 }
@@ -79,10 +79,10 @@ local function defaultDeps(): Deps
 	-- Chargé ici : il lit le service Players, absent des tests Lune
 	local LineOfSight = require(Shared.LineOfSight)
 
-	-- Cette méthode permet de vérifier qu'aucun décor ne cache la lampe depuis le personnage lorsque la Mort grille une
-	-- ampoule à distance (même règle que l'affichage de l'invite, Client.LightPrompts).
-	local function lineOfSight(_player, from: Vector3, to: Vector3): boolean
-		return LineOfSight.clear(from, to)
+	-- Cette méthode permet de vérifier qu'aucun décor ne cache la cible depuis le personnage lorsqu'une invite est
+	-- déclenchée (même règle que l'affichage des invites d'ampoule, Client.LightPrompts).
+	local function lineOfSight(_player, from: Vector3, to: Vector3, target: Instance): boolean
+		return LineOfSight.clear(from, to, target)
 	end
 	-- Cette méthode permet de lire le rôle répliqué d'un joueur lorsqu'une invite est déclenchée.
 	local function roleOf(player): string?
@@ -131,6 +131,7 @@ function LightService.new(deps: Deps?)
 		roomNames = {} :: { [string]: string },
 		breaker = nil :: BasePart?,
 		prompts = {} :: { any }, -- { prompt, kind = "cut" | "restore" | "burn", wing?, room? }
+		flickering = {} :: { [string]: boolean }, -- lampes en train de grésiller (affichage piloté par _flicker)
 		sounds = {},
 		Changed = Signal.new(),
 	}, LightService)
@@ -278,7 +279,8 @@ function LightService:_changed(flicker: { string }?)
 	self.Changed:Fire()
 end
 
--- Cette méthode permet d'afficher une lampe allumée ou éteinte lorsque son état change (lumière, néon, attribut).
+-- Cette méthode permet d'afficher une lampe allumée ou éteinte lorsque son état change ou qu'elle grésille (lumière
+-- et néon seulement : l'attribut LampOn suit la règle, voir _applyAll).
 function LightService:_showLamp(lampId: string, on: boolean)
 	local part = self.lampParts[lampId]
 	if not part then
@@ -290,24 +292,25 @@ function LightService:_showLamp(lampId: string, on: boolean)
 	end
 	part.Material = if on then Enum.Material.Neon else Enum.Material.SmoothPlastic
 	part.Color = if on then NightLighting.lampColor else LAMP_OFF_COLOR
-	part:SetAttribute(LA.LampOn, on)
 end
 
 -- Cette méthode permet d'appliquer l'état de toutes les lampes et du disjoncteur lorsque la lumière change ; les
--- lampes de `flicker` grésillent avant de s'éteindre.
+-- lampes de `flicker` grésillent avant de s'éteindre, et celles qui grésillent déjà finissent leur grésillement.
 function LightService:_applyAll(flicker: { string }?)
-	local flickering = {}
-	if flicker then
-		for _, id in flicker do
-			flickering[id] = true
-		end
-	end
 	for _, lamp in self.illumination:allLamps() do
-		if not flickering[lamp.id] then
-			self:_showLamp(lamp.id, self.illumination:isLampOn(lamp.id))
+		local on = self.illumination:isLampOn(lamp.id)
+		local part = self.lampParts[lamp.id]
+		if part then
+			part:SetAttribute(LA.LampOn, on)
+		end
+		if not self.flickering[lamp.id] then
+			self:_showLamp(lamp.id, on)
 		end
 	end
 	if flicker and #flicker > 0 then
+		for _, id in flicker do
+			self.flickering[id] = true
+		end
 		self:_flicker(flicker, 1)
 	end
 	if self.breaker then
@@ -316,10 +319,11 @@ function LightService:_applyAll(flicker: { string }?)
 end
 
 -- Cette méthode permet de faire grésiller des lampes lorsqu'elles grillent : alternance éteinte / allumée selon
--- FLICKER, puis leur état réel (qui tient compte d'une remise à zéro survenue entre-temps).
+-- FLICKER, puis leur état réel (qui tient compte d'une coupure ou d'une remise à zéro survenue entre-temps).
 function LightService:_flicker(lampIds: { string }, step: number)
 	if step > #FLICKER then
 		for _, id in lampIds do
+			self.flickering[id] = nil
 			self:_showLamp(id, self.illumination:isLampOn(id))
 		end
 		return
@@ -481,7 +485,7 @@ function LightService:_refreshPrompts()
 end
 
 -- Cette méthode permet d'exécuter l'action d'une invite lorsqu'un joueur la déclenche, après contrôle du rôle, de la
--- distance et (ampoules) de la vue sur la lampe : le client n'est jamais cru sur parole.
+-- distance et de la vue sur la cible depuis le personnage : le client n'est jamais cru sur parole.
 function LightService:_onPrompt(player, entry)
 	if self.deps.roleOf(player) ~= entry.role then
 		return
@@ -492,10 +496,15 @@ function LightService:_onPrompt(player, entry)
 		return
 	end
 	local from = root.CFrame.Position
-	local target = (entry.prompt.Parent :: BasePart).CFrame.Position
+	local part = entry.prompt.Parent :: BasePart
+	local target = part.CFrame.Position
 	local reach = entry.prompt.MaxActivationDistance + DeathRules.DISTANCE_TOLERANCE
 	if (target - from).Magnitude > reach then
 		self.deps.warn(string.format("%s : %s refusé, trop loin", player.Name, entry.kind))
+		return
+	end
+	if not self.deps.lineOfSight(player, from, target, part) then
+		self.deps.warn(string.format("%s : %s refusé, cible hors de vue", player.Name, entry.kind))
 		return
 	end
 	local ok, err
@@ -504,10 +513,6 @@ function LightService:_onPrompt(player, entry)
 	elseif entry.kind == "restore" then
 		ok, err = self:restorePower()
 	else
-		if not self.deps.lineOfSight(player, from, target) then
-			self.deps.warn(string.format("%s : ampoule refusée, lampe hors de vue", player.Name))
-			return
-		end
 		ok, err = self:burnRoom(entry.room)
 	end
 	if not ok then

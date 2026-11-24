@@ -59,7 +59,7 @@ function LightPrompts.start()
 				if checking and root and target and target:IsA("BasePart") then
 					local distance = (target.Position - root.Position).Magnitude
 					visible = distance <= prompt.MaxActivationDistance
-						and LineOfSight.clear(root.Position, target.Position)
+						and LineOfSight.clear(root.Position, target.Position, target)
 				end
 				if inSight[prompt] ~= visible then
 					inSight[prompt] = visible

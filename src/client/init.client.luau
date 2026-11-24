@@ -1,5 +1,6 @@
 -- Point d'entrée client : démarre les modules du prototype v0 (chaque module vit à côté de ce script).
-require(script.DeathView).start()
+-- LightPrompts d'abord : il masque au plus tôt les invites réservées à l'autre rôle (DeathView attend le PlayerGui).
 require(script.LightPrompts).start()
+require(script.DeathView).start()
 
 print("Death : client prêt")

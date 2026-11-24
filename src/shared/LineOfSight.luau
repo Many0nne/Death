@@ -18,12 +18,14 @@ function LineOfSight.characters(): { Instance }
 	return list
 end
 
--- Cette méthode permet de savoir si rien du décor ne sépare deux points lorsque la Mort vise une lampe.
-function LineOfSight.clear(from: Vector3, to: Vector3): boolean
+-- Cette méthode permet de savoir si rien du décor ne sépare un personnage de sa cible lorsqu'il vise une lampe ou le
+-- disjoncteur ; toucher la cible elle-même (`target`) compte comme une vue dégagée.
+function LineOfSight.clear(from: Vector3, to: Vector3, target: Instance?): boolean
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
 	params.FilterDescendantsInstances = LineOfSight.characters()
-	return workspace:Raycast(from, to - from, params) == nil
+	local hit = workspace:Raycast(from, to - from, params)
+	return hit == nil or (target ~= nil and hit.Instance:IsDescendantOf(target))
 end
 
 return LineOfSight
