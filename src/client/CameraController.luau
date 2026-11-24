@@ -14,6 +14,7 @@ local CameraController = {}
 function CameraController.start()
 	local player = Players.LocalPlayer
 	local applied: string? = nil
+	local releaseZoom = false
 
 	-- Cette méthode permet d'appliquer le mode de caméra voulu lorsqu'il diffère de celui en place (la caméra de
 	-- Roblox garde le mode de première personne d'un personnage à l'autre).
@@ -23,20 +24,25 @@ function CameraController.start()
 			player:GetAttribute(MatchAttributes.Role),
 			player:GetAttribute(MatchAttributes.MortalState)
 		)
-		if mode == applied then
-			return
+		local firstPerson = mode == CameraRules.Mode.FirstPerson
+		if mode ~= applied then
+			if applied == CameraRules.Mode.FirstPerson then
+				-- Sortie de la première personne : la caméra de Roblox garde son zoom à 0,5 ; on force un recul
+				-- pendant une frame, puis on rend la plage de zoom normale
+				player.CameraMinZoomDistance = CameraRules.FREE_ZOOM_DISTANCE
+				releaseZoom = true
+			end
+			applied = mode
+			player.CameraMode = if firstPerson then Enum.CameraMode.LockFirstPerson else Enum.CameraMode.Classic
+		elseif releaseZoom then
+			releaseZoom = false
+			player.CameraMinZoomDistance = CameraRules.DEFAULT_MIN_ZOOM
 		end
-		applied = mode
-		if mode == CameraRules.Mode.FirstPerson then
-			player.CameraMode = Enum.CameraMode.LockFirstPerson
-		else
-			player.CameraMode = Enum.CameraMode.Classic
-		end
+		-- Champ de vision réappliqué à chaque frame : la caméra peut apparaître après le changement de mode
 		local camera = workspace.CurrentCamera
-		if camera then
-			camera.FieldOfView = if mode == CameraRules.Mode.FirstPerson
-				then CameraRules.FOV_FIRST_PERSON
-				else CameraRules.FOV_FREE
+		local fov = if firstPerson then CameraRules.FOV_FIRST_PERSON else CameraRules.FOV_FREE
+		if camera and camera.FieldOfView ~= fov then
+			camera.FieldOfView = fov
 		end
 	end
 

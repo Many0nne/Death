@@ -23,9 +23,9 @@ return function(T, Loader)
 			T.expectEqual(CameraRules.modeFor(nil, nil, nil), Mode.Free)
 		end)
 		T.it("couvre tous les états de mortel de Match", function()
+			local expected = { Alive = Mode.FirstPerson, Agony = Mode.FirstPerson, Dead = Mode.Free, Saved = Mode.Free }
 			for _, state in Match.MortalState do
-				local mode = CameraRules.modeFor("Running", "Mortal", state)
-				T.expect(mode == Mode.FirstPerson or mode == Mode.Free, state)
+				T.expectEqual(CameraRules.modeFor("Running", "Mortal", state), expected[state], state)
 			end
 		end)
 	end)
@@ -38,6 +38,11 @@ return function(T, Loader)
 		T.it("refuse une cible de côté ou derrière", function()
 			T.expectEqual(CameraRules.isLookedAt(origin, Vector3.new(0, 0, -1), Vector3.new(10, 5, 0)), false)
 			T.expectEqual(CameraRules.isLookedAt(origin, Vector3.new(0, 0, -1), Vector3.new(0, 5, 10)), false)
+		end)
+		T.it("accepte le bord d'une grande cible hors du cône, pas une petite", function()
+			local target = Vector3.new(10, 5, -10) -- 45 degrés du regard
+			T.expectEqual(CameraRules.isLookedAt(origin, Vector3.new(0, 0, -1), target, 0), false)
+			T.expectEqual(CameraRules.isLookedAt(origin, Vector3.new(0, 0, -1), target, 6), true)
 		end)
 		T.it("accepte une cible collée à la caméra, même hors du cône", function()
 			T.expectEqual(CameraRules.isLookedAt(origin, Vector3.new(0, 0, -1), Vector3.new(2, 5, 2)), true)

@@ -10,6 +10,9 @@ CameraRules.Mode = table.freeze({ FirstPerson = "FirstPerson", Free = "Free" })
 -- de recul ; en vue libre, on rend la valeur par défaut de Roblox.
 CameraRules.FOV_FIRST_PERSON = 80
 CameraRules.FOV_FREE = 70
+-- Recul imposé (studs) en quittant la première personne, pour retrouver une caméra à la troisième personne
+CameraRules.FREE_ZOOM_DISTANCE = 12
+CameraRules.DEFAULT_MIN_ZOOM = 0.5 -- zoom minimal par défaut de Roblox
 
 -- Invites en première personne : cosinus minimal entre le regard et la direction de la cible (environ 37 degrés),
 -- et distance en dessous de laquelle la cible compte comme regardée (grosse pièce collée à soi).
@@ -37,13 +40,17 @@ end
 
 -- Cette méthode permet de savoir si une cible est regardée lorsque la caméra est à la première personne : dans le
 -- cône du regard, ou tout près de la caméra.
-function CameraRules.isLookedAt(cameraPos: Vector3, cameraLook: Vector3, targetPos: Vector3): boolean
+function CameraRules.isLookedAt(cameraPos: Vector3, cameraLook: Vector3, targetPos: Vector3, radius: number?): boolean
+	local r = radius or 0
 	local offset = targetPos - cameraPos
 	local distance = offset.Magnitude
-	if distance <= CameraRules.LOOK_NEAR then
+	if distance - r <= CameraRules.LOOK_NEAR then
 		return true
 	end
-	return cameraLook.Unit:Dot(offset / distance) >= CameraRules.LOOK_MIN_DOT
+	-- Une grande cible est regardée dès que son bord entre dans le cône : on retire à l'angle son demi-diamètre apparent
+	local angle = math.acos(math.clamp(cameraLook.Unit:Dot(offset / distance), -1, 1))
+	local slack = math.asin(math.min(1, r / distance))
+	return math.cos(math.max(0, angle - slack)) >= CameraRules.LOOK_MIN_DOT
 end
 
 return CameraRules

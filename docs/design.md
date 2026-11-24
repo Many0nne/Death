@@ -15,7 +15,7 @@ accomplir des objectifs pour fuir avant la fin de la nuit, en repérant les pré
 - **Sans gore** : mort indirecte (accidents), pour garder une classification large.
 - **Immersif** : première personne verrouillée pour les deux rôles pendant la manche (décision de l'utilisateur,
   2026-11-24), sans dézoom. Hors manche (attente, résultat, spectateur), caméra libre. Champ de vision 80°, sensibilité
-  par défaut de Roblox, pas d'animation de tête. Un mortel en agonie garde la première personne, au ras du sol.
+  par défaut de Roblox, pas d'animation de tête. Un mortel en agonie garde la première personne, depuis la tête de son personnage tombé.
 - **Réalisme sobre** : matériaux réalistes, éclairage avancé, brouillard, palette désaturée. Le réalisme physique compte
   plus que le photoréalisme (impossible sur Roblox).
 

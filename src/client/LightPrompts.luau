@@ -72,6 +72,7 @@ function LightPrompts.start()
 		local wasFirstPerson = firstPerson
 		firstPerson = player.CameraMode == Enum.CameraMode.LockFirstPerson and camera ~= nil
 		if firstPerson ~= wasFirstPerson then
+			table.clear(inView)
 			for _, prompt in CollectionService:GetTagged(LA.PromptTag) do
 				if prompt:IsA("ProximityPrompt") then
 					refresh(prompt)
@@ -83,7 +84,13 @@ function LightPrompts.start()
 				local target = prompt.Parent
 				local looked = false
 				if target and target:IsA("BasePart") then
-					looked = CameraRules.isLookedAt(camera.CFrame.Position, camera.CFrame.LookVector, target.Position)
+					local size = target.Size
+					looked = CameraRules.isLookedAt(
+						camera.CFrame.Position,
+						camera.CFrame.LookVector,
+						target.Position,
+						math.max(size.X, size.Y, size.Z) / 2
+					)
 				end
 				if inView[prompt] ~= looked then
 					inView[prompt] = looked
