@@ -116,7 +116,8 @@ réduite de l'idée de petit monde ouvert.
 ## Première carte : maison familiale de nuit
 Maison à étage avec cave et terrain clos, au bord d'une rue (#25). Plan en boucles : on peut toujours contourner un
 piège ou la Mort, et la Mort peut couper par les pièces sombres. Description : `src/shared/HouseLayout.luau` ; mesures :
-`lune run tools/house-report`.
+`lune run tools/house-report` ; plan sans Studio : `docs/plan/plan.svg` (2D) et `docs/plan/maison-3d.html` (3D),
+régénérés par `lune run tools/house-map` (`check.sh` échoue s'ils ne sont plus à jour).
 
 - **Rez-de-chaussée** : entrée (porte d'entrée fermée à clé), grand salon (lustre, porte-fenêtre sur le côté),
   salle à manger, cuisine, dégagement sombre au centre, bibliothèque sombre, buanderie, véranda ouverte sur le jardin,
