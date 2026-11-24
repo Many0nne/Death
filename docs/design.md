@@ -13,6 +13,9 @@ accomplir des objectifs pour fuir avant la fin de la nuit, en repérant les pré
 - **Lisible** : pièges prévus dans la carte, actions contextuelles, pas de construction libre.
 - **Profond** : la difficulté vient du placement, du timing et des enchaînements, pas des commandes.
 - **Sans gore** : mort indirecte (accidents), pour garder une classification large.
+- **Immersif** : première personne verrouillée pour les deux rôles pendant la manche (décision de l'utilisateur,
+  2026-11-24), sans dézoom. Hors manche (attente, résultat, spectateur), caméra libre. Champ de vision 80°, sensibilité
+  par défaut de Roblox, pas d'animation de tête. Un mortel en agonie garde la première personne, au ras du sol.
 - **Réalisme sobre** : matériaux réalistes, éclairage avancé, brouillard, palette désaturée. Le réalisme physique compte
   plus que le photoréalisme (impossible sur Roblox).
 
@@ -34,6 +37,9 @@ accomplir des objectifs pour fuir avant la fin de la nuit, en repérant les pré
 
 ## La Mort
 - **Déplacement** : d'ombre en ombre. Pas d'attaque directe sur un vivant.
+- **Vue** : première personne verrouillée. Elle prépare un piège, coupe le disjoncteur ou grille une ampoule **en le
+  regardant** (les invites n'apparaissent que sur la cible dans le cône du regard, environ 37°, ou tout près d'elle) ;
+  son corps ne la gêne pas (pas de voile sur ses propres bras, l'indicateur ombre/lumière reste).
 - **Vision de la Mort** (touche) : écran gris, fils du destin reliant les points fragiles et leurs enchaînements
   possibles. Aide le débutant, récompense l'expert.
 - **Préparer** un point fragile : maintenir une touche (durée selon la taille du piège).
