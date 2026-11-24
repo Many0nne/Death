@@ -27,6 +27,8 @@ function LightPrompts.start()
 	local firstPerson = false
 	-- Invite -> cible dans le cône du regard au dernier test (utilisé seulement en première personne)
 	local inView: { [ProximityPrompt]: boolean } = {}
+	-- Invite en cours de maintien : elle reste active même si le regard dérive (sinon l'action serait annulée)
+	local holding: { [ProximityPrompt]: boolean } = {}
 
 	-- Cette méthode permet d'activer ou non une invite pour le joueur local lorsque son rôle, l'action ou la vue change.
 	local function refresh(prompt: ProximityPrompt)
@@ -35,7 +37,7 @@ function LightPrompts.start()
 			and prompt:GetAttribute(LA.PromptRole) == role
 			and prompt:GetAttribute(LA.PromptAvailable) == true
 			and (prompt:GetAttribute(LA.PromptSight) ~= true or inSight[prompt] == true)
-			and (not firstPerson or inView[prompt] == true)
+			and (not firstPerson or inView[prompt] == true or holding[prompt] == true)
 	end
 
 	-- Cette méthode permet de suivre une invite lorsqu'elle arrive sur le client.
@@ -55,9 +57,17 @@ function LightPrompts.start()
 		prompt.AttributeChanged:Connect(function()
 			refresh(prompt)
 		end)
+		prompt.PromptButtonHoldBegan:Connect(function()
+			holding[prompt] = true
+		end)
+		prompt.PromptButtonHoldEnded:Connect(function()
+			holding[prompt] = nil
+			refresh(prompt)
+		end)
 		prompt.Destroying:Connect(function()
 			inSight[prompt] = nil
 			inView[prompt] = nil
+			holding[prompt] = nil
 			tracked[prompt] = nil
 		end)
 	end
