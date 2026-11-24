@@ -68,12 +68,40 @@ local function fenced(room, side: string): boolean
 	return room.outdoor == true and room.fence ~= nil and table.find(room.fence, side) ~= nil
 end
 
+-- Cette méthode permet de savoir si un côté d'une pièce longe une pièce de la maison lorsque l'on retire l'épaisseur
+-- de son mur du volume d'une zone extérieure (la lumière du dehors s'arrête au milieu du seuil).
+local function touchesIndoor(layout, room, side: string): boolean
+	for _, other in layout.rooms do
+		if other.outdoor or not (other.level <= room.level and room.level < other.level + (other.levels or 1)) then
+			continue
+		end
+		local alongX = side == "South" or side == "North"
+		local line = if side == "South"
+			then room.z0
+			elseif side == "North" then room.z1
+			elseif side == "West" then room.x0
+			else room.x1
+		local facing = if side == "South"
+			then other.z1
+			elseif side == "North" then other.z0
+			elseif side == "West" then other.x1
+			else other.x0
+		local a0, a1 = if alongX then room.x0 else room.z0, if alongX then room.x1 else room.z1
+		local b0, b1 = if alongX then other.x0 else other.z0, if alongX then other.x1 else other.z1
+		if math.abs(line - facing) < EPS and a0 < b1 - EPS and b0 < a1 - EPS then
+			return true
+		end
+	end
+	return false
+end
+
 -- Cette méthode permet de donner le rectangle intérieur (entre les murs) d'une pièce lorsque l'on y pose un objet ;
--- une zone extérieure ne perd une épaisseur de mur que du côté de ses clôtures.
+-- une zone extérieure ne perd une épaisseur de mur que du côté de ses clôtures et de la maison.
 function HouseGeometry.interior(layout, room)
 	-- Cette méthode permet de donner le retrait d'un côté lorsqu'il porte un mur ou une clôture.
 	local function inset(side: string): number
-		return if not room.outdoor or fenced(room, side) then layout.WALL else 0
+		local walled = not room.outdoor or fenced(room, side) or touchesIndoor(layout, room, side)
+		return if walled then layout.WALL else 0
 	end
 	return {
 		x0 = room.x0 + inset("West"),
@@ -878,7 +906,9 @@ local function checkFurniture(layout, byId, plan, errors: { string })
 			continue
 		end
 		for _, door in layout.doors do
-			if table.find(door.rooms, room.id) and HouseGeometry.spansLevel(room, door.level) then
+			-- Une porte extérieure (un seul côté décrit) se dégage aussi du côté dehors, quelle que soit la zone
+			local concerned = table.find(door.rooms, room.id) ~= nil or #door.rooms == 1
+			if concerned and HouseGeometry.spansLevel(room, door.level) then
 				-- Dégagement : toute la largeur de la porte plus 0,5 stud, sur 3 studs de chaque côté du mur
 				local o = HouseGeometry.doorOpening(layout, door)
 				local line = if door.along == "X" then door.z else door.x

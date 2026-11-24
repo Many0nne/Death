@@ -90,7 +90,7 @@ return function(T, Loader)
 			end
 			T.expect(fences > 0, "clôtures")
 			local boundaries = 0
-			for _, d in scenery:GetChildren() do
+			for _, d in house[HouseBuilder.BOUNDS_FOLDER]:GetChildren() do
 				if string.find(d.Name, "Boundary", 1, true) == 1 then
 					boundaries += 1
 					-- Limite invisible : arrête les joueurs, jamais un rayon

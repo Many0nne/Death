@@ -495,6 +495,19 @@ return function(T, Loader)
 	end)
 
 	T.describe("HouseGeometry.validate : extérieur", function()
+		T.it("refuse un meuble dehors devant une porte extérieure", function()
+			local broken = deepCopy(HouseLayout)
+			table.insert(broken.props, { id = "Bin", room = "Driveway", x = 94, z = 14, size = { 2, 2, 2 } })
+			T.expect(mentions(HouseGeometry.validate(broken), "Bin : bouche la porte GarageDoor"))
+		end)
+
+		T.it("arrête le volume d'une zone extérieure au milieu du mur de la maison", function()
+			local garden = HouseGeometry.interior(HouseLayout, byId(HouseLayout.rooms, "Garden"))
+			T.expectEqual(garden.z0, 70.5, "contre la véranda")
+			local courtyard = HouseGeometry.interior(HouseLayout, byId(HouseLayout.rooms, "Courtyard"))
+			T.expectEqual(courtyard.x1, 88, "côté potager : bord libre")
+		end)
+
 		T.it("refuse un terrain ouvert sur le vide (côté sans clôture ni voisin)", function()
 			local broken = deepCopy(HouseLayout)
 			byId(broken.rooms, "WestSide").fence = {}

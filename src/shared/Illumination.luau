@@ -153,8 +153,8 @@ function Illumination:isLit(position: Vector3): (boolean, string?)
 	return false, nil
 end
 
--- Cette méthode permet de savoir si une pièce a au moins une lampe allumée lorsque l'on raisonne par pièce (ampoule à
--- griller, fauchage dans une pièce éclairée).
+-- Cette méthode permet de savoir si une pièce a au moins une de ses propres lampes allumée lorsque l'on raisonne par
+-- pièce (ampoule à griller) ; dehors, une zone sans lampe allumée peut rester éclairée par la lampe d'une voisine.
 function Illumination:isRoomLit(roomId: string): boolean
 	for _, lamp in self.roomLamps[roomId] or {} do
 		if self:isLampOn(lamp.id) then

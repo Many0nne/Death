@@ -109,6 +109,10 @@ return function(T, Loader)
 			local m = Illumination.fromHouse(house)
 			m:burnRoom("Living")
 			T.expectEqual((m:isLit(at("Living", 20, 2))), false)
+			-- Seuil de la véranda (sombre) sur le jardin : la lanterne s'arrête au milieu du mur
+			m:burnRoom("Veranda")
+			T.expectEqual((m:isLit(at("Veranda", 10, 69.6))), false, "seuil côté véranda")
+			T.expectEqual((m:isLit(at("Garden", 10, 70.3))), true, "seuil côté jardin")
 		end)
 
 		T.it("arrête la lumière aux murs : le dégagement contre l'entrée reste sombre", function()

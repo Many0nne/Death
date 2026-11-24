@@ -28,8 +28,9 @@ local COLORS = {
 	Street = Color3.fromRGB(52, 52, 56),
 }
 
--- Dossier des blocs de décor hors de la carte (rue, terrains voisins), sans pièce
+-- Dossiers des blocs sans pièce : décor hors de la carte (rue, terrains voisins) et limite invisible du terrain
 HouseBuilder.SCENERY_FOLDER = "Scenery"
+HouseBuilder.BOUNDS_FOLDER = "Bounds"
 
 -- Blocs invisibles, avec leurs collisions : un volume de pièce ne gêne ni le joueur, ni le contact, ni les rayons
 -- (faisceau de lampe torche) ; un ancrage reste détectable (Touched, GetPartsInPart) sans bloquer le passage.
@@ -132,6 +133,9 @@ function HouseBuilder.build(parent: Instance, layout: any?): Model
 	local scenery = Instance.new("Folder")
 	scenery.Name = HouseBuilder.SCENERY_FOLDER
 	scenery.Parent = house
+	local bounds = Instance.new("Folder")
+	bounds.Name = HouseBuilder.BOUNDS_FOLDER
+	bounds.Parent = house
 	local models = {}
 	for id, group in plan.groups do
 		local model = Instance.new("Model")
@@ -148,7 +152,7 @@ function HouseBuilder.build(parent: Instance, layout: any?): Model
 				models[p.group].PrimaryPart = part
 			end
 		else
-			part.Parent = if p.room then folders[p.room] else scenery
+			part.Parent = if p.room then folders[p.room] elseif p.kind == "Boundary" then bounds else scenery
 		end
 	end
 	house.Parent = parent

@@ -98,9 +98,13 @@ return function(T, Loader)
 			end
 			-- L'exclusion tient pour une pièce qui a des emplacements (la sortie n'en a pas)
 			for seed = 1, 20 do
-				for _, id in Escape.drawKeySpots(houseSpots, GameConfig.ESCAPE_KEY_COUNT, pickSeeded(seed), "Garage") do
-					T.expect(roomOf[id] ~= "Garage", "clé dans la pièce exclue : " .. id)
+				for _, id in Escape.drawKeySpots(houseSpots, GameConfig.ESCAPE_KEY_COUNT, pickSeeded(seed), "Kitchen") do
+					T.expect(roomOf[id] ~= "Kitchen", "clé dans la pièce exclue : " .. id)
 				end
+			end
+			-- Aucun emplacement près du but : ni au garage (voiture), ni devant la maison (sortie)
+			for _, spot in houseSpots do
+				T.expect(spot.room ~= "Garage" and spot.room ~= "FrontYard", "clé trop près du but : " .. spot.id)
 			end
 		end)
 	end)

@@ -497,14 +497,15 @@ HouseLayout.lamps = {
 	{ id = "GuestBedroomLamp", room = "GuestBedroom", x = 51, z = 10 },
 	{ id = "TeenBedroomLamp", room = "TeenBedroom", x = 45, z = 44 },
 	{ id = "ShowerRoomLamp", room = "ShowerRoom", x = 58, z = 44 },
-	{ id = "PorchLamp", room = "FrontYard", x = 31, z = -0.6, kind = "Wall" },
+	{ id = "PorchLamp", room = "FrontYard", x = 31, z = -1.1, kind = "Wall" },
 	{ id = "StreetLamp", room = "Driveway", x = 102.5, z = -10, kind = "Post" },
 	{ id = "GardenLamp", room = "Garden", x = 24, z = 78, kind = "Post" },
 }
 
 -- Meubles en blocs : x, z = centre au sol, size = { largeur x, hauteur, profondeur z }, y = hauteur du bas (0 par
 -- défaut). trap = le meuble est un candidat de piège ; keySpot = un emplacement de clés est posé dessus ; tag = tag
--- MapTags posé sur le meuble. Dehors, un meuble reste bas (pas de marchepied par-dessus la clôture).
+-- MapTags posé sur le meuble. Dehors, un meuble reste bas (pas de marchepied par-dessus la clôture). Pas de clés
+-- au garage ni devant la maison : trop près de la voiture et de la sortie.
 HouseLayout.props = {
 	-- Salon
 	{ id = "LivingSofa", room = "Living", x = 12, z = 6, size = { 10, 3, 3 } },
@@ -532,7 +533,7 @@ HouseLayout.props = {
 	-- Véranda
 	{ id = "VerandaTable", room = "Veranda", x = 25, z = 63, size = { 6, 3, 4 }, keySpot = true },
 	-- Garage
-	{ id = "GarageWorkbench", room = "Garage", x = 78, z = 26.25, size = { 8, 3.5, 2.5 }, keySpot = true },
+	{ id = "GarageWorkbench", room = "Garage", x = 78, z = 26.25, size = { 8, 3.5, 2.5 } },
 	{ id = "GarageShelf", room = "Garage", x = 70, z = 1.25, size = { 6, 7, 1.5 }, trap = "Shelf" },
 	-- Bureau
 	{ id = "StudyDesk", room = "Study", x = 31, z = 3, size = { 7, 3, 3 }, keySpot = true },
@@ -587,7 +588,7 @@ HouseLayout.props = {
 	-- Devant de la maison
 	{ id = "FrontShrubWest", room = "FrontYard", x = 8, z = -8, size = { 8, 2, 3 } },
 	{ id = "FrontShrubEast", room = "FrontYard", x = 56, z = -8, size = { 8, 2, 3 } },
-	{ id = "FrontMailbox", room = "FrontYard", x = 84, z = -14, size = { 1.5, 2, 1.5 }, keySpot = true },
+	{ id = "FrontMailbox", room = "FrontYard", x = 84, z = -14, size = { 1.5, 2, 1.5 } },
 	-- Côté ouest
 	{ id = "WestBins", room = "WestSide", x = -3, z = 40, size = { 2.5, 2, 5 } },
 	{ id = "WestWoodpile", room = "WestSide", x = -10, z = 55, size = { 2, 2, 8 } },
