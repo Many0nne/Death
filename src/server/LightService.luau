@@ -503,8 +503,13 @@ function LightService:_onPrompt(player, entry)
 	local began = holds[player]
 	holds[player] = nil
 	local hold = entry.prompt.HoldDuration
-	if hold > 0 and (began == nil or self.deps.clock() - began < hold - DeathRules.HOLD_TOLERANCE) then
-		self.deps.warn(string.format("%s : %s refusé, maintien trop court", player.Name, entry.kind))
+	-- Un maintien se déclenche à sa durée exacte (latence près) : trop court ou périmé (lâché puis rejoué) est refusé
+	local elapsed = if began then self.deps.clock() - began else nil
+	if
+		hold > 0
+		and (elapsed == nil or elapsed < hold - DeathRules.HOLD_TOLERANCE or elapsed > hold + DeathRules.HOLD_STALE)
+	then
+		self.deps.warn(string.format("%s : %s refusé, maintien invalide", player.Name, entry.kind))
 		return
 	end
 	local character = player.Character

@@ -26,6 +26,8 @@ DeathRules.LAMP_DISTANCE = 16
 DeathRules.DISTANCE_TOLERANCE = 4
 -- Marge de latence acceptée par le serveur sur la durée de maintien d'une invite (secondes)
 DeathRules.HOLD_TOLERANCE = 0.25
+-- Au-delà de la durée de maintien plus ce délai, le début de maintien enregistré est périmé (secondes)
+DeathRules.HOLD_STALE = 1.5
 
 -- Rôle effectif pour la lumière (attribut LightRole du joueur)
 DeathRules.Role = table.freeze({ Death = "Death", Mortal = "Mortal" })

@@ -177,6 +177,12 @@ return function(T, Loader)
 			env.los = true
 			env.triggerNow(env.prompt("cut", "Day"), env.player("Death", env.atBreaker))
 			T.expectEqual(service.sabotage:cutWing(), nil, "sans maintien (client modifié)")
+			local prompt = env.prompt("cut", "Day")
+			local death = env.player("Death", env.atBreaker)
+			env.triggers[prompt].hold(death)
+			env.advance(prompt.HoldDuration + 5)
+			env.triggerNow(prompt, death)
+			T.expectEqual(service.sabotage:cutWing(), nil, "maintien périmé (lâché puis rejoué)")
 		end)
 
 		T.it("un mortel rétablit, la Mort attend la recharge avant de recouper", function()

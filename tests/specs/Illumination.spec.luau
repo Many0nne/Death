@@ -86,6 +86,13 @@ return function(T, Loader)
 			print("  Couverture des pièces éclairées : " .. table.concat(report, ", "))
 		end)
 
+		T.it("éclaire la moitié du seuil côté pièce éclairée, pas celle côté couloir", function()
+			-- Porte salon / couloir : mur mitoyen de z = 19,5 à 20,5, lustre au milieu du salon
+			T.expectEqual((model:isLit(at("Living", 40, 19.8))), true, "seuil côté salon")
+			T.expectEqual((model:isLit(at("HallDown", 40, 20.3))), false, "seuil côté couloir")
+			T.expectEqual(model:roomAt(at("Living", 40, 19.8)), "Living")
+		end)
+
 		T.it("arrête la lumière aux murs : le couloir contre la cuisine reste sombre", function()
 			-- À 2 studs du mur, la lampe de la cuisine est à portée mais dans une autre pièce
 			T.expectEqual((model:isLit(at("HallDown", 12, 22))), false)

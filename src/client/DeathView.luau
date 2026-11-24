@@ -47,10 +47,13 @@ local function makeIndicator(player: Player): TextLabel
 end
 
 -- Cette méthode permet d'appliquer la transparence locale à tout le corps d'un personnage lorsque la silhouette
--- change (pièces, accessoires, visage).
+-- change (pièces, accessoires, visage) ; invisible, il ne projette plus d'ombre (qui le trahirait sous une lampe).
 local function setLocalTransparency(character: Model, value: number)
 	for _, d in character:GetDescendants() do
-		if d:IsA("BasePart") or d:IsA("Decal") then
+		if d:IsA("BasePart") then
+			d.LocalTransparencyModifier = value
+			d.CastShadow = value < 1
+		elseif d:IsA("Decal") then
 			d.LocalTransparencyModifier = value
 		end
 	end
