@@ -1,5 +1,8 @@
 -- Contrat de la carte : tags CollectionService et attributs posés par le générateur de maison (Server.HouseBuilder).
 -- La lumière et la Mort (#4), les pièges (#5) et la fuite (#7) ne lisent la carte que par ces noms.
+-- Collisions : les ancrages (apparitions, carrelage mouillé, clés, sortie) sont invisibles, traversables, mais
+-- détectables (CanTouch, CanQuery) ; les volumes de pièce (Room) ne répondent ni au contact ni aux rayons : pour
+-- savoir qui est dedans, utiliser GetPartBoundsInBox(zone.CFrame, zone.Size) ou GetPartsInPart(zone).
 local MapTags = {
 	-- Volume invisible de chaque pièce (CanQuery/CanCollide faux) : attributs RoomId, RoomName, WingId, Level, Dark
 	Room = "Room",

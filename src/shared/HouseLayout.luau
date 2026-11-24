@@ -215,18 +215,18 @@ HouseLayout.doors = {
 -- Lampes d'ambiance. Plafonnier par défaut (sous le plafond) ; le lustre pend au milieu du salon et sert aussi de
 -- piège (grand).
 HouseLayout.lamps = {
-	{ id = "KitchenCeiling", room = "Kitchen", x = 12, z = 10 },
+	{ id = "KitchenLamp", room = "Kitchen", x = 12, z = 10 },
 	{ id = "LivingChandelier", room = "Living", x = 40, z = 10, kind = "Chandelier" },
-	{ id = "LivingCeiling", room = "Living", x = 28, z = 10 },
-	{ id = "LaundryCeiling", room = "Laundry", x = 21, z = 38 },
-	{ id = "EntryCeiling", room = "Entry", x = 49, z = 38 },
-	{ id = "GarageCeilingWest", room = "Garage", x = 62, z = 8 },
-	{ id = "GarageCeilingEast", room = "Garage", x = 74, z = 20 },
-	{ id = "MasterBedroomCeiling", room = "MasterBedroom", x = 12, z = 10 },
-	{ id = "KidsBedroomCeiling", room = "KidsBedroom", x = 32, z = 10 },
-	{ id = "BathroomCeiling", room = "Bathroom", x = 48, z = 10 },
-	{ id = "GuestBedroomCeiling", room = "GuestBedroom", x = 24.5, z = 38 },
-	{ id = "StudyCeiling", room = "Study", x = 45.5, z = 38 },
+	{ id = "LivingLamp", room = "Living", x = 28, z = 10 },
+	{ id = "LaundryLamp", room = "Laundry", x = 21, z = 38 },
+	{ id = "EntryLamp", room = "Entry", x = 49, z = 38 },
+	{ id = "GarageLampWest", room = "Garage", x = 62, z = 8 },
+	{ id = "GarageLampEast", room = "Garage", x = 74, z = 20 },
+	{ id = "MasterBedroomLamp", room = "MasterBedroom", x = 12, z = 10 },
+	{ id = "KidsBedroomLamp", room = "KidsBedroom", x = 32, z = 10 },
+	{ id = "BathroomLamp", room = "Bathroom", x = 48, z = 10 },
+	{ id = "GuestBedroomLamp", room = "GuestBedroom", x = 24.5, z = 38 },
+	{ id = "StudyLamp", room = "Study", x = 45.5, z = 38 },
 }
 
 -- Meubles en blocs : x, z = centre au sol, size = { largeur x, hauteur, profondeur z }, y = hauteur du bas (0 par

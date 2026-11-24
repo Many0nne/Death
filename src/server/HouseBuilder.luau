@@ -23,8 +23,14 @@ local COLORS = {
 	Car = Color3.fromRGB(88, 88, 94),
 }
 
--- Blocs sans collision ni rendu : volumes de pièce et ancrages
-local INVISIBLE = { Zone = true, Anchor = true, Spawn = true }
+-- Blocs invisibles, avec leurs collisions : un volume de pièce ne gêne ni le joueur, ni le contact, ni les rayons
+-- (faisceau de lampe torche) ; un ancrage reste détectable (Touched, GetPartsInPart) sans bloquer le passage ; le
+-- SpawnLocation (dalle de 0,2 stud) porte le personnage.
+local INVISIBLE = {
+	Zone = { CanCollide = false, CanTouch = false, CanQuery = false },
+	Anchor = { CanCollide = false, CanTouch = true, CanQuery = true },
+	Spawn = { CanCollide = true, CanTouch = true, CanQuery = false },
+}
 
 -- Cette méthode permet de poser tags et attributs d'un bloc calculé sur son instance lorsque la suite du jeu doit le
 -- retrouver par CollectionService.
@@ -58,12 +64,13 @@ local function makePart(p): BasePart
 	part.TopSurface = Enum.SurfaceType.Smooth
 	part.BottomSurface = Enum.SurfaceType.Smooth
 	part.Color = COLORS[p.kind] or COLORS.Prop
-	if INVISIBLE[p.kind] then
+	local invisible = INVISIBLE[p.kind]
+	if invisible then
 		part.Transparency = 1
-		part.CanCollide = false
-		part.CanTouch = false
-		part.CanQuery = false
 		part.CastShadow = false
+		part.CanCollide = invisible.CanCollide
+		part.CanTouch = invisible.CanTouch
+		part.CanQuery = invisible.CanQuery
 	end
 	if p.kind == "Lamp" then
 		part.Material = Enum.Material.Neon
@@ -100,7 +107,7 @@ end
 -- déjà présente est remplacée. Renvoie le modèle « House » : un dossier par pièce, la voiture en Model.
 function HouseBuilder.build(parent: Instance, layout: any?): Model
 	local description = layout or HouseLayout
-	local errors = HouseGeometry.validate(description)
+	local errors, plan = HouseGeometry.validate(description)
 	if #errors > 0 then
 		error("Description de la maison invalide :\n" .. table.concat(errors, "\n"))
 	end
@@ -110,7 +117,6 @@ function HouseBuilder.build(parent: Instance, layout: any?): Model
 	end
 	removeTemplateParts(parent)
 
-	local plan = HouseGeometry.build(description)
 	local house = Instance.new("Model")
 	house.Name = HouseBuilder.MODEL_NAME
 	local folders = {}

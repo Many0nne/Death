@@ -99,7 +99,8 @@ local function doorOnWall(door, wall): boolean
 end
 
 -- Cette méthode permet de découper un mur en rectangles pleins autour de ses ouvertures lorsque des portes le
--- percent ; renvoie aussi une erreur si deux ouvertures se chevauchent.
+-- percent ; renvoie aussi une erreur si deux ouvertures se chevauchent le long du mur. Limite assumée : deux portes
+-- superposées (même u, niveaux différents d'une cage) sont refusées, le découpage se fait par colonnes.
 function HouseGeometry.splitWall(
 	u0: number,
 	u1: number,
@@ -173,6 +174,7 @@ local function stairPieces(layout, room, out: { Piece })
 	local base = HouseGeometry.floorY(layout, room.level)
 	local d, rise = layout.STEP_DEPTH, layout.STEP_RISE
 	local z0 = inner.z0 + lanes.entry
+	-- Cette méthode permet d'ajouter un bloc plein posé sur le sol de la cage lorsque l'on empile marches et paliers.
 	local function add(kind, name, x0, x1, za, zb, height)
 		table.insert(
 			out,
@@ -334,6 +336,7 @@ local ANCHOR_TAGS = {
 -- construit ; capot vers l'est.
 local function carPieces(layout, room, car, out: { Piece })
 	local base = HouseGeometry.floorY(layout, room.level)
+	-- Cette méthode permet d'ajouter un bloc de la voiture lorsque l'on donne sa position relative au centre au sol.
 	local function add(name, cx, cy, cz, sx, sy, sz)
 		local c = Vector3.new(car.x + cx, base + cy, car.z + cz)
 		local s = Vector3.new(sx, sy, sz)
@@ -391,7 +394,7 @@ function HouseGeometry.build(layout)
 			layout.spawn.x,
 			HouseGeometry.floorY(layout, spawnRoom.level),
 			layout.spawn.z,
-			Vector3.new(6, 1, 6),
+			Vector3.new(6, 0.2, 6),
 			{}
 		)
 	)
@@ -660,13 +663,51 @@ local function checkLamps(layout, byId, errors: { string })
 	end
 end
 
+-- Cette méthode permet de vérifier les types (lampe, ancrage, piège, tag de meuble) lorsque l'on valide la
+-- description : un type inconnu ferait échouer la construction ou perdrait un tag sans bruit.
+local function checkKinds(layout, errors: { string })
+	for _, lamp in layout.lamps do
+		if not HouseGeometry.LAMP_STYLES[lamp.kind or "Ceiling"] then
+			table.insert(errors, lamp.id .. " : type de lampe inconnu " .. tostring(lamp.kind))
+		end
+	end
+	for _, anchor in layout.anchors do
+		if not ANCHOR_TAGS[anchor.kind] then
+			table.insert(errors, anchor.id .. " : type d'ancrage inconnu " .. tostring(anchor.kind))
+		end
+	end
+	for _, prop in layout.props do
+		if prop.trap and not MapTags.TrapKinds[prop.trap] then
+			table.insert(errors, prop.id .. " : type de piège inconnu " .. tostring(prop.trap))
+		end
+		if prop.tag and type(MapTags[prop.tag]) ~= "string" then
+			table.insert(errors, prop.id .. " : tag inconnu " .. tostring(prop.tag))
+		end
+	end
+end
+
+-- Cette méthode permet de vérifier que deux blocs d'une même pièce ne portent pas le même nom lorsque l'on valide la
+-- description (un FindFirstChild par nom doit trouver le bon bloc).
+local function checkNames(plan, errors: { string })
+	local seen = {}
+	for _, p in plan.pieces do
+		local key = (p.group or p.room or "") .. "/" .. p.name
+		if seen[key] then
+			table.insert(errors, "nom de bloc en double : " .. key)
+		end
+		seen[key] = true
+	end
+end
+
 -- Cette méthode permet de relever toutes les incohérences de la description lorsque les tests ou le générateur la
--- vérifient ; une liste vide signifie que la maison est constructible et praticable.
-function HouseGeometry.validate(layout): { string }
+-- vérifient ; une liste vide signifie que la maison est constructible et praticable. Renvoie aussi le plan calculé
+-- (nil si la description ne permet pas de le calculer) pour éviter un second calcul.
+function HouseGeometry.validate(layout): ({ string }, any)
 	local errors: { string } = {}
 	local byId = HouseGeometry.roomsById(layout)
 	checkRooms(layout, errors)
 	checkDoors(layout, byId, errors)
+	checkKinds(layout, errors)
 	for _, list in { layout.lamps, layout.props, layout.anchors, { layout.car, layout.spawn } } do
 		for _, item in list do
 			if not byId[item.room] then
@@ -675,7 +716,7 @@ function HouseGeometry.validate(layout): { string }
 		end
 	end
 	if #errors > 0 then
-		return errors
+		return errors, nil
 	end
 	checkStairs(layout, errors)
 	checkLamps(layout, byId, errors)
@@ -683,6 +724,7 @@ function HouseGeometry.validate(layout): { string }
 	for _, problem in plan.problems do
 		table.insert(errors, problem)
 	end
+	checkNames(plan, errors)
 	checkFurniture(layout, byId, plan, errors)
 	local reachable = HouseGeometry.reachableRooms(layout, layout.rooms[1].id)
 	for _, room in layout.rooms do
@@ -690,7 +732,7 @@ function HouseGeometry.validate(layout): { string }
 			table.insert(errors, room.id .. " : inaccessible depuis " .. layout.rooms[1].id)
 		end
 	end
-	return errors
+	return errors, plan
 end
 
 return HouseGeometry

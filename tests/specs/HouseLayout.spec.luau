@@ -113,7 +113,7 @@ return function(T, Loader)
 			end
 		end)
 
-		T.it("laisse au moins 10 studs sous plafond et 12 studs de côté", function()
+		T.it("laisse au moins 10 studs sous plafond et 8 studs de côté (couloirs)", function()
 			for _, room in HouseLayout.rooms do
 				local height = HouseGeometry.topY(HouseLayout, room) - HouseGeometry.floorY(HouseLayout, room.level)
 				T.expect(height >= 10, room.id .. " trop basse")
@@ -268,6 +268,27 @@ return function(T, Loader)
 			local broken = deepCopy(HouseLayout)
 			table.insert(broken.lamps, { id = "HallLamp", room = "HallDown", x = 10, z = 24 })
 			T.expect(mentions(HouseGeometry.validate(broken), "HallLamp : lampe dans une zone sombre"))
+		end)
+	end)
+
+	T.describe("HouseGeometry.validate : types inconnus", function()
+		T.it("refuse un type d'ancrage, de lampe, de piège ou de tag inconnu", function()
+			local broken = deepCopy(HouseLayout)
+			byId(broken.anchors, "Exit").kind = "Exitt"
+			byId(broken.lamps, "KitchenLamp").kind = "Wall"
+			byId(broken.props, "KitchenShelf").trap = "Shelff"
+			byId(broken.props, "Breaker").tag = "Brekaer"
+			local errors = HouseGeometry.validate(broken)
+			T.expect(mentions(errors, "Exit : type d'ancrage inconnu"), "ancrage")
+			T.expect(mentions(errors, "KitchenLamp : type de lampe inconnu"), "lampe")
+			T.expect(mentions(errors, "KitchenShelf : type de piège inconnu"), "piège")
+			T.expect(mentions(errors, "Breaker : tag inconnu"), "tag")
+		end)
+
+		T.it("renvoie le plan calculé avec une description valide", function()
+			local errors, validPlan = HouseGeometry.validate(HouseLayout)
+			T.expectEqual(#errors, 0)
+			T.expectEqual(#validPlan.pieces, #plan.pieces)
 		end)
 	end)
 

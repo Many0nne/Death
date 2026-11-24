@@ -62,9 +62,19 @@ return function(T, Loader)
 			T.expect(car.PrimaryPart ~= nil, "voiture sans PrimaryPart")
 			T.expect(countTagged(house, MapTags.MortalSpawn) >= 4, "apparitions")
 			for _, d in house:GetDescendants() do
-				if d:HasTag(MapTags.KeySpot) or d:HasTag(MapTags.MortalSpawn) then
+				if d:HasTag(MapTags.KeySpot) or d:HasTag(MapTags.MortalSpawn) or d:HasTag(MapTags.Exit) then
 					T.expectEqual(d.CanCollide, false, d.Name)
 					T.expectEqual(d.Transparency, 1, d.Name)
+					-- détectables par contact et requête spatiale (#5, #7)
+					T.expectEqual(d.CanTouch, true, d.Name)
+					T.expectEqual(d.CanQuery, true, d.Name)
+				end
+				if d:HasTag(MapTags.Room) then
+					-- un volume de pièce ne doit pas arrêter le faisceau d'une lampe torche
+					T.expectEqual(d.CanQuery, false, d.Name)
+				end
+				if d:IsA("SpawnLocation") then
+					T.expectEqual(d.CanCollide, true, "le SpawnLocation porte le personnage")
 				end
 			end
 		end)
