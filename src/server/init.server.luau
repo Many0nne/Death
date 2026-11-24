@@ -10,6 +10,8 @@ require(script.WaitingZone).build(workspace)
 local matchService = require(script.MatchService).get()
 require(script.MatchSpawner).start(matchService, house)
 require(script.EscapeService).start(matchService, house)
+require(script.LightService).get():start()
+require(script.DeathController).get():start()
 matchService:start()
 
 print(string.format("Death : serveur prêt (%d mortels par manche)", GameConfig.MORTALS_PER_MATCH))
