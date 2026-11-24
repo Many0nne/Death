@@ -9,13 +9,14 @@ local HouseBuilder = {}
 
 HouseBuilder.MODEL_NAME = "House"
 
--- Gris du prototype par type de bloc : sols sombres, murs clairs pour lire les volumes dans la pénombre.
+-- Gris du prototype par type de bloc : sols plus sombres que les murs, marches claires pour lire l'escalier dans
+-- la pénombre.
 local COLORS = {
-	Floor = Color3.fromRGB(78, 78, 82),
+	Floor = Color3.fromRGB(92, 92, 96),
 	Ceiling = Color3.fromRGB(96, 96, 100),
 	Wall = Color3.fromRGB(150, 150, 154),
-	Step = Color3.fromRGB(118, 118, 122),
-	Landing = Color3.fromRGB(118, 118, 122),
+	Step = Color3.fromRGB(140, 140, 144),
+	Landing = Color3.fromRGB(140, 140, 144),
 	Partition = Color3.fromRGB(135, 135, 139),
 	Prop = Color3.fromRGB(104, 104, 108),
 	DoorLeaf = Color3.fromRGB(62, 62, 66),
@@ -81,12 +82,17 @@ local function makePart(p): BasePart
 	return part
 end
 
--- Cette méthode permet de retirer le Baseplate du modèle de place s'il existe lorsque la maison est construite : il
--- remplirait la cave (sol à y = 0, 16 studs d'épaisseur).
-local function removeBaseplate(parent: Instance)
-	local baseplate = parent:FindFirstChild("Baseplate")
-	if baseplate and baseplate:IsA("BasePart") then
-		baseplate:Destroy()
+-- Pièces du modèle de place Studio qui gênent la maison : le Baseplate remplirait la cave (sol à y = 0, 16 studs
+-- d'épaisseur) et le SpawnLocation d'origine ferait apparaître dans le mur de la cuisine.
+local TEMPLATE_PARTS = { Baseplate = "BasePart", SpawnLocation = "SpawnLocation" }
+
+-- Cette méthode permet de retirer les pièces du modèle de place lorsque la maison est construite à leur place.
+local function removeTemplateParts(parent: Instance)
+	for name, className in TEMPLATE_PARTS do
+		local part = parent:FindFirstChild(name)
+		if part and part:IsA(className) then
+			part:Destroy()
+		end
 	end
 end
 
@@ -102,7 +108,7 @@ function HouseBuilder.build(parent: Instance, layout: any?): Model
 	if old then
 		old:Destroy()
 	end
-	removeBaseplate(parent)
+	removeTemplateParts(parent)
 
 	local plan = HouseGeometry.build(description)
 	local house = Instance.new("Model")

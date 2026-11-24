@@ -6,9 +6,10 @@ local NightLighting = {
 		ClockTime = 0,
 		Brightness = 0.4,
 		GlobalShadows = true,
-		-- Lumière des zones sans lampe : un gris bleuté très bas, on distingue murs et portes sans détails
-		Ambient = Color3.fromRGB(34, 36, 44),
-		OutdoorAmbient = Color3.fromRGB(46, 50, 62),
+		-- Lumière des zones sans lampe : gris bleuté bas. Mesuré en jeu : à (34, 36, 44) la cage d'escalier fermée
+		-- était noire ; à (60, 63, 76) on y distingue les marches et la cave reste sombre face aux pièces éclairées
+		Ambient = Color3.fromRGB(60, 63, 76),
+		OutdoorAmbient = Color3.fromRGB(60, 64, 78),
 		EnvironmentDiffuseScale = 0.15,
 		EnvironmentSpecularScale = 0.2,
 		ExposureCompensation = 0,

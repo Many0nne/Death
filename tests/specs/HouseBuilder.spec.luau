@@ -22,6 +22,8 @@ return function(T, Loader)
 		local baseplate = Instance.new("Part")
 		baseplate.Name = "Baseplate"
 		baseplate.Parent = world
+		local templateSpawn = Instance.new("SpawnLocation")
+		templateSpawn.Parent = world
 		local house = HouseBuilder.build(world)
 
 		T.it("construit un modèle House avec un dossier par pièce", function()
@@ -30,8 +32,16 @@ return function(T, Loader)
 			T.expect(house:FindFirstChild("Cave"), "dossier Cave")
 		end)
 
-		T.it("retire le Baseplate qui remplirait la cave", function()
+		T.it("retire le Baseplate et le SpawnLocation du modèle de place", function()
 			T.expectEqual(world:FindFirstChild("Baseplate"), nil)
+			T.expectEqual(world:FindFirstChild("SpawnLocation"), nil)
+			local spawns = 0
+			for _, d in house:GetDescendants() do
+				if d:IsA("SpawnLocation") then
+					spawns += 1
+				end
+			end
+			T.expectEqual(spawns, 1, "seul le SpawnLocation du salon reste")
 		end)
 
 		T.it("donne une PointLight à chaque lampe taguée", function()
@@ -91,7 +101,8 @@ return function(T, Loader)
 			T.expectEqual(corrections, 1)
 			local ambient = lighting.Ambient
 			local level = (ambient.R + ambient.G + ambient.B) / 3
-			T.expect(level > 0.05 and level < 0.25, "ambiance ni noire ni claire")
+			-- Bornes larges autour de la valeur réglée en jeu (≈ 0,26) : ni noir complet, ni éclairage de jour
+			T.expect(level > 0.15 and level < 0.35, "ambiance ni noire ni claire")
 		end)
 	end)
 end
