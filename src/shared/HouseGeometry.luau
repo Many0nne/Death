@@ -20,6 +20,12 @@ export type Piece = {
 	surface: string?,
 	-- Volume d'un meuble habillé : invisible, sans collision, porte les tags ; ses blocs visibles sont dans son groupe
 	hitbox: boolean?,
+	-- Petit objet d'un meuble (#38) : visible, sans collision ni ombre, transparent aux rayons
+	small: boolean?,
+	-- Forme Roblox (« Ball » ou « Cylinder ») ; sinon un bloc
+	shape: string?,
+	-- Bloc tourné : axes X, Y, Z du bloc dans le monde (CFrame.fromMatrix) ; size est alors sa taille dans ses axes
+	basis: { Vector3 }?,
 }
 
 export type Rect = { u0: number, u1: number, y0: number, y1: number }
@@ -590,6 +596,106 @@ local function localBox(facing: string, cx: number, by: number, cz: number, part
 	return Vector3.new(cx + ax0, by + y0, cz + az0), Vector3.new(cx + ax1, by + y1, cz + az1)
 end
 
+-- Angle de lacet (degrés, autour de y) qui amène l'avant d'un meuble (+z local) vers son orientation : localBox et
+-- la rotation des blocs tournés donnent le même résultat.
+local FACING_YAW = { North = 0, South = 180, East = 90, West = -90 }
+
+-- Cette méthode permet de multiplier deux matrices 3×3 (lignes) lorsque l'on compose les rotations d'un bloc.
+local function matMul(a, b)
+	local m = {}
+	for i = 1, 3 do
+		m[i] = {}
+		for j = 1, 3 do
+			m[i][j] = a[i][1] * b[1][j] + a[i][2] * b[2][j] + a[i][3] * b[3][j]
+		end
+	end
+	return m
+end
+
+-- Cette méthode permet de donner la matrice d'une rotation de CFrame.Angles autour d'un axe (« X », « Y » ou « Z »)
+-- lorsque l'on tourne un bloc ; une rotation nulle rend exactement l'identité.
+local function rotation(axis: string, degrees: number)
+	local r = math.rad(degrees)
+	local c, s = math.cos(r), math.sin(r)
+	if degrees % 360 == 0 then
+		c, s = 1, 0
+	elseif degrees % 360 == 90 then
+		c, s = 0, 1
+	elseif degrees % 360 == 180 then
+		c, s = -1, 0
+	elseif degrees % 360 == 270 then
+		c, s = 0, -1
+	end
+	if axis == "X" then
+		return { { 1, 0, 0 }, { 0, c, -s }, { 0, s, c } }
+	elseif axis == "Y" then
+		return { { c, 0, s }, { 0, 1, 0 }, { -s, 0, c } }
+	end
+	return { { c, -s, 0 }, { s, c, 0 }, { 0, 0, 1 } }
+end
+
+-- Cette méthode permet de donner la boîte englobante (coins min et max, alignés sur les axes du monde) d'un bloc,
+-- tourné ou non, lorsque l'on vérifie qu'il reste à sa place.
+function HouseGeometry.extent(p: Piece): (Vector3, Vector3)
+	if not p.basis then
+		return p.center - p.size / 2, p.center + p.size / 2
+	end
+	local b, s = p.basis, p.size / 2
+	local half = Vector3.new(
+		math.abs(b[1].X) * s.X + math.abs(b[2].X) * s.Y + math.abs(b[3].X) * s.Z,
+		math.abs(b[1].Y) * s.X + math.abs(b[2].Y) * s.Y + math.abs(b[3].Y) * s.Z,
+		math.abs(b[1].Z) * s.X + math.abs(b[2].Z) * s.Y + math.abs(b[3].Z) * s.Z
+	)
+	return p.center - half, p.center + half
+end
+
+-- Cette méthode permet de placer dans le monde un bloc décrit dans le repère d'un meuble ou d'une garniture (origine
+-- cx, by, cz ; avant tourné vers facing) lorsque l'on construit ses blocs ; un bloc tourné (rot) ou rond (shape)
+-- reçoit ses axes (basis), un bloc droit garde le calcul exact de localBox.
+local function placePart(kind: string, room, facing: string, cx: number, by: number, cz: number, part): Piece
+	if not part.rot and not part.shape then
+		local minV, maxV = localBox(facing, cx, by, cz, part)
+		return piece(kind, part.name, room, minV, maxV)
+	end
+	local x0, y0, z0 = part.min[1], part.min[2], part.min[3]
+	local x1, y1, z1 = part.max[1], part.max[2], part.max[3]
+	local yaw = rotation("Y", FACING_YAW[facing])
+	local m = yaw
+	if part.rot then
+		m = matMul(
+			m,
+			matMul(rotation("X", part.rot[1]), matMul(rotation("Y", part.rot[2]), rotation("Z", part.rot[3])))
+		)
+	end
+	-- Cylindre Roblox : axe sur X du bloc. Axe vertical = quart de tour autour de z, axe en profondeur = autour de y.
+	local size = Vector3.new(x1 - x0, y1 - y0, z1 - z0)
+	if part.shape == "Y" then
+		m = matMul(m, rotation("Z", 90))
+		size = Vector3.new(size.Y, size.X, size.Z)
+	elseif part.shape == "Z" then
+		m = matMul(m, rotation("Y", 90))
+		size = Vector3.new(size.Z, size.Y, size.X)
+	end
+	local lx, ly, lz = (x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2
+	local center = Vector3.new(cx + yaw[1][1] * lx + yaw[1][3] * lz, by + ly, cz + yaw[3][1] * lx + yaw[3][3] * lz)
+	local p = piece(kind, part.name, room, center - size / 2, center + size / 2)
+	p.basis = {
+		Vector3.new(m[1][1], m[2][1], m[3][1]),
+		Vector3.new(m[1][2], m[2][2], m[3][2]),
+		Vector3.new(m[1][3], m[2][3], m[3][3]),
+	}
+	p.shape = if part.shape == "Ball" then "Ball" elseif part.shape then "Cylinder" else nil
+	return p
+end
+
+-- Cette méthode permet de donner un nom libre dans un groupe lorsque plusieurs blocs d'un meuble ou d'une garniture
+-- portent le même (livres, bouteilles) : Book, Book2, Book3…
+local function uniqueName(used: { [string]: number }, name: string): string
+	local n = (used[name] or 0) + 1
+	used[name] = n
+	return if n == 1 then name else name .. n
+end
+
 -- Cette méthode permet de produire un meuble et, s'il porte des clés, l'emplacement posé dessus lorsque l'on meuble
 -- une pièce. Un meuble avec un style devient un groupe : un volume invisible (tags, attributs) et ses blocs visibles.
 local function propPieces(layout, room, prop, out: { Piece }, groups)
@@ -618,11 +724,14 @@ local function propPieces(layout, room, prop, out: { Piece }, groups)
 		groups[prop.id] = { room = room.id, primary = prop.id, tags = {}, attributes = { [Attr.RoomId] = room.id } }
 		local facing = HouseGeometry.propFacing(layout, room, prop.x, prop.z, sx, sz, prop.facing)
 		local alongX = facing == "North" or facing == "South"
-		for _, part in build(if alongX then sx else sz, sy, if alongX then sz else sx) do
-			local minV, maxV = localBox(facing, prop.x, base, prop.z, part)
-			local detail = piece("Detail", part.name, room, minV, maxV)
+		local rnd = HouseStyle.random(HouseStyle.seed(prop.id))
+		local used = { [prop.id] = 1 }
+		for _, part in build(if alongX then sx else sz, sy, if alongX then sz else sx, rnd) do
+			local detail = placePart("Detail", room, facing, prop.x, base, prop.z, part)
+			detail.name = uniqueName(used, part.name)
 			detail.group = prop.id
 			detail.surface = part.surface
+			detail.small = part.small
 			table.insert(out, detail)
 		end
 	end
@@ -631,6 +740,108 @@ local function propPieces(layout, room, prop, out: { Piece }, groups)
 			out,
 			anchorPiece(prop.id .. "KeySpot", room, prop.x, base + sy, prop.z, ANCHOR_SIZE, { MapTags.KeySpot })
 		)
+	end
+end
+
+-- Garniture murale : épaisseur maximale depuis le mur (cadre, patère, vélo ou outils appuyés)
+HouseGeometry.WALL_CLUTTER_DEPTH = 1.2
+-- Hauteur réservée au-dessus d'un emplacement de clés (les clés de #7 doivent rester visibles et ramassables) et
+-- au-dessus d'un ancrage au sol (apparition, carrelage mouillé, sortie)
+HouseGeometry.KEY_SPOT_CLEARANCE = 1.5
+HouseGeometry.FLOOR_ANCHOR_CLEARANCE = 1
+
+-- Cette méthode permet de calculer l'emplacement d'une garniture (pièce, orientation, origine de son repère, largeur,
+-- hauteur, profondeur, support) lorsque l'on la pose sur un meuble, contre un mur ou au sol ; nil si la description
+-- est incomplète (validate le signale).
+function HouseGeometry.clutterSpot(layout, byId, propsById, c)
+	if c.on then
+		local prop = propsById[c.on]
+		local room = prop and byId[prop.room]
+		if not room then
+			return nil
+		end
+		local sx, sz = prop.size[1], prop.size[3]
+		local facing = HouseGeometry.propFacing(layout, room, prop.x, prop.z, sx, sz, prop.facing)
+		local alongX = facing == "North" or facing == "South"
+		local size = c.size or { if alongX then sx else sz, 1.5, if alongX then sz else sx }
+		local at = c.at or { 0, 0 }
+		local o = localBox(facing, prop.x, 0, prop.z, { min = { at[1], 0, at[2] }, max = { at[1], 0, at[2] } })
+		return {
+			room = room,
+			facing = facing,
+			x = o.X,
+			y = HouseGeometry.floorY(layout, room.level) + (prop.y or 0) + prop.size[2],
+			z = o.Z,
+			w = size[1],
+			h = size[2],
+			d = size[3],
+			support = prop.id,
+		}
+	end
+	local room = byId[c.room]
+	if not room or not c.size then
+		return nil
+	end
+	local y = HouseGeometry.floorY(layout, room.level) + (c.y or 0)
+	if c.wall then
+		local inner = HouseGeometry.interior(layout, room)
+		local w, h, d = c.size[1], c.size[2], c.size[3]
+		local spot = { room = room, y = y, w = w, h = h, d = d, support = "Wall" }
+		if c.wall == "North" then
+			spot.facing, spot.x, spot.z = "South", c.at, inner.z1 - d / 2
+		elseif c.wall == "South" then
+			spot.facing, spot.x, spot.z = "North", c.at, inner.z0 + d / 2
+		elseif c.wall == "East" then
+			spot.facing, spot.x, spot.z = "West", inner.x1 - d / 2, c.at
+		elseif c.wall == "West" then
+			spot.facing, spot.x, spot.z = "East", inner.x0 + d / 2, c.at
+		else
+			return nil
+		end
+		return if spot.x and spot.z then spot else nil
+	end
+	local sx, h, sz = c.size[1], c.size[2], c.size[3]
+	-- Au sol, les rangées d'objets suivent le grand côté de l'emplacement
+	local facing = c.facing or (if sx >= sz then "North" else "East")
+	local alongX = facing == "North" or facing == "South"
+	return {
+		room = room,
+		facing = facing,
+		x = c.x,
+		y = y,
+		z = c.z,
+		w = if alongX then sx else sz,
+		h = h,
+		d = if alongX then sz else sx,
+		support = "Floor",
+	}
+end
+
+-- Cette méthode permet de produire les petits objets d'une garniture (#38) dans un groupe à son nom lorsque l'on
+-- habille une pièce ; le groupe garde l'emplacement (box) pour les contrôles.
+local function clutterPieces(spot, c, out: { Piece }, groups)
+	local build = HouseStyle.clutter[c.set]
+	if not spot or not build then
+		return
+	end
+	local minV, maxV = localBox(spot.facing, spot.x, spot.y, spot.z, {
+		min = { -spot.w / 2, 0, -spot.d / 2 },
+		max = { spot.w / 2, spot.h, spot.d / 2 },
+	})
+	groups[c.id] = {
+		room = spot.room.id,
+		tags = {},
+		attributes = { [Attr.RoomId] = spot.room.id },
+		box = { min = minV, max = maxV },
+		support = spot.support,
+	}
+	local used = {}
+	for _, part in build(spot.w, spot.h, spot.d, HouseStyle.random(HouseStyle.seed(c.id))) do
+		local p = placePart("Clutter", spot.room, spot.facing, spot.x, spot.y, spot.z, part)
+		p.name = uniqueName(used, part.name)
+		p.group = c.id
+		p.surface = part.surface
+		table.insert(out, p)
 	end
 end
 
@@ -795,8 +1006,13 @@ function HouseGeometry.build(layout)
 			table.insert(pieces, pole)
 		end
 	end
+	local propsById = {}
 	for _, prop in layout.props do
 		propPieces(layout, byId[prop.room], prop, pieces, groups)
+		propsById[prop.id] = prop
+	end
+	for _, c in layout.clutter or {} do
+		clutterPieces(HouseGeometry.clutterSpot(layout, byId, propsById, c), c, pieces, groups)
 	end
 	-- Meubles (volumes) qui peuvent masquer une fenêtre
 	local props = {}
@@ -1168,6 +1384,63 @@ local function piecesOverlap(a: Piece, b: Piece): boolean
 		and overlaps(aMin.Z, aMax.Z, bMin.Z, bMax.Z)
 end
 
+-- Cette méthode permet de trouver la porte qu'une boîte (coins minV, maxV) d'une pièce encombre lorsque l'on vérifie
+-- un meuble ou une garniture : toute la largeur de la porte plus 0,5 stud, sur 3 studs de chaque côté du mur, sur la
+-- hauteur de l'ouverture ; rend les identifiants des portes encombrées.
+local function blockedDoors(layout, room, minV: Vector3, maxV: Vector3): { string }
+	local blocked = {}
+	for _, door in layout.doors do
+		-- Une porte extérieure (un seul côté décrit) se dégage aussi du côté dehors, quelle que soit la zone
+		local concerned = table.find(door.rooms, room.id) ~= nil or #door.rooms == 1
+		if concerned and HouseGeometry.spansLevel(room, door.level) then
+			local o = HouseGeometry.doorOpening(layout, door)
+			local line = if door.along == "X" then door.z else door.x
+			local u0, u1 = o.u0 - 0.5, o.u1 + 0.5
+			local blocks = if door.along == "X"
+				then overlaps(minV.X, maxV.X, u0, u1) and overlaps(minV.Z, maxV.Z, line - 3, line + 3)
+				else overlaps(minV.Z, maxV.Z, u0, u1) and overlaps(minV.X, maxV.X, line - 3, line + 3)
+			if blocks and overlaps(minV.Y, maxV.Y, o.y0, o.y1) then
+				table.insert(blocked, door.id)
+			end
+		end
+	end
+	return blocked
+end
+
+-- Cette méthode permet de savoir si une boîte (coins minV, maxV) tient dans le volume intérieur d'une pièce lorsque
+-- l'on vérifie un meuble, une lampe ou une garniture.
+local function insideRoom(layout, room, minV: Vector3, maxV: Vector3): boolean
+	local inner = HouseGeometry.interior(layout, room)
+	return minV.X >= inner.x0 - EPS
+		and maxV.X <= inner.x1 + EPS
+		and minV.Z >= inner.z0 - EPS
+		and maxV.Z <= inner.z1 + EPS
+		and minV.Y >= HouseGeometry.floorY(layout, room.level) - EPS
+		and maxV.Y <= HouseGeometry.topY(layout, room) + EPS
+end
+
+-- Tolérance des contrôles d'inclusion : un Vector3 est en flottants 32 bits (cotes comme 0,075 arrondies vers 1e-6)
+local CONTAINS_TOLERANCE = 1e-3
+
+-- Cette méthode permet de savoir si une boîte (coins minV, maxV) déborde d'une autre lorsque l'on vérifie qu'un bloc
+-- reste dans son meuble ou dans son emplacement.
+local function outside(minV: Vector3, maxV: Vector3, bMin: Vector3, bMax: Vector3): boolean
+	local t = CONTAINS_TOLERANCE
+	return minV.X < bMin.X - t
+		or minV.Y < bMin.Y - t
+		or minV.Z < bMin.Z - t
+		or maxV.X > bMax.X + t
+		or maxV.Y > bMax.Y + t
+		or maxV.Z > bMax.Z + t
+end
+
+-- Cette méthode permet de savoir si deux boîtes (coins) se recouvrent lorsque l'on cherche une garniture mal placée.
+local function boxesOverlap(aMin: Vector3, aMax: Vector3, bMin: Vector3, bMax: Vector3): boolean
+	return overlaps(aMin.X, aMax.X, bMin.X, bMax.X)
+		and overlaps(aMin.Y, aMax.Y, bMin.Y, bMax.Y)
+		and overlaps(aMin.Z, aMax.Z, bMin.Z, bMax.Z)
+end
+
 -- Cette méthode permet de vérifier les blocs posés dans les pièces (dedans, sans boucher une porte ni se chevaucher,
 -- ancrages au sol hors des meubles) lorsque l'on valide la description.
 local function checkFurniture(layout, byId, plan, errors: { string })
@@ -1189,16 +1462,9 @@ local function checkFurniture(layout, byId, plan, errors: { string })
 			if not box then
 				table.insert(errors, p.name .. " : bloc d'habillage sans meuble")
 			else
-				local minV, maxV = p.center - p.size / 2, p.center + p.size / 2
+				local minV, maxV = HouseGeometry.extent(p)
 				local bMin, bMax = box.center - box.size / 2, box.center + box.size / 2
-				if
-					minV.X < bMin.X - EPS
-					or minV.Y < bMin.Y - EPS
-					or minV.Z < bMin.Z - EPS
-					or maxV.X > bMax.X + EPS
-					or maxV.Y > bMax.Y + EPS
-					or maxV.Z > bMax.Z + EPS
-				then
+				if outside(minV, maxV, bMin, bMax) then
 					table.insert(errors, string.format("%s/%s : déborde de son meuble", box.name, p.name))
 				end
 			end
@@ -1215,35 +1481,15 @@ local function checkFurniture(layout, byId, plan, errors: { string })
 			continue
 		end
 		local room = byId[p.room]
-		local inner = HouseGeometry.interior(layout, room)
 		local minV, maxV = p.center - p.size / 2, p.center + p.size / 2
-		local inside = minV.X >= inner.x0 - EPS
-			and maxV.X <= inner.x1 + EPS
-			and minV.Z >= inner.z0 - EPS
-			and maxV.Z <= inner.z1 + EPS
-			and minV.Y >= HouseGeometry.floorY(layout, room.level) - EPS
-			and maxV.Y <= HouseGeometry.topY(layout, room) + EPS
-		if not inside then
+		if not insideRoom(layout, room, minV, maxV) then
 			table.insert(errors, p.name .. " : sort de " .. room.id)
 		end
 		if p.kind ~= "Prop" and p.kind ~= "Car" then
 			continue
 		end
-		for _, door in layout.doors do
-			-- Une porte extérieure (un seul côté décrit) se dégage aussi du côté dehors, quelle que soit la zone
-			local concerned = table.find(door.rooms, room.id) ~= nil or #door.rooms == 1
-			if concerned and HouseGeometry.spansLevel(room, door.level) then
-				-- Dégagement : toute la largeur de la porte plus 0,5 stud, sur 3 studs de chaque côté du mur
-				local o = HouseGeometry.doorOpening(layout, door)
-				local line = if door.along == "X" then door.z else door.x
-				local u0, u1 = o.u0 - 0.5, o.u1 + 0.5
-				local blocks = if door.along == "X"
-					then overlaps(minV.X, maxV.X, u0, u1) and overlaps(minV.Z, maxV.Z, line - 3, line + 3)
-					else overlaps(minV.Z, maxV.Z, u0, u1) and overlaps(minV.X, maxV.X, line - 3, line + 3)
-				if blocks and overlaps(minV.Y, maxV.Y, o.y0, o.y1) then
-					table.insert(errors, p.name .. " : bouche la porte " .. door.id)
-				end
-			end
+		for _, door in blockedDoors(layout, room, minV, maxV) do
+			table.insert(errors, p.name .. " : bouche la porte " .. door)
 		end
 		for _, other in solids do
 			if not (other.group ~= nil and other.group == p.group) and piecesOverlap(p, other) then
@@ -1258,6 +1504,86 @@ local function checkFurniture(layout, byId, plan, errors: { string })
 			if piecesOverlap(anchor, solid) then
 				table.insert(errors, anchor.name .. " est dans " .. solid.name)
 			end
+		end
+	end
+end
+
+-- Blocs qu'une garniture ne doit pas traverser : meubles, voiture, lampes, fenêtres, murs et escaliers
+local CLUTTER_BLOCKERS = {
+	Prop = true,
+	Car = true,
+	Lamp = true,
+	Fixture = true,
+	Window = true,
+	Wall = true,
+	Partition = true,
+	Step = true,
+	Landing = true,
+	DoorLeaf = true,
+}
+
+-- Cette méthode permet de vérifier les garnitures (#38) lorsque l'on valide la description : chaque objet reste dans son
+-- emplacement, l'emplacement reste dans la pièce sans boucher de porte, sans traverser un meuble, un mur, une fenêtre
+-- ou une autre garniture, sans couvrir un emplacement de clés ni un ancrage au sol ; au sol, une marche de haut au
+-- plus (sans collision, il ne doit rien cacher qu'on enjambe) ; au mur, une faible épaisseur.
+local function checkClutter(layout, byId, plan, errors: { string })
+	local blockers = {}
+	for _, p in plan.pieces do
+		if CLUTTER_BLOCKERS[p.kind] then
+			local minV, maxV = HouseGeometry.extent(p)
+			table.insert(blockers, { name = p.name, room = p.room, min = minV, max = maxV })
+		elseif p.kind == "Anchor" then
+			local keySpot = table.find(p.tags, MapTags.KeySpot) ~= nil
+			local lift = if keySpot then HouseGeometry.KEY_SPOT_CLEARANCE else HouseGeometry.FLOOR_ANCHOR_CLEARANCE
+			local minV, maxV = HouseGeometry.extent(p)
+			table.insert(blockers, { name = p.name, min = minV, max = maxV + Vector3.new(0, lift, 0), anchor = true })
+		end
+	end
+	local counts = {}
+	for _, p in plan.pieces do
+		if p.kind == "Clutter" then
+			local g = plan.groups[p.group]
+			counts[p.group] = (counts[p.group] or 0) + 1
+			local minV, maxV = HouseGeometry.extent(p)
+			if outside(minV, maxV, g.box.min, g.box.max) then
+				table.insert(errors, string.format("%s/%s : déborde de son emplacement", p.group, p.name))
+			end
+		end
+	end
+	local placed = {}
+	for _, c in layout.clutter or {} do
+		local g = plan.groups[c.id]
+		if not g then
+			continue
+		end
+		local room = byId[g.room]
+		local minV, maxV = g.box.min, g.box.max
+		if not counts[c.id] then
+			table.insert(errors, c.id .. " : garniture vide (" .. c.set .. ")")
+		end
+		if not insideRoom(layout, room, minV, maxV) then
+			table.insert(errors, c.id .. " : sort de " .. room.id)
+		end
+		for _, door in blockedDoors(layout, room, minV, maxV) do
+			table.insert(errors, c.id .. " : bouche la porte " .. door)
+		end
+		for _, b in blockers do
+			if boxesOverlap(minV, maxV, b.min, b.max) then
+				local verb = if b.anchor then " couvre " else " chevauche "
+				table.insert(errors, c.id .. verb .. b.name)
+			end
+		end
+		for _, other in placed do
+			if boxesOverlap(minV, maxV, other.min, other.max) then
+				table.insert(errors, c.id .. " chevauche " .. other.id)
+			end
+		end
+		table.insert(placed, { id = c.id, min = minV, max = maxV })
+		if g.support == "Floor" and maxV.Y - minV.Y > layout.STEP_RISE + EPS then
+			table.insert(errors, c.id .. " : garniture au sol plus haute qu'une marche")
+		end
+		if g.support == "Wall" and c.size[3] > HouseGeometry.WALL_CLUTTER_DEPTH + EPS then
+			table.insert(errors, c.id .. " : garniture murale trop épaisse")
 		end
 	end
 end
@@ -1395,6 +1721,37 @@ local function checkKinds(layout, errors: { string })
 			table.insert(errors, prop.id .. " : meuble extérieur assez haut pour franchir la clôture")
 		end
 	end
+	local props = {}
+	for _, prop in layout.props do
+		props[prop.id] = prop
+	end
+	for _, c in layout.clutter or {} do
+		if not HouseStyle.clutter[c.set] then
+			table.insert(errors, tostring(c.id) .. " : garniture inconnue " .. tostring(c.set))
+		end
+		if c.on then
+			local prop = props[c.on]
+			if not prop then
+				table.insert(errors, tostring(c.id) .. " : meuble inconnu " .. tostring(c.on))
+			elseif prop.trap then
+				-- Un piège fait tomber le meuble : ce qui est posé dessus resterait en l'air
+				table.insert(errors, tostring(c.id) .. " : posée sur un candidat de piège (" .. prop.id .. ")")
+			end
+		else
+			if not byId[c.room] then
+				table.insert(errors, tostring(c.id) .. " : pièce inconnue " .. tostring(c.room))
+			end
+			if type(c.size) ~= "table" then
+				table.insert(errors, tostring(c.id) .. " : garniture sans taille")
+			end
+			if c.wall and (not table.find(HouseGeometry.FACINGS, c.wall) or type(c.at) ~= "number") then
+				table.insert(errors, tostring(c.id) .. " : mur inconnu ou position le long du mur absente")
+			end
+		end
+		if c.facing and not table.find(HouseGeometry.FACINGS, c.facing) then
+			table.insert(errors, tostring(c.id) .. " : orientation inconnue " .. tostring(c.facing))
+		end
+	end
 end
 
 -- Cette méthode permet de vérifier que toute la carte tient dans la limite du terrain et que le décor reste dehors
@@ -1468,6 +1825,7 @@ function HouseGeometry.validate(layout): ({ string }, any)
 		end
 	end
 	checkFurniture(layout, byId, plan, errors)
+	checkClutter(layout, byId, plan, errors)
 	checkOutdoorPassages(layout, byId, plan, errors)
 	checkBounds(layout, errors)
 	local reachable = HouseGeometry.reachableRooms(layout, layout.rooms[1].id)

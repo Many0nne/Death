@@ -164,8 +164,8 @@ end
 
 -- Cette méthode permet de donner le rectangle au sol (x0, x1, z0, z1) et la plage de hauteur d'un bloc calculé.
 local function bounds(p)
-	local h = p.size / 2
-	return p.center.X - h.X, p.center.X + h.X, p.center.Z - h.Z, p.center.Z + h.Z, p.center.Y - h.Y, p.center.Y + h.Y
+	local a, b = HouseGeometry.extent(p)
+	return a.X, b.X, a.Z, b.Z, a.Y, b.Y
 end
 
 -- Cette méthode permet de choisir le fond d'une pièce selon qu'elle est dehors, éclairée ou sombre.
@@ -256,10 +256,7 @@ local function drawLevel(index: number, level: number)
 			continue
 		end
 		local sx, sz = prop.size[1], prop.size[3]
-		local fill = if prop.tag == "Breaker"
-			then COLORS.breaker
-			elseif prop.trap then COLORS.trap
-			else COLORS.prop
+		local fill = if prop.tag == "Breaker" then COLORS.breaker elseif prop.trap then COLORS.trap else COLORS.prop
 		local stroke = if prop.keySpot then COLORS.key else "#444"
 		local width = if prop.keySpot then 2.5 else 0.8
 		rect(
@@ -291,7 +288,10 @@ local function drawLevel(index: number, level: number)
 		end
 		local x0, x1, z0, z1, y0, y1 = bounds(p)
 		if y0 <= cut and cut < y1 then
-			local fill = if p.kind == "Fence" then COLORS.fence elseif p.kind == "DoorLeaf" then COLORS.leaf else COLORS.wall
+			local fill = if p.kind == "Fence"
+				then COLORS.fence
+				elseif p.kind == "DoorLeaf" then COLORS.leaf
+				else COLORS.wall
 			-- Un battant fait l'épaisseur du mur : on l'élargit un peu pour le voir
 			if p.kind == "DoorLeaf" then
 				if x1 - x0 < z1 - z0 then
@@ -405,13 +405,44 @@ local function drawLegend()
 		local col, row = (i - 1) % perRow, (i - 1) // perRow
 		local x, yy = GAP + col * colW, y + row * 30
 		if item[1] == "rect" then
-			out(string.format('<rect x="%s" y="%s" width="18" height="14" fill="%s" stroke="#444" stroke-width="0.5"/>', num(x), num(yy), item[2]))
+			out(
+				string.format(
+					'<rect x="%s" y="%s" width="18" height="14" fill="%s" stroke="#444" stroke-width="0.5"/>',
+					num(x),
+					num(yy),
+					item[2]
+				)
+			)
 		elseif item[1] == "circle" then
-			out(string.format('<circle cx="%s" cy="%s" r="7" fill="%s" stroke="#444" stroke-width="0.5"/>', num(x + 9), num(yy + 7), item[2]))
+			out(
+				string.format(
+					'<circle cx="%s" cy="%s" r="7" fill="%s" stroke="#444" stroke-width="0.5"/>',
+					num(x + 9),
+					num(yy + 7),
+					item[2]
+				)
+			)
 		else
-			out(string.format('<line x1="%s" y1="%s" x2="%s" y2="%s" stroke="%s" stroke-width="2" stroke-dasharray="6 4"/>', num(x), num(yy + 7), num(x + 18), num(yy + 7), item[2]))
+			out(
+				string.format(
+					'<line x1="%s" y1="%s" x2="%s" y2="%s" stroke="%s" stroke-width="2" stroke-dasharray="6 4"/>',
+					num(x),
+					num(yy + 7),
+					num(x + 18),
+					num(yy + 7),
+					item[2]
+				)
+			)
 		end
-		out(string.format('<text x="%s" y="%s" font-size="13" fill="%s">%s</text>', num(x + 26), num(yy + 12), COLORS.text, esc(item[3])))
+		out(
+			string.format(
+				'<text x="%s" y="%s" font-size="13" fill="%s">%s</text>',
+				num(x + 26),
+				num(yy + 12),
+				COLORS.text,
+				esc(item[3])
+			)
+		)
 	end
 	out(
 		string.format(
@@ -435,7 +466,12 @@ local function grid(ox: number)
 		local px1 = point(ox, B.x1 + PAD, z)
 		table.insert(parts, string.format("M%s %sH%s", num(px0), num(py), num(px1)))
 	end
-	out(string.format('<path d="%s" stroke="#000" stroke-opacity="0.08" stroke-width="1" fill="none"/>', table.concat(parts)))
+	out(
+		string.format(
+			'<path d="%s" stroke="#000" stroke-opacity="0.08" stroke-width="1" fill="none"/>',
+			table.concat(parts)
+		)
+	)
 end
 
 out(

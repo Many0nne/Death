@@ -49,8 +49,9 @@ local INVISIBLE = {
 }
 
 -- Blocs d'habillage visibles qui ne gênent rien : ni le joueur, ni un rayon, ni la lumière (abat-jour autour d'une
--- ampoule, fenêtre factice dans un mur, tapis)
-local DECORATIVE = { Fixture = true, Window = true, Decor = true }
+-- ampoule, fenêtre factice dans un mur, tapis, petits objets des garnitures #38). Les petits objets d'un meuble (livres,
+-- bouteilles) sont traités de même.
+local DECORATIVE = { Fixture = true, Window = true, Decor = true, Clutter = true }
 
 -- Cette méthode permet d'appliquer une surface de HouseStyle (matériau, couleur, transparence) lorsqu'un bloc est habillé.
 local function applySurface(part: BasePart, name: string)
@@ -78,8 +79,14 @@ local function makePart(p): BasePart
 	local part = Instance.new("Part")
 	part.Name = p.name
 	part.Anchored = true
+	if p.shape then
+		-- Avant la taille : une boule garde ainsi la taille demandée
+		part.Shape = (Enum.PartType :: any)[p.shape]
+	end
 	part.Size = p.size
-	part.CFrame = CFrame.new(p.center)
+	part.CFrame = if p.basis
+		then CFrame.fromMatrix(p.center, p.basis[1], p.basis[2], p.basis[3])
+		else CFrame.new(p.center)
 	part.Material = Enum.Material.SmoothPlastic
 	part.TopSurface = Enum.SurfaceType.Smooth
 	part.BottomSurface = Enum.SurfaceType.Smooth
@@ -87,7 +94,7 @@ local function makePart(p): BasePart
 	if p.surface then
 		applySurface(part, p.surface)
 	end
-	if DECORATIVE[p.kind] then
+	if DECORATIVE[p.kind] or p.small then
 		part.CanCollide = false
 		part.CanQuery = false
 		part.CanTouch = false

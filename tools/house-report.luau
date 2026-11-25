@@ -138,3 +138,24 @@ for _, room in HouseLayout.rooms do
 	table.insert(report, string.format("%s %d%%", byId[room.id].id, math.floor(lit / total * 100 + 0.5)))
 end
 print("Couverture des pièces éclairées : " .. table.concat(report, ", "))
+
+-- Budget de la maison construite (#38) : Parts, dont celles qui arrêtent le joueur et celles qui portent une ombre
+local parts, solid, shadows = 0, 0, 0
+for _, d in house:GetDescendants() do
+	if d:IsA("BasePart") then
+		parts += 1
+		solid += if d.CanCollide then 1 else 0
+		shadows += if d.CastShadow and d.Transparency < 1 then 1 else 0
+	end
+end
+local kinds = {}
+for _, p in HouseGeometry.build(HouseLayout).pieces do
+	kinds[p.kind] = (kinds[p.kind] or 0) + 1
+end
+local byKind = {}
+for kind, n in kinds do
+	table.insert(byKind, string.format("%s %d", kind, n))
+end
+table.sort(byKind)
+print(string.format("Parts : %d (collision : %d, ombre : %d)", parts, solid, shadows))
+print("Blocs par type : " .. table.concat(byKind, ", "))

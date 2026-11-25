@@ -138,6 +138,12 @@ régénérés par `lune run tools/house-map` (`check.sh` échoue s'ils ne sont p
   gravier dans l'allée. Chaque meuble est un modèle : un volume invisible qui porte les tags (pièges, clés) et des blocs
   visibles qui arrêtent joueurs et rayons. Fenêtres factices sur les façades (ni lumière ni vue au travers), habillage
   des lampes (abat-jour, bras du lustre) et tapis sans collision ni ombre. Vue 3D : case « Rendu ».
+- **Petits objets** (#38, `HouseLayout.clutter`, `HouseStyle.clutter`) : livres un par un, bouteilles couchées, objets
+  posés sur les meubles, cadres, horloges et miroirs aux murs, jouets, vêtements et cartons au sol, toiles d'araignée
+  dans les pièces abandonnées. Une identité par pièce (soirée interrompue au salon, repas abandonné en cuisine, bureau
+  d'enquête, chambre d'ado ≠ chambre d'enfant ≠ chambre d'amis). Tous visibles, sans collision, ni rayon, ni ombre ;
+  au sol une marche de haut au plus, jamais sur un emplacement de clés, une porte, une fenêtre ou un meuble piège.
+  Variation tirée de l'identifiant (même maison à chaque construction). Budget : environ 3 150 Parts (1 300 avant).
 - **Mesures** (#25) : environ 13 500 studs² à l'intérieur et 6 500 dehors (prototype #3 : 7 900), aucun cul-de-sac,
   au moins deux boucles par niveau, une trentaine de points fragiles répartis dans la maison et dehors.
 
