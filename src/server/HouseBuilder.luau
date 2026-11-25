@@ -1,8 +1,10 @@
--- Construit la maison en blocs gris à partir de la description partagée (Shared.HouseLayout → Shared.HouseGeometry).
+-- Construit la maison en blocs habillés à partir de la description partagée (Shared.HouseLayout → Shared.HouseGeometry,
+-- matériaux et couleurs de Shared.HouseStyle ; un bloc sans surface garde le gris du prototype).
 -- Tout est généré au démarrage : rien de la maison n'est gardé dans Studio. Tags et attributs : Shared.MapTags.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HouseGeometry = require(ReplicatedStorage.Shared.HouseGeometry)
 local HouseLayout = require(ReplicatedStorage.Shared.HouseLayout)
+local HouseStyle = require(ReplicatedStorage.Shared.HouseStyle)
 local NightLighting = require(ReplicatedStorage.Shared.NightLighting)
 
 local HouseBuilder = {}
@@ -41,7 +43,24 @@ local INVISIBLE = {
 	Anchor = { CanCollide = false, CanTouch = true, CanQuery = true },
 	-- Limite du terrain : arrête les joueurs, jamais un rayon (vue, lampe torche)
 	Boundary = { CanCollide = true, CanTouch = false, CanQuery = false },
+	-- Volume d'un meuble habillé : porte ses tags (pièges, disjoncteur) et sert de zone de contact ; ses blocs visibles
+	-- (frères dans le modèle du meuble) arrêtent joueurs et rayons
+	Hitbox = { CanCollide = false, CanTouch = true, CanQuery = false },
 }
+
+-- Blocs d'habillage visibles qui ne gênent rien : ni le joueur, ni un rayon, ni la lumière (abat-jour autour d'une
+-- ampoule, fenêtre factice dans un mur, tapis)
+local DECORATIVE = { Fixture = true, Window = true, Decor = true }
+
+-- Cette méthode permet d'appliquer une surface de HouseStyle (matériau, couleur, transparence) lorsqu'un bloc est habillé.
+local function applySurface(part: BasePart, name: string)
+	local surface = HouseStyle.surfaces[name]
+	part.Material = (Enum.Material :: any)[surface.material]
+	local c = surface.color
+	part.Color = Color3.fromRGB(c[1], c[2], c[3])
+	part.Transparency = surface.transparency or 0
+	part.Reflectance = surface.reflectance or 0
+end
 
 -- Cette méthode permet de poser tags et attributs d'un bloc calculé sur son instance lorsque la suite du jeu doit le
 -- retrouver par CollectionService.
@@ -65,7 +84,16 @@ local function makePart(p): BasePart
 	part.TopSurface = Enum.SurfaceType.Smooth
 	part.BottomSurface = Enum.SurfaceType.Smooth
 	part.Color = COLORS[p.kind] or COLORS.Prop
-	local invisible = INVISIBLE[p.kind]
+	if p.surface then
+		applySurface(part, p.surface)
+	end
+	if DECORATIVE[p.kind] then
+		part.CanCollide = false
+		part.CanQuery = false
+		part.CanTouch = false
+		part.CastShadow = false
+	end
+	local invisible = INVISIBLE[if p.hitbox then "Hitbox" else p.kind]
 	if invisible then
 		part.Transparency = 1
 		part.CastShadow = false

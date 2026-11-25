@@ -9,6 +9,7 @@ local Loader = require("../tests/lib/Loader")
 local loader = Loader.new()
 local HouseLayout = loader:require("src/shared/HouseLayout")
 local HouseGeometry = loader:require("src/shared/HouseGeometry")
+local HouseStyle = loader:require("src/shared/HouseStyle")
 
 local OUT_DIR = "docs/plan"
 local SVG_PATH = OUT_DIR .. "/plan.svg"
@@ -483,6 +484,19 @@ for _, p in built.pieces do
 	end
 	if kind == "Floor" and room then
 		extra = if room.lit then ',"lit":1' else ',"lit":0'
+	end
+	-- Mode « Rendu » de la vue : couleur de l'habillage (HouseStyle) ; un volume de meuble habillé y est masqué au
+	-- profit de ses blocs, que le mode « Plan » masque
+	if p.surface then
+		local surface = HouseStyle.surfaces[p.surface]
+		local c = surface.color
+		extra ..= string.format(',"c":"#%02x%02x%02x"', c[1], c[2], c[3])
+		if surface.transparency and surface.transparency >= 0.5 then
+			extra ..= ',"t":1'
+		end
+	end
+	if p.hitbox then
+		extra ..= ',"h":1'
 	end
 	local x0, x1, z0, z1, y0, y1 = bounds(p)
 	table.insert(

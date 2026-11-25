@@ -102,6 +102,52 @@ return function(T, Loader)
 			T.expectEqual(boundaries, 4, "limite du terrain")
 		end)
 
+		T.it("habille la maison sans changer ce que touchent les joueurs et les rayons (#26)", function()
+			-- Meuble habillé : un modèle, volume invisible tagué en PrimaryPart, blocs visibles qui arrêtent tout
+			local shelf = house.Living.LivingBookcase
+			T.expect(shelf:IsA("Model"), "meuble habillé en Model")
+			local box = shelf.PrimaryPart
+			T.expect(box ~= nil and box.Name == "LivingBookcase", "volume du meuble en PrimaryPart")
+			T.expect(box:HasTag(MapTags.TrapCandidate), "tags de piège sur le volume")
+			T.expectEqual(box.Transparency, 1)
+			T.expectEqual(box.CanCollide, false)
+			T.expectEqual(box.CanQuery, false)
+			T.expectEqual(box.CanTouch, true)
+			local visible = 0
+			for _, part in shelf:GetChildren() do
+				if part ~= box then
+					visible += 1
+					T.expect(part.Transparency < 1 and part.CanCollide and part.CanQuery, part.Name)
+				end
+			end
+			T.expect(visible >= 6, "bibliothèque en plusieurs blocs")
+			-- Le disjoncteur reste un bloc unique, visible et visé par les rayons (LightService)
+			local breaker = house.Cave.Breaker
+			T.expect(breaker:IsA("BasePart") and breaker:HasTag(MapTags.Breaker), "disjoncteur")
+			T.expect(breaker.CanQuery and breaker.Transparency == 0, "disjoncteur visible")
+			T.expectEqual(breaker.Material.Name, "Metal")
+			-- Habillage décoratif : abat-jour, fenêtres, tapis n'arrêtent ni joueur, ni rayon, ni lumière
+			local windows, fixtures = 0, 0
+			for _, d in house:GetDescendants() do
+				if d:IsA("BasePart") and (string.find(d.Name, "Window", 1, true) or d.Name == "LivingRug") then
+					if string.find(d.Name, "Window", 1, true) then
+						windows += 1
+					end
+					T.expect(not d.CanCollide and not d.CanQuery and not d.CastShadow, d.Name)
+				elseif d:IsA("BasePart") and string.find(d.Name, "^KitchenLampShade") then
+					fixtures += 1
+					T.expect(not d.CanCollide and not d.CanQuery and not d.CastShadow, d.Name)
+				end
+			end
+			T.expect(windows >= 20, "fenêtres de façade")
+			T.expectEqual(fixtures, 4, "abat-jour du plafonnier de la cuisine")
+			-- Matériaux : parquet au salon, carrelage en cuisine, façade crépie, haie
+			T.expectEqual(house.Living.LivingFloor.Material.Name, "WoodPlanks")
+			T.expectEqual(house.Kitchen.KitchenFloor.Material.Name, "CeramicTiles")
+			T.expectEqual(house.Living.LivingWallSouth1Facade.Material.Name, "Plaster")
+			T.expectEqual(house.Garden.GardenFenceNorth1.Material.Name, "LeafyGrass")
+		end)
+
 		T.it("remplace une maison déjà construite", function()
 			HouseBuilder.build(world)
 			local houses = 0
