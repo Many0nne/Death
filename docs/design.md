@@ -133,6 +133,11 @@ régénérés par `lune run tools/house-map` (`check.sh` échoue s'ils ne sont p
   Lumières : applique du porche, lampadaire de l'allée, lanterne du jardin ; tout le reste est sombre.
 - **Fuite** : clés dans trois pièces tirées au hasard (hors allée), voiture au garage ; une fois la voiture démarrée,
   la porte du garage s'ouvre et la sortie est au bout de l'allée, devant le portail.
+- **Habillage** (#26, `src/shared/HouseStyle.luau`) : blocs travaillés, sans asset modélisé. Matériaux Roblox par
+  pièce (parquet, carrelage, moquette, papier peint, béton à la cave, brique à la cave à vin), façade crépie, haie,
+  gravier dans l'allée. Chaque meuble est un modèle : un volume invisible qui porte les tags (pièges, clés) et des blocs
+  visibles qui arrêtent joueurs et rayons. Fenêtres factices sur les façades (ni lumière ni vue au travers), habillage
+  des lampes (abat-jour, bras du lustre) et tapis sans collision ni ombre. Vue 3D : case « Rendu ».
 - **Mesures** (#25) : environ 13 500 studs² à l'intérieur et 6 500 dehors (prototype #3 : 7 900), aucun cul-de-sac,
   au moins deux boucles par niveau, une trentaine de points fragiles répartis dans la maison et dehors.
 

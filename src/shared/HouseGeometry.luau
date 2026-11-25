@@ -1,5 +1,6 @@
 -- Géométrie pure de la maison : transforme la description (HouseLayout) en blocs placés (centre, taille, tags,
 -- attributs) que Server.HouseBuilder n'a plus qu'à instancier, et vérifie la cohérence de la description.
+local HouseStyle = require(script.Parent.HouseStyle)
 local MapTags = require(script.Parent.MapTags)
 
 local Attr = MapTags.Attributes
@@ -15,6 +16,10 @@ export type Piece = {
 	tags: { string },
 	attributes: { [string]: any },
 	light: { range: number, brightness: number }?,
+	-- Habillage (HouseStyle.surfaces) ; sans surface, Server.HouseBuilder garde le gris du prototype
+	surface: string?,
+	-- Volume d'un meuble habillé : invisible, sans collision, porte les tags ; ses blocs visibles sont dans son groupe
+	hitbox: boolean?,
 }
 
 export type Rect = { u0: number, u1: number, y0: number, y1: number }
@@ -304,12 +309,12 @@ local function stairPieces(layout, room, out: { Piece })
 	local base = HouseGeometry.floorY(layout, room.level)
 	local d, rise = layout.STEP_DEPTH, layout.STEP_RISE
 	local z0 = inner.z0 + lanes.entry
+	local finish = HouseStyle.finish(room.id)
 	-- Cette méthode permet d'ajouter un bloc plein posé sur le sol de la cage lorsque l'on empile marches et paliers.
 	local function add(kind, name, x0, x1, za, zb, height)
-		table.insert(
-			out,
-			piece(kind, room.id .. name, room, Vector3.new(x0, base, za), Vector3.new(x1, base + height, zb))
-		)
+		local p = piece(kind, room.id .. name, room, Vector3.new(x0, base, za), Vector3.new(x1, base + height, zb))
+		p.surface = if kind == "Partition" then finish.wall else finish.step
+		table.insert(out, p)
 	end
 	for k = 1, lanes.steps do
 		add("Step", "StepLow" .. k, lanes.low[1], lanes.low[2], z0 + (k - 1) * d, z0 + k * d, k * rise)
@@ -331,32 +336,119 @@ local function stairPieces(layout, room, out: { Piece })
 	)
 end
 
+-- Cette méthode permet de construire un bloc dans une tranche de l'épaisseur d'un mur (t0..t1 en travers du mur)
+-- lorsque l'on sépare le revêtement intérieur de la façade.
+local function wallSlice(kind: string, name: string, room, wall, r: Rect, t0: number, t1: number): Piece
+	local a, b = math.min(t0, t1), math.max(t0, t1)
+	if wall.along == "X" then
+		return piece(kind, name, room, Vector3.new(r.u0, r.y0, a), Vector3.new(r.u1, r.y1, b))
+	end
+	return piece(kind, name, room, Vector3.new(a, r.y0, r.u0), Vector3.new(b, r.y1, r.u1))
+end
+
+-- Épaisseur du revêtement intérieur d'un mur de façade (le reste du mur porte la façade) et du revêtement de sol posé
+-- sur une dalle
+local SKIN = 0.1
+local FLOOR_SKIN = 0.2
+
+-- Cette méthode permet de savoir si le dehors d'un mur, à un point donné et à un niveau donné, est hors de la maison
+-- lorsque l'on choisit entre revêtement intérieur et façade ; la cave n'a pas de façade (murs dans la terre).
+local function facesOutside(layout, room, wall, u: number, level: number): boolean
+	if level < 0 then
+		return false
+	end
+	local outward = if wall.side == "South" or wall.side == "West" then -0.25 else 0.25
+	local x = if wall.along == "X" then u else wall.line + outward
+	local z = if wall.along == "X" then wall.line + outward else u
+	for _, other in layout.rooms do
+		if
+			other ~= room
+			and not other.outdoor
+			and HouseGeometry.spansLevel(other, level)
+			and x > other.x0
+			and x < other.x1
+			and z > other.z0
+			and z < other.z1
+		then
+			return false
+		end
+	end
+	return true
+end
+
+export type WallSegment = { u0: number, u1: number, y0: number, y1: number, level: number, outside: boolean }
+
+-- Cette méthode permet de découper un pan de mur par niveau (cages d'escalier) puis par tronçon donnant dehors ou sur
+-- une autre pièce lorsque l'on habille le mur (façade dehors, revêtement de la pièce dedans).
+function HouseGeometry.wallSegments(layout, room, wall, r: Rect): { WallSegment }
+	local segments = {}
+	for level = room.level, room.level + (room.levels or 1) - 1 do
+		local y0 = math.max(r.y0, HouseGeometry.floorY(layout, level))
+		local y1 = math.min(r.y1, HouseGeometry.floorY(layout, level + 1))
+		if level == room.level + (room.levels or 1) - 1 then
+			y1 = r.y1
+		end
+		if y1 - y0 < EPS then
+			continue
+		end
+		local start, current = r.u0, nil
+		local u = r.u0
+		while u < r.u1 - EPS do
+			local nextU = math.min(u + 0.5, r.u1)
+			local outside = facesOutside(layout, room, wall, (u + nextU) / 2, level)
+			if current == nil then
+				current = outside
+			elseif outside ~= current then
+				table.insert(segments, { u0 = start, u1 = u, y0 = y0, y1 = y1, level = level, outside = current })
+				start, current = u, outside
+			end
+			u = nextU
+		end
+		table.insert(segments, { u0 = start, u1 = r.u1, y0 = y0, y1 = y1, level = level, outside = current == true })
+	end
+	return segments
+end
+
 -- Cette méthode permet de produire sol, plafond, murs percés, volume de pièce et escalier d'une pièce lorsque l'on
--- construit la maison ; une zone extérieure n'a ni plafond ni murs, seulement son terrain et ses clôtures.
-local function roomPieces(layout, room, out: { Piece }, problems: { string })
+-- construit la maison ; une zone extérieure n'a ni plafond ni murs, seulement son terrain et ses clôtures. Les pans
+-- de façade sont notés dans facades pour y poser les fenêtres.
+local function roomPieces(layout, room, out: { Piece }, problems: { string }, facades: { any })
 	local base = HouseGeometry.floorY(layout, room.level)
 	local top = HouseGeometry.topY(layout, room)
-	table.insert(
-		out,
-		piece(
-			if room.outdoor then "Ground" else "Floor",
-			room.id .. "Floor",
+	local finish = HouseStyle.finish(room.id)
+	local floorBottom = base - layout.SLAB
+	if not room.outdoor and room.level >= 0 then
+		-- Dalle sur une pièce : son dessous sert de plafond à la pièce d'en dessous (béton au-dessus de la cave)
+		floorBottom = base - FLOOR_SKIN
+		local under = piece(
+			"Floor",
+			room.id .. "FloorUnder",
 			room,
 			Vector3.new(room.x0, base - layout.SLAB, room.z0),
-			Vector3.new(room.x1, base, room.z1)
+			Vector3.new(room.x1, floorBottom, room.z1)
 		)
+		under.surface = if room.level > 0 then "CeilingWhite" else "Concrete"
+		table.insert(out, under)
+	end
+	local floor = piece(
+		if room.outdoor then "Ground" else "Floor",
+		room.id .. "Floor",
+		room,
+		Vector3.new(room.x0, floorBottom, room.z0),
+		Vector3.new(room.x1, base, room.z1)
 	)
+	floor.surface = finish.floor
+	table.insert(out, floor)
 	if room.roof then
-		table.insert(
-			out,
-			piece(
-				"Ceiling",
-				room.id .. "Ceiling",
-				room,
-				Vector3.new(room.x0, top, room.z0),
-				Vector3.new(room.x1, top + layout.SLAB, room.z1)
-			)
+		local ceiling = piece(
+			"Ceiling",
+			room.id .. "Ceiling",
+			room,
+			Vector3.new(room.x0, top, room.z0),
+			Vector3.new(room.x1, top + layout.SLAB, room.z1)
 		)
+		ceiling.surface = finish.ceiling
+		table.insert(out, ceiling)
 	end
 	local wallKind = if room.outdoor then "Fence" else "Wall"
 	for _, wall in HouseGeometry.builtWalls(layout, room) do
@@ -369,6 +461,7 @@ local function roomPieces(layout, room, out: { Piece }, problems: { string })
 					local leaf = wallPiece("DoorLeaf", door.id, room, wall, opening)
 					table.insert(leaf.tags, door.leaf)
 					leaf.attributes[Attr.DoorId] = door.id
+					leaf.surface = HouseStyle.doorLeaves[door.leaf]
 					table.insert(out, leaf)
 				end
 			end
@@ -379,7 +472,31 @@ local function roomPieces(layout, room, out: { Piece }, problems: { string })
 		end
 		for i, r in rects do
 			local name = string.format("%s%s%s%d", room.id, wallKind, wall.side, i)
-			table.insert(out, wallPiece(wallKind, name, room, wall, r))
+			if room.outdoor then
+				local fence = wallPiece(wallKind, name, room, wall, r)
+				fence.surface = HouseStyle.blocks.Fence
+				table.insert(out, fence)
+				continue
+			end
+			for j, seg in HouseGeometry.wallSegments(layout, room, wall, r) do
+				local segName = if j == 1 then name else name .. "_" .. j
+				if not seg.outside then
+					local w = wallPiece(wallKind, segName, room, wall, seg)
+					w.surface = finish.wall
+					table.insert(out, w)
+					continue
+				end
+				-- Façade : revêtement de la pièce côté intérieur, façade sur le reste de l'épaisseur
+				local inward = if wall.inner > wall.line then 1 else -1
+				local skin = wallSlice(wallKind, segName, room, wall, seg, wall.inner, wall.inner - inward * SKIN)
+				skin.surface = finish.wall
+				table.insert(out, skin)
+				local facade =
+					wallSlice(wallKind, segName .. "Facade", room, wall, seg, wall.inner - inward * SKIN, wall.line)
+				facade.surface = finish.facade
+				table.insert(out, facade)
+				table.insert(facades, { room = room, wall = wall, segment = seg, name = segName })
+			end
 		end
 	end
 	local inner = HouseGeometry.interior(layout, room)
@@ -430,9 +547,52 @@ end
 local ANCHOR_SIZE = Vector3.new(2, 0.2, 2)
 local WET_FLOOR_SIZE = Vector3.new(4, 0.2, 4)
 
+HouseGeometry.FACINGS = { "North", "South", "East", "West" }
+
+-- Cette méthode permet de donner l'orientation d'un meuble ou d'une applique (son avant) lorsque l'on tourne ses blocs :
+-- celle de la description, sinon dos au mur le plus proche (à égalité : sud, nord, ouest, est).
+function HouseGeometry.propFacing(layout, room, x: number, z: number, sx: number, sz: number, facing: string?): string
+	if facing then
+		return facing
+	end
+	local inner = HouseGeometry.interior(layout, room)
+	local best, bestDistance = "North", math.huge
+	for _, c in
+		{
+			{ "North", z - sz / 2 - inner.z0 },
+			{ "South", inner.z1 - (z + sz / 2) },
+			{ "East", x - sx / 2 - inner.x0 },
+			{ "West", inner.x1 - (x + sx / 2) },
+		}
+	do
+		if c[2] < bestDistance - EPS then
+			best, bestDistance = c[1], c[2]
+		end
+	end
+	return best
+end
+
+-- Cette méthode permet de placer dans le monde un bloc décrit dans le repère d'un meuble (x latéral, z vers l'avant)
+-- lorsque le meuble est tourné vers facing ; renvoie ses coins.
+local function localBox(facing: string, cx: number, by: number, cz: number, part): (Vector3, Vector3)
+	local x0, y0, z0 = part.min[1], part.min[2], part.min[3]
+	local x1, y1, z1 = part.max[1], part.max[2], part.max[3]
+	local ax0, ax1, az0, az1
+	if facing == "North" then
+		ax0, ax1, az0, az1 = x0, x1, z0, z1
+	elseif facing == "South" then
+		ax0, ax1, az0, az1 = -x1, -x0, -z1, -z0
+	elseif facing == "East" then
+		ax0, ax1, az0, az1 = z0, z1, -x1, -x0
+	else
+		ax0, ax1, az0, az1 = -z1, -z0, x0, x1
+	end
+	return Vector3.new(cx + ax0, by + y0, cz + az0), Vector3.new(cx + ax1, by + y1, cz + az1)
+end
+
 -- Cette méthode permet de produire un meuble et, s'il porte des clés, l'emplacement posé dessus lorsque l'on meuble
--- une pièce.
-local function propPieces(layout, room, prop, out: { Piece })
+-- une pièce. Un meuble avec un style devient un groupe : un volume invisible (tags, attributs) et ses blocs visibles.
+local function propPieces(layout, room, prop, out: { Piece }, groups)
 	local base = HouseGeometry.floorY(layout, room.level) + (prop.y or 0)
 	local sx, sy, sz = prop.size[1], prop.size[2], prop.size[3]
 	local p = piece(
@@ -449,7 +609,23 @@ local function propPieces(layout, room, prop, out: { Piece })
 	if prop.tag then
 		table.insert(p.tags, MapTags[prop.tag])
 	end
+	p.surface = prop.surface or (prop.tag and HouseStyle.blocks[prop.tag]) or "Wood"
 	table.insert(out, p)
+	local build = prop.style and HouseStyle.furniture[prop.style]
+	if build then
+		p.hitbox = true
+		p.group = prop.id
+		groups[prop.id] = { room = room.id, primary = prop.id, tags = {}, attributes = { [Attr.RoomId] = room.id } }
+		local facing = HouseGeometry.propFacing(layout, room, prop.x, prop.z, sx, sz, prop.facing)
+		local alongX = facing == "North" or facing == "South"
+		for _, part in build(if alongX then sx else sz, sy, if alongX then sz else sx) do
+			local minV, maxV = localBox(facing, prop.x, base, prop.z, part)
+			local detail = piece("Detail", part.name, room, minV, maxV)
+			detail.group = prop.id
+			detail.surface = part.surface
+			table.insert(out, detail)
+		end
+	end
 	if prop.keySpot then
 		table.insert(
 			out,
@@ -465,8 +641,13 @@ local ANCHOR_TAGS = {
 	Exit = { MapTags.Exit },
 }
 
--- Cette méthode permet de produire la voiture de fuite en blocs (caisse, habitacle, roues) lorsque le garage est
--- construit ; capot vers l'est.
+-- Cette méthode permet de savoir si deux intervalles ouverts se recouvrent lorsque l'on cherche des chevauchements.
+local function overlaps(a0: number, a1: number, b0: number, b1: number): boolean
+	return a0 < b1 - EPS and b0 < a1 - EPS
+end
+
+-- Cette méthode permet de produire la voiture de fuite en blocs (caisse, habitacle vitré, roues, pare-chocs, phares)
+-- lorsque le garage est construit ; capot vers l'est.
 local function carPieces(layout, room, car, out: { Piece })
 	local base = HouseGeometry.floorY(layout, room.level)
 	-- Cette méthode permet d'ajouter un bloc de la voiture lorsque l'on donne sa position relative au centre au sol.
@@ -475,6 +656,7 @@ local function carPieces(layout, room, car, out: { Piece })
 		local s = Vector3.new(sx, sy, sz)
 		local p = piece("Car", name, room, c - s / 2, c + s / 2)
 		p.group = car.id
+		p.surface = HouseStyle.car[name] or (if string.sub(name, 1, 5) == "Wheel" then "Rubber" else nil)
 		table.insert(out, p)
 	end
 	add("Body", 0, 2.25, 0, 12, 2.5, 6)
@@ -482,41 +664,164 @@ local function carPieces(layout, room, car, out: { Piece })
 	for i, offset in { { 4, -3.25 }, { 4, 3.25 }, { -4, -3.25 }, { -4, 3.25 } } do
 		add("Wheel" .. i, offset[1], 1.25, offset[2], 2.5, 2.5, 1)
 	end
+	add("Bumper", 6.15, 1.4, 0, 0.3, 0.8, 5.6)
+	add("HeadlightLeft", 6.05, 2.8, -2, 0.1, 0.6, 1.2)
+	add("HeadlightRight", 6.05, 2.8, 2, 0.1, 0.6, 1.2)
+end
+
+-- Cette méthode permet de produire l'habillage d'une lampe (abat-jour, bras, platine, socle) lorsque la lampe est
+-- construite ; ces blocs n'arrêtent ni le joueur, ni les rayons, ni la lumière.
+local function fixturePieces(layout, room, lamp, p: Piece, out: { Piece })
+	local kind = lamp.kind or "Ceiling"
+	local floor = HouseGeometry.floorY(layout, room.level)
+	local ceiling = if room.outdoor then nil else HouseGeometry.topY(layout, room) - p.center.Y
+	local facing = if kind == "Wall"
+		then HouseGeometry.propFacing(layout, room, lamp.x, lamp.z, p.size.X, p.size.Z, lamp.facing)
+		else "North"
+	for _, part in HouseStyle.fixture(kind, { p.size.X, p.size.Y, p.size.Z }, ceiling, p.center.Y - floor) do
+		local minV, maxV = localBox(facing, lamp.x, p.center.Y, lamp.z, part)
+		local f = piece("Fixture", lamp.id .. part.name, room, minV, maxV)
+		f.surface = part.surface
+		table.insert(out, f)
+	end
+end
+
+-- Cette méthode permet de poser les fenêtres factices d'un pan de façade lorsque la maison est construite : régulièrement
+-- espacées, loin des portes, jamais derrière un meuble haut adossé au mur.
+local function windowPieces(layout, facade, props: { Piece }, out: { Piece })
+	local W = HouseStyle.WINDOW
+	local room, wall, seg = facade.room, facade.wall, facade.segment
+	if room.stairs then
+		return -- les marches longent les murs de la cage
+	end
+	local floor = HouseGeometry.floorY(layout, seg.level)
+	local y0, y1 = floor + W.sill, floor + W.sill + W.height
+	if seg.y0 > y0 - W.frame + EPS or seg.y1 < y1 + W.frame - EPS then
+		return -- linteau au-dessus d'une porte
+	end
+	local usable = seg.u1 - seg.u0 - 2 * W.doorMargin
+	if usable < W.width + 2 * W.frame then
+		return
+	end
+	local spacing = HouseStyle.windowSpacing[room.id] or W.spacing
+	local count = math.max(1, math.floor(usable / spacing))
+	local lo, hi = math.min(wall.line, wall.inner), math.max(wall.line, wall.inner)
+	local inward = if wall.inner > wall.line then 1 else -1
+	local near0, near1 = math.min(wall.inner, wall.inner + inward * 2), math.max(wall.inner, wall.inner + inward * 2)
+	for k = 1, count do
+		local u = seg.u0 + W.doorMargin + usable * (k - 0.5) / count
+		local a0, a1 = u - W.width / 2 - W.frame, u + W.width / 2 + W.frame
+		local hidden = false
+		for _, prop in props do
+			if prop.room ~= room.id then
+				continue
+			end
+			local pMin, pMax = prop.center - prop.size / 2, prop.center + prop.size / 2
+			local across0, across1 =
+				if wall.along == "X" then pMin.Z else pMin.X, if wall.along == "X" then pMax.Z else pMax.X
+			local along0, along1 =
+				if wall.along == "X" then pMin.X else pMin.Z, if wall.along == "X" then pMax.X else pMax.Z
+			if overlaps(across0, across1, near0, near1) and overlaps(along0, along1, a0, a1) and pMax.Y > y0 then
+				hidden = true
+				break
+			end
+		end
+		if hidden then
+			continue
+		end
+		local frame = wallSlice(
+			"Window",
+			facade.name .. "WindowFrame" .. k,
+			room,
+			wall,
+			{ u0 = a0, u1 = a1, y0 = y0 - W.frame, y1 = y1 + W.frame },
+			lo - 0.03,
+			hi + 0.03
+		)
+		frame.surface = "WindowFrame"
+		table.insert(out, frame)
+		local pane = wallSlice(
+			"Window",
+			facade.name .. "Window" .. k,
+			room,
+			wall,
+			{ u0 = u - W.width / 2, u1 = u + W.width / 2, y0 = y0, y1 = y1 },
+			lo - 0.06,
+			hi + 0.06
+		)
+		pane.surface = "WindowGlass"
+		table.insert(out, pane)
+	end
 end
 
 -- Cette méthode permet de calculer tous les blocs de la maison lorsque le serveur la construit ou qu'un test la vérifie ;
--- groups décrit les modèles (voiture) et problems liste les incohérences relevées en chemin.
+-- groups décrit les modèles (voiture, meubles habillés) et problems liste les incohérences relevées en chemin.
 function HouseGeometry.build(layout)
 	local byId = HouseGeometry.roomsById(layout)
 	local pieces: { Piece } = {}
 	local problems: { string } = {}
+	local facades = {}
+	local carRoom = byId[layout.car.room]
+	local groups = {
+		[layout.car.id] = {
+			room = carRoom.id,
+			primary = "Body",
+			tags = { MapTags.EscapeCar },
+			attributes = { [Attr.RoomId] = carRoom.id },
+		},
+	}
 	for _, room in layout.rooms do
-		roomPieces(layout, room, pieces, problems)
+		roomPieces(layout, room, pieces, problems, facades)
 	end
 	for _, lamp in layout.lamps do
 		local room = byId[lamp.room]
 		local p = lampPiece(layout, room, lamp)
 		table.insert(pieces, p)
+		fixturePieces(layout, room, lamp, p, pieces)
 		local style = HouseGeometry.LAMP_STYLES[lamp.kind or "Ceiling"]
 		if style.pole then
 			-- Poteau plein du sol jusque sous la tête du lampadaire : un meuble comme un autre (collisions, portes)
 			local base = HouseGeometry.floorY(layout, room.level)
 			local half = style.pole / 2
 			local headBottom = p.center.Y - p.size.Y / 2
-			table.insert(
-				pieces,
-				piece(
-					"Prop",
-					lamp.id .. "Pole",
-					room,
-					Vector3.new(lamp.x - half, base, lamp.z - half),
-					Vector3.new(lamp.x + half, headBottom, lamp.z + half)
-				)
+			local pole = piece(
+				"Prop",
+				lamp.id .. "Pole",
+				room,
+				Vector3.new(lamp.x - half, base, lamp.z - half),
+				Vector3.new(lamp.x + half, headBottom, lamp.z + half)
 			)
+			pole.surface = HouseStyle.blocks.Pole
+			table.insert(pieces, pole)
 		end
 	end
 	for _, prop in layout.props do
-		propPieces(layout, byId[prop.room], prop, pieces)
+		propPieces(layout, byId[prop.room], prop, pieces, groups)
+	end
+	-- Meubles (volumes) qui peuvent masquer une fenêtre
+	local props = {}
+	for _, p in pieces do
+		if p.kind == "Prop" then
+			table.insert(props, p)
+		end
+	end
+	for _, facade in facades do
+		windowPieces(layout, facade, props, pieces)
+	end
+	for _, d in layout.decor or {} do
+		-- Tapis et autres décors posés au sol : visibles, sans collision
+		local room = byId[d.room]
+		local base = HouseGeometry.floorY(layout, room.level)
+		local w, depth = d.size[1], d.size[2]
+		local p = piece(
+			"Decor",
+			d.id,
+			room,
+			Vector3.new(d.x - w / 2, base, d.z - depth / 2),
+			Vector3.new(d.x + w / 2, base + 0.06, d.z + depth / 2)
+		)
+		p.surface = d.surface
+		table.insert(pieces, p)
 	end
 	for _, anchor in layout.anchors do
 		local room = byId[anchor.room]
@@ -535,15 +840,13 @@ function HouseGeometry.build(layout)
 		end
 		table.insert(pieces, p)
 	end
-	local carRoom = byId[layout.car.room]
 	carPieces(layout, carRoom, layout.car, pieces)
 	for _, s in layout.scenery or {} do
 		-- Décor hors de la carte (rue, terrains voisins) : un sol sans pièce, au niveau du terrain
 		local y = HouseGeometry.floorY(layout, s.level or 0)
-		table.insert(
-			pieces,
-			piece(s.kind, s.id, nil, Vector3.new(s.x0, y - layout.SLAB, s.z0), Vector3.new(s.x1, y, s.z1))
-		)
+		local p = piece(s.kind, s.id, nil, Vector3.new(s.x0, y - layout.SLAB, s.z0), Vector3.new(s.x1, y, s.z1))
+		p.surface = HouseStyle.blocks[s.kind]
+		table.insert(pieces, p)
 	end
 	if layout.bounds then
 		-- Limite invisible autour du terrain, bien plus haute que tout ce qu'on peut escalader (joueurs empilés, toits)
@@ -564,20 +867,7 @@ function HouseGeometry.build(layout)
 			)
 		end
 	end
-	local groups = {
-		[layout.car.id] = {
-			room = carRoom.id,
-			primary = "Body",
-			tags = { MapTags.EscapeCar },
-			attributes = { [Attr.RoomId] = carRoom.id },
-		},
-	}
 	return { pieces = pieces, groups = groups, problems = problems }
-end
-
--- Cette méthode permet de savoir si deux intervalles ouverts se recouvrent lorsque l'on cherche des chevauchements.
-local function overlaps(a0: number, a1: number, b0: number, b1: number): boolean
-	return a0 < b1 - EPS and b0 < a1 - EPS
 end
 
 -- Cette méthode permet de vérifier qu'un rectangle est entièrement couvert par d'autres lorsque l'on contrôle qu'un
@@ -883,11 +1173,45 @@ end
 local function checkFurniture(layout, byId, plan, errors: { string })
 	local solids = {}
 	local floorAnchors = {}
+	local hitboxes = {}
+	for _, p in plan.pieces do
+		if p.hitbox and p.group then
+			hitboxes[p.group] = p
+		end
+	end
 	for _, p in plan.pieces do
 		if p.kind == "Anchor" and not table.find(p.tags, MapTags.KeySpot) then
 			table.insert(floorAnchors, p)
 		end
-		if p.kind ~= "Prop" and p.kind ~= "Car" and p.kind ~= "Lamp" and p.kind ~= "Anchor" then
+		if p.kind == "Detail" then
+			-- Un bloc d'habillage reste dans le volume de son meuble : les contrôles ci-dessous portent sur ce volume
+			local box = hitboxes[p.group or ""]
+			if not box then
+				table.insert(errors, p.name .. " : bloc d'habillage sans meuble")
+			else
+				local minV, maxV = p.center - p.size / 2, p.center + p.size / 2
+				local bMin, bMax = box.center - box.size / 2, box.center + box.size / 2
+				if
+					minV.X < bMin.X - EPS
+					or minV.Y < bMin.Y - EPS
+					or minV.Z < bMin.Z - EPS
+					or maxV.X > bMax.X + EPS
+					or maxV.Y > bMax.Y + EPS
+					or maxV.Z > bMax.Z + EPS
+				then
+					table.insert(errors, string.format("%s/%s : déborde de son meuble", box.name, p.name))
+				end
+			end
+			continue
+		end
+		if
+			p.kind ~= "Prop"
+			and p.kind ~= "Car"
+			and p.kind ~= "Lamp"
+			and p.kind ~= "Anchor"
+			and p.kind ~= "Fixture"
+			and p.kind ~= "Decor"
+		then
 			continue
 		end
 		local room = byId[p.room]
@@ -1056,6 +1380,12 @@ local function checkKinds(layout, errors: { string })
 		if prop.tag and type(MapTags[prop.tag]) ~= "string" then
 			table.insert(errors, prop.id .. " : tag inconnu " .. tostring(prop.tag))
 		end
+		if prop.style and not HouseStyle.furniture[prop.style] then
+			table.insert(errors, prop.id .. " : style de meuble inconnu " .. tostring(prop.style))
+		end
+		if prop.facing and not table.find(HouseGeometry.FACINGS, prop.facing) then
+			table.insert(errors, prop.id .. " : orientation inconnue " .. tostring(prop.facing))
+		end
 		local room = byId[prop.room]
 		if
 			room
@@ -1132,6 +1462,11 @@ function HouseGeometry.validate(layout): ({ string }, any)
 		table.insert(errors, problem)
 	end
 	checkNames(plan, errors)
+	for _, p in plan.pieces do
+		if p.surface and not HouseStyle.surfaces[p.surface] then
+			table.insert(errors, p.name .. " : surface inconnue " .. p.surface)
+		end
+	end
 	checkFurniture(layout, byId, plan, errors)
 	checkOutdoorPassages(layout, byId, plan, errors)
 	checkBounds(layout, errors)

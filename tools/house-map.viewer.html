@@ -25,6 +25,7 @@
   <h1>Maison : vue 3D</h1>
   <div id="levels"></div>
   <label>Hauteur de coupe : <input id="cut" type="range" min="1" max="12" step="0.5" value="7"> <b id="cutv">7</b> studs</label>
+  <label><input id="render" type="checkbox"> Rendu (matériaux et meubles habillés, au lieu des codes du plan)</label>
   <label><input id="lights" type="checkbox"> Nuit (seulement la lumière des lampes)</label>
   <label><input id="labels" type="checkbox" checked> Noms des pièces</label>
   <div class="hint">Clic gauche : tourner · clic droit : déplacer · molette : zoom · survol : nom du bloc</div>
@@ -59,6 +60,8 @@ const LEGEND = [
   ["MortalSpawn", "Apparition mortel"], ["DeathSpawn", "Apparition Mort"], ["Breaker", "Disjoncteur"], ["Exit", "Sortie"],
 ];
 const MARKERS = new Set(["KeySpot", "MortalSpawn", "DeathSpawn", "Exit"]);
+// Blocs d'habillage : visibles seulement en mode « Rendu » (le plan garde le volume du meuble et ses codes couleur)
+const DRESSING = new Set(["Detail", "Fixture", "Window", "Decor"]);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(window.devicePixelRatio);
@@ -96,7 +99,7 @@ for (const b of DATA.boxes) {
   const [x0, y0, z0, x1, y1, z1] = b.b;
   let key = b.k;
   if (key === "Floor") key = b.lit ? "FloorLit" : "FloorDark";
-  const color = COLORS[key] ?? 0xff00ff;
+  const color = COLORS[key] ?? (b.c ? parseInt(b.c.slice(1), 16) : 0xff00ff);
   const sx = Math.max(x1 - x0, 0.05), sy = Math.max(y1 - y0, 0.05), sz = Math.max(z1 - z0, 0.05);
   let mesh;
   if (MARKERS.has(key)) {
@@ -120,7 +123,10 @@ for (const b of DATA.boxes) {
       lampLights.push(light);
     }
   }
-  mesh.userData = { name: b.n, room: b.r, kind: key };
+  mesh.userData = {
+    name: b.n, room: b.r, kind: key, planColor: color, renderColor: b.c ? parseInt(b.c.slice(1), 16) : color,
+    dressing: DRESSING.has(key), hitbox: b.h === 1, glass: b.t === 1,
+  };
   scene.add(mesh);
   pickables.push(mesh);
 }
@@ -161,13 +167,30 @@ function apply() {
   for (const obj of labelObjects) {
     obj.visible = labelsInput.checked && (level === null ? obj.userData.level === 0 : obj.userData.level === level);
   }
+  const rendered = renderInput.checked;
+  for (const mesh of pickables) {
+    const u = mesh.userData;
+    if (MARKERS.has(u.kind)) {
+      mesh.visible = !rendered;
+      continue;
+    }
+    mesh.visible = rendered ? !u.hitbox : !u.dressing;
+    const mat = mesh.material;
+    if (u.kind !== "Lamp" && u.kind !== "Chandelier" && u.kind !== "WetFloor") {
+      mat.color.setHex(rendered ? u.renderColor : u.planColor);
+      mat.transparent = rendered && u.glass;
+      mat.opacity = rendered && u.glass ? 0.35 : 1;
+    }
+  }
   const night = lightsInput.checked;
   hemi.intensity = night ? 0.08 : 1.6;
   sun.intensity = night ? 0 : 1.4;
   for (const light of lampLights) light.intensity = night ? 60 : 0;
 }
+const renderInput = document.getElementById("render");
 cutInput.oninput = apply;
 labelsInput.onchange = apply;
+renderInput.onchange = apply;
 lightsInput.onchange = apply;
 apply();
 
