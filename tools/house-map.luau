@@ -540,7 +540,8 @@ local data = string.format(
 	table.concat(boxes, ",\n"),
 	table.concat(labels, ",\n")
 )
-local template = fs.readFile(TEMPLATE_PATH)
+-- Gabarit en LF, comme la sortie comparée par --check (extraction CRLF sous Windows avec core.autocrlf, #36)
+local template = string.gsub(fs.readFile(TEMPLATE_PATH), "\r\n", "\n")
 local start, finish = string.find(template, "/*DATA*/null", 1, true)
 assert(start, TEMPLATE_PATH .. " : marqueur /*DATA*/null introuvable")
 local htmlText = string.sub(template, 1, start - 1) .. data .. string.sub(template, finish + 1)
