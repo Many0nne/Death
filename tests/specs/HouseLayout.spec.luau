@@ -407,6 +407,187 @@ return function(T, Loader)
 		end)
 	end)
 
+	T.describe("HouseLayout : petits objets (#38)", function()
+		-- Cette méthode permet de compter les petits objets (garnitures et objets des meubles) d'une pièce lorsque l'on
+		-- vérifie qu'elle est habitée.
+		local function smallCount(roomId)
+			local n = 0
+			for _, p in plan.pieces do
+				if p.room == roomId and (p.kind == "Clutter" or p.small) then
+					n += 1
+				end
+			end
+			return n
+		end
+
+		T.it("garnit chaque pièce de vie de petits objets, la bibliothèque plus que toutes", function()
+			local rooms = {
+				"Living",
+				"Entry",
+				"Dining",
+				"Kitchen",
+				"Library",
+				"Laundry",
+				"Veranda",
+				"Garage",
+				"Study",
+				"MasterBedroom",
+				"Bathroom",
+				"KidsBedroom",
+				"GuestBedroom",
+				"TeenBedroom",
+				"ShowerRoom",
+				"Attic",
+				"Cave",
+				"Cellar",
+				"WineCellar",
+				"Workshop",
+				"Shed",
+			}
+			local library = smallCount("Library")
+			for _, id in rooms do
+				local n = smallCount(id)
+				T.expect(n >= 8, id .. " : " .. n .. " petits objets seulement")
+				if id ~= "Library" then
+					T.expect(library > n, "la bibliothèque doit être la plus dense (" .. id .. " : " .. n .. ")")
+				end
+			end
+		end)
+
+		T.it("remplit les étagères de livres un par un et la cave à vin de bouteilles", function()
+			local books, bottles = {}, 0
+			for _, p in plan.pieces do
+				if p.kind == "Detail" and p.small and string.find(p.name, "^Book") then
+					books[p.group] = (books[p.group] or 0) + 1
+				elseif p.room == "WineCellar" and p.small and string.find(p.name, "^Bottle%d*$") then
+					bottles += 1
+				end
+			end
+			for _, prop in HouseLayout.props do
+				if prop.style == "Bookcase" then
+					local shelf = math.max(prop.size[1], prop.size[3])
+					T.expect((books[prop.id] or 0) >= shelf * 8, prop.id .. " : " .. (books[prop.id] or 0) .. " livres")
+				end
+			end
+			T.expect(bottles >= 100, bottles .. " bouteilles")
+		end)
+
+		T.it("pose chaque garniture sur une surface : sol, dessus de son meuble ou contre un mur", function()
+			local byRoom = HouseGeometry.roomsById(HouseLayout)
+			local propsById = {}
+			for _, prop in HouseLayout.props do
+				propsById[prop.id] = prop
+			end
+			for _, c in HouseLayout.clutter do
+				local g = plan.groups[c.id]
+				T.expect(g ~= nil, c.id .. " sans groupe")
+				local room = byRoom[g.room]
+				local floor = HouseGeometry.floorY(HouseLayout, room.level)
+				local bottom = math.huge
+				for _, p in plan.pieces do
+					if p.group == c.id then
+						local minV = HouseGeometry.extent(p)
+						bottom = math.min(bottom, minV.Y)
+					end
+				end
+				if c.on then
+					local prop = propsById[c.on]
+					local top = floor + (prop.y or 0) + prop.size[2]
+					T.expect(math.abs(bottom - top) < 0.01, c.id .. " ne repose pas sur " .. c.on)
+				elseif c.wall then
+					local inner = HouseGeometry.interior(HouseLayout, room)
+					local face = ({ North = inner.z1, South = inner.z0, East = inner.x1, West = inner.x0 })[c.wall]
+					local box = g.box
+					local touching = if c.wall == "North"
+						then box.max.Z
+						elseif c.wall == "South" then box.min.Z
+						elseif c.wall == "East" then box.max.X
+						else box.min.X
+					T.expect(math.abs(touching - face) < 0.01, c.id .. " décollée du mur " .. c.wall)
+					if (c.y or 0) == 0 then
+						T.expect(math.abs(bottom - floor) < 0.01, c.id .. " appuyée au mur mais pas au sol")
+					end
+				else
+					T.expect(math.abs(bottom - floor) < 0.01, c.id .. " ne repose pas au sol")
+				end
+			end
+		end)
+
+		T.it("construit la même maison à chaque fois (variation déterministe)", function()
+			local again = HouseGeometry.build(HouseLayout)
+			T.expectEqual(#again.pieces, #plan.pieces)
+			for i, p in again.pieces do
+				local q = plan.pieces[i]
+				T.expect(
+					p.name == q.name and p.center == q.center and p.size == q.size,
+					"bloc " .. i .. " : " .. p.name
+				)
+			end
+		end)
+
+		T.it("refuse une garniture qui bouche une porte ou traverse un meuble", function()
+			local broken = deepCopy(HouseLayout)
+			table.insert(broken.clutter, {
+				id = "DoorToys",
+				room = "Kitchen",
+				x = 51,
+				z = 21.5,
+				size = { 3, 1, 1.5 },
+				set = "Toys",
+			})
+			table.insert(broken.clutter, {
+				id = "SofaToys",
+				room = "Living",
+				x = 12,
+				z = 6,
+				size = { 3, 1, 1.5 },
+				set = "Toys",
+			})
+			local errors = HouseGeometry.validate(broken)
+			T.expect(mentions(errors, "DoorToys : bouche la porte DiningKitchen"), "porte")
+			T.expect(mentions(errors, "SofaToys chevauche LivingSofa"), "meuble")
+		end)
+
+		T.it("refuse une garniture sur un emplacement de clés, sur un piège ou trop haute au sol", function()
+			local broken = deepCopy(HouseLayout)
+			byId(broken.clutter, "EntryConsoleTray").at = { 0, 0 }
+			table.insert(broken.clutter, {
+				id = "TallToys",
+				room = "Living",
+				x = 4,
+				z = 20,
+				size = { 2, 2, 2 },
+				set = "Toys",
+			})
+			local errors = HouseGeometry.validate(broken)
+			T.expect(mentions(errors, "EntryConsoleTray couvre EntryConsoleKeySpot"), "clés")
+			T.expect(mentions(errors, "TallToys : garniture au sol plus haute qu'une marche"), "hauteur")
+			-- Refus de description (avant tout calcul de blocs) : vérifié à part
+			local trap = deepCopy(HouseLayout)
+			table.insert(trap.clutter, { id = "OnShelf", on = "LivingBookcase", set = "Lamp" })
+			local trapErrors = HouseGeometry.validate(trap)
+			T.expect(mentions(trapErrors, "OnShelf : posée sur un candidat de piège (LivingBookcase)"), "piège")
+		end)
+
+		T.it("refuse une garniture inconnue ou devant une fenêtre", function()
+			local unknown = deepCopy(HouseLayout)
+			byId(unknown.clutter, "LivingClock").set = "Clockk"
+			T.expect(mentions(HouseGeometry.validate(unknown), "LivingClock : garniture inconnue Clockk"), "inconnue")
+			local window = deepCopy(HouseLayout)
+			table.insert(window.clutter, {
+				id = "WindowPainting",
+				room = "Living",
+				wall = "South",
+				at = 6.75,
+				y = 4,
+				size = { 3, 2, 0.15 },
+				set = "Landscape",
+			})
+			local errors = HouseGeometry.validate(window)
+			T.expect(mentions(errors, "WindowPainting chevauche LivingWallSouth1Window"), "fenêtre")
+		end)
+	end)
+
 	T.describe("HouseGeometry.validate : rejets", function()
 		T.it("refuse une porte qui n'est pas sur un mur des deux pièces", function()
 			local broken = deepCopy(HouseLayout)
