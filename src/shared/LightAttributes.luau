@@ -21,9 +21,28 @@ return table.freeze({
 	-- true : l'invite n'apparaît que si rien ne cache sa cible depuis le personnage (Shared.LineOfSight)
 	PromptSight = "PromptSight",
 
+	-- Lampe torche (#8, Server.FlashlightService, règles Shared.Flashlight). Sur chaque mortel (LightRole "Mortal") :
+	-- batterie de 0 à 1 (1 = Flashlight.BATTERY_DURATION secondes d'usage), au centième près, pour le HUD (#9), et
+	-- lampe allumée (true / false). Nil pour la Mort et hors rôle.
+	FlashlightBattery = "FlashlightBattery",
+	FlashlightOn = "FlashlightOn",
+	-- Sur le Player qui joue la Mort : part de la dissipation déjà tenue par un faisceau, de 0 à 1 (nil à 0)
+	DispelProgress = "DispelProgress",
+	-- RemoteEvent (enfant de ReplicatedStorage) : le client demande d'allumer / éteindre (argument "toggle")
+	FlashlightEvent = "FlashlightToggle",
+	-- UnreliableRemoteEvent (enfant de ReplicatedStorage) : direction du regard (Vector3) envoyée par le client lampe
+	-- allumée, pour orienter le faisceau vu des autres et le contrôle serveur
+	FlashlightAimEvent = "FlashlightAim",
+	-- Pile posée dans la maison (Part) : attribut AnchorId de l'emplacement ; nom des parts
+	BatteryName = "Battery",
+
 	-- Debug, sur un Player, en contexte serveur, Studio seulement
 	DebugDeath = "DebugDeath", -- true : ce joueur joue la Mort hors manche (téléporté à une apparition de la Mort)
 	-- Commande de lumière, remise à nil une fois lue : "cut:<WingId>", "restore", "burn:<RoomId>" ou "reset". Les
 	-- recharges s'appliquent, pas les contrôles de rôle ni de distance.
 	DebugLight = "DebugLight",
+	-- Commande de lampe torche, remise à nil une fois lue : "on", "off", "battery:<0..1>" sur un mortel ;
+	-- "beam" sur la Mort (faisceau factice de 4 s, pointé sur elle depuis 12 studs devant, ligne de vue comprise) ;
+	-- "dispel" sur la Mort (dissipation immédiate). Les règles s'appliquent, pas le contrôle de rôle.
+	DebugFlashlight = "DebugFlashlight",
 })

@@ -88,6 +88,15 @@ La lumière **révèle** la Mort, elle ne la bloque pas.
   une charge de souffle.
 - **Limites** : batterie de lampe d'environ 40 s, piles rares cachées dans la carte ; courant coupable par la Mort ;
   bougies soufflables. Rester groupés en lumière est sûr mais lent, et expose à un grand piège.
+- **Réglages du prototype (#8)**, source `src/shared/Flashlight.luau` : lampe allumée / éteinte au clic gauche
+  (gâchette droite, bouton tactile), faisceau qui suit la caméra ; batterie 40 s, une pile la remplit ; 3 piles par
+  manche (`GameConfig.FLASHLIGHT_BATTERY_COUNT`) sur les emplacements de clés restés libres, une par pièce au plus.
+  Faisceau : portée 40 studs, cône qui agit de 18° de demi-angle (la tache visible est un peu plus large : 45° au
+  total, soit 22,5° de demi-angle), arrêté par les murs. Il éclaire au sens de la règle ci-dessus (la Mort dedans est
+  visible et ralentie, ne prépare pas). Dissipation :
+  3 s de faisceau cumulées (une coupure de moins de 0,3 s est tolérée), puis bouffée de fumée, reformation sur un
+  ancrage au sol dans l'ombre à plus de 50 studs de la Mort et de chaque mortel, une charge de souffle perdue, 2 s de
+  répit.
 
 ## Agonie, fauchage, réanimation
 - **Accident** : le mortel tombe **en agonie**. Il rampe lentement, son cœur s'entend à distance. 45 s avant de

@@ -14,6 +14,8 @@ require(script.LightService).get():start()
 require(script.DeathController).get():start()
 require(script.TrapService).get():start()
 require(script.AgonyService).get():start()
+-- Après EscapeService (piles posées sur les emplacements laissés libres par les clés) et LightService (source mobile)
+require(script.FlashlightService).get():start()
 matchService:start()
 
 print(string.format("Death : serveur prêt (%d mortels par manche)", GameConfig.MORTALS_PER_MATCH))

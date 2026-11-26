@@ -6,5 +6,6 @@ require(script.DeathView).start()
 require(script.CameraController).start()
 require(script.TrapCues).start()
 require(script.AgonyClient).start()
+require(script.Flashlight).start()
 
 print("Death : client prêt")
