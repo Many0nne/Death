@@ -57,6 +57,10 @@ accomplir des objectifs pour fuir avant la fin de la nuit, en repérant les pré
 | Grand | 10 s en 2 étapes | lustre, fuite de gaz et étincelle | bruit fort, entendu dans les pièces voisines |
 
 - Un grand piège peut toucher plusieurs mortels.
+- **Réglages du prototype (#5)**, source `src/shared/Traps.luau` : carrelage 2,5 s, étagère 5,5 s, lustre 2 × 5 s ;
+  un piège commencé compte dans la limite de 4 ; souffle 3 charges, une charge rendue toutes les 45 s, portée 24 studs ;
+  zone touchée : carrelage 3 studs, étagère 6 studs devant elle, lustre 8 studs ; désamorcer 4 / 6 / 8 s. Dans la
+  lumière, la Mort ne prépare, ne désarme ni ne souffle. Le lustre tombé s'éteint jusqu'à la fin de la manche.
 - **Enchaînements** : un piège peut en déclencher un autre (l'étagère renverse la bougie, qui enflamme le rideau).
 - **Technique** : accidents scriptés (résultat maîtrisé, pas de raté dû à la latence), joués avec la vraie physique
   pour le rendu.
