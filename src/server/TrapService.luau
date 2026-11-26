@@ -131,44 +131,56 @@ local function defaultDeps(): Deps
 		layout = HouseLayout,
 		players = Players,
 		isStudio = RunService:IsStudio(),
+		-- Cette méthode permet de lire le rôle répliqué d'un joueur lorsqu'il agit sur un piège.
 		roleOf = function(player)
 			return player:GetAttribute(LA.LightRole)
 		end,
+		-- Cette méthode permet de savoir si la Mort est éclairée lorsqu'elle veut agir sur un piège.
 		isExposed = function(player)
 			return player:GetAttribute(LA.Exposed) == true
 		end,
 		clock = os.clock,
+		-- Cette méthode permet de lire l'horloge partagée avec les clients lorsque la fin de recharge est publiée.
 		serverTime = function()
 			return workspace:GetServerTimeNow()
 		end,
+		-- Cette méthode permet de brancher une invite lorsqu'elle est créée : début et fin du maintien, déclenchement.
 		connectPrompt = function(prompt, onTriggered, onHoldBegan, onHoldEnded)
 			prompt.PromptButtonHoldBegan:Connect(onHoldBegan)
 			prompt.PromptButtonHoldEnded:Connect(onHoldEnded)
 			prompt.Triggered:Connect(onTriggered)
 		end,
+		-- Cette méthode permet de différer une action (fin d'un signe d'indice) lorsque le service la programme.
 		delay = function(seconds, fn)
 			task.delay(seconds, fn)
 		end,
 		animate = animate,
+		-- Cette méthode permet de vérifier que rien ne cache la cible lorsqu'une invite est déclenchée.
 		lineOfSight = function(_player, from, to, target)
 			return LineOfSight.clear(from, to, target)
 		end,
+		-- Cette méthode permet d'envoyer un message bref à un seul joueur lorsqu'une action réussit ou est refusée.
 		notify = function(player, text)
 			notice:FireClient(player, text)
 		end,
+		-- Cette méthode permet de jouer un son lorsqu'une préparation commence ou qu'un piège tombe.
 		play = function(sound)
 			sound:Play()
 		end,
+		-- Cette méthode permet d'arrêter un son lorsque la préparation s'interrompt.
 		stop = function(sound)
 			sound:Stop()
 		end,
+		-- Cette méthode permet de tirer un nombre dans [0, 1[ lorsque le prochain indice visuel est programmé.
 		random = function()
 			return rng:NextNumber()
 		end,
 		heartbeat = RunService.Heartbeat,
+		-- Cette méthode permet d'écrire un message des pièges dans la sortie lorsque leur état change.
 		log = function(message)
 			print("[Pièges] " .. message)
 		end,
+		-- Cette méthode permet de signaler un refus ou une anomalie des pièges dans la sortie.
 		warn = function(message)
 			warn("[Pièges] " .. message)
 		end,
