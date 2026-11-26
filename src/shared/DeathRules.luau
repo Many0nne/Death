@@ -30,8 +30,7 @@ DeathRules.HOLD_TOLERANCE = 0.25
 DeathRules.HOLD_STALE = 1.5
 
 -- Cette méthode permet de savoir si un maintien d'invite est valable lorsque le serveur reçoit son déclenchement :
--- `elapsed` (secondes depuis le début du maintien, nil si inconnu) doit atteindre la durée, latence près, sans être
--- périmé (lâché puis rejoué). Une invite sans maintien est toujours valable.
+-- `elapsed` (nil si inconnu) atteint la durée, latence près, sans être périmé ; sans maintien, toujours valable.
 function DeathRules.isHoldValid(elapsed: number?, hold: number): boolean
 	if hold <= 0 then
 		return true

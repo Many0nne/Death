@@ -268,9 +268,8 @@ function LightService:burnRoom(roomId: string): (boolean, string?)
 	return true
 end
 
--- Cette méthode permet d'éteindre une lampe cassée jusqu'à la fin de la manche lorsqu'un piège la fait tomber (lustre,
--- #5) : grésillement bref s'il éclairait (pas de lueur dans une aile coupée), sans recharge ni bruit d'ampoule. Renvoie
--- true s'il éclairait encore.
+-- Cette méthode permet d'éteindre pour la manche une lampe cassée lorsqu'un piège la fait tomber (lustre, #5) :
+-- grésillement s'il éclairait (rien dans une aile coupée), sans recharge ; renvoie true s'il éclairait encore.
 function LightService:breakLamp(lampId: string): boolean
 	local wasOn = self.illumination:isLampOn(lampId)
 	if not self.illumination:breakLamp(lampId) then

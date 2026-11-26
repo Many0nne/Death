@@ -255,8 +255,7 @@ function TrapService.new(deps: Deps?)
 end
 
 -- Cette méthode permet de décrire un point fragile lorsque le service le découvre : point au sol (zone touchée, buée),
--- direction de chute de l'étagère (son avant, `facing`) et blocs qui tombent.
--- Positions lues par CFrame : Part.Position n'existe pas dans les instances simulées des tests.
+-- direction de chute de l'étagère (son avant, `facing`) et blocs qui tombent (positions lues par CFrame, cf. tests).
 function TrapService._describe(id: string, kind: string, part: BasePart, room: BasePart?, facing: string?)
 	local pos = part.CFrame.Position
 	local roomPos = room and room.CFrame.Position
@@ -527,17 +526,20 @@ function TrapService:_setup(entry)
 	emitter.EmissionDirection = Enum.NormalId.Bottom
 	emitter.Parent = attachment
 	entry.cue = emitter
+	entry.look = { material = part.Material, color = part.Color }
 	for _, moving in entry.moving do
 		entry.origins[moving] = moving.CFrame
 	end
 
 	local label = spec.label
+	-- Le lustre porte déjà l'invite « Griller l'ampoule » au centre : bulles des pièges écartées d'une bulle entière
+	local gap = if entry.kind == MapTags.TrapKinds.Chandelier then PROMPT_SPACING else PROMPT_SPACING / 2
 	self:_makePrompt(entry, "work", Role.Death, {
 		ObjectText = label,
 		KeyboardKeyCode = KEYS.work.key,
 		GamepadKeyCode = KEYS.work.pad,
 		MaxActivationDistance = Traps.INTERACT_DISTANCE,
-		UIOffset = Vector2.new(0, -PROMPT_SPACING / 2),
+		UIOffset = Vector2.new(0, -gap),
 	})
 	self:_makePrompt(entry, "blow", Role.Death, {
 		ActionText = "Souffler",
@@ -546,7 +548,7 @@ function TrapService:_setup(entry)
 		GamepadKeyCode = KEYS.blow.pad,
 		HoldDuration = 0,
 		MaxActivationDistance = Traps.BREATH_DISTANCE,
-		UIOffset = Vector2.new(0, PROMPT_SPACING / 2),
+		UIOffset = Vector2.new(0, gap),
 	})
 	self:_makePrompt(entry, "examine", Role.Mortal, {
 		ActionText = "Examiner",
@@ -555,7 +557,7 @@ function TrapService:_setup(entry)
 		GamepadKeyCode = KEYS.examine.pad,
 		HoldDuration = Traps.EXAMINE_HOLD,
 		MaxActivationDistance = Traps.INTERACT_DISTANCE,
-		UIOffset = Vector2.new(0, -PROMPT_SPACING / 2),
+		UIOffset = Vector2.new(0, -gap),
 	})
 	self:_makePrompt(entry, "defuse", Role.Mortal, {
 		ActionText = "Désamorcer",
@@ -564,7 +566,7 @@ function TrapService:_setup(entry)
 		GamepadKeyCode = KEYS.defuse.pad,
 		HoldDuration = spec.defuse,
 		MaxActivationDistance = Traps.INTERACT_DISTANCE,
-		UIOffset = Vector2.new(0, PROMPT_SPACING / 2),
+		UIOffset = Vector2.new(0, gap),
 	})
 end
 
@@ -598,6 +600,8 @@ function TrapService:_accident(entry)
 		part.Material = Enum.Material.Glass
 		part.Color = Color3.fromRGB(120, 150, 170)
 		part.Reflectance = 0.3
+		-- Une flaque visible ne doit pas cacher une cible basse (LineOfSight ne traverse que l'invisible)
+		part.CanQuery = false
 	elseif entry.kind == MapTags.TrapKinds.Shelf then
 		-- Le volume invisible du meuble (non tourné) donne ses dimensions ; pivot sur l'arête basse avant : le meuble
 		-- bascule de 90° vers la pièce
@@ -655,6 +659,11 @@ function TrapService:_restore(entry)
 		local part = entry.part
 		part.Transparency = 1
 		part.Reflectance = 0
+		part.CanQuery = true
+		if entry.look then
+			part.Material = entry.look.material
+			part.Color = entry.look.color
+		end
 	end
 end
 
@@ -713,7 +722,16 @@ function TrapService:_refreshPrompts()
 				available = true
 			end
 		elseif item.action == "blow" then
-			available = (self.rules:canBlow(item.entry.id, now))
+			-- Grand piège commencé : la touche du souffle sert à l'abandonner (sa place dans la limite est rendue)
+			if trap.state == State.Preparing then
+				prompt.ActionText = "Abandonner"
+				prompt.HoldDuration = Traps.DISARM_HOLD
+				available = true
+			else
+				prompt.ActionText = "Souffler"
+				prompt.HoldDuration = 0
+				available = (self.rules:canBlow(item.entry.id, now))
+			end
 		else
 			-- Examiner et désamorcer ne révèlent rien : possibles sur tout objet encore en place
 			available = trap.state ~= State.Spent
@@ -722,9 +740,8 @@ function TrapService:_refreshPrompts()
 	end
 end
 
--- Cette méthode permet de savoir si la Mort peut préparer ce point maintenant lorsqu'elle commence ou finit le
--- maintien (préparer ou désarmer) : jamais quand elle est éclairée, ni sur un piège éclairé, et selon la limite de
--- pièges ; renvoie aussi la raison d'un refus.
+-- Cette méthode permet de savoir si la Mort peut préparer ou désarmer ce point lorsqu'elle maintient l'invite : ni
+-- éclairée, ni sur un piège éclairé, et selon la limite de pièges ; renvoie aussi la raison d'un refus.
 function TrapService:_canWork(player, id: string): (boolean, string?)
 	if self.deps.isExposed(player) then
 		return false, "dans la lumière, impossible d'agir sur un piège"
@@ -749,6 +766,10 @@ end
 -- Cette méthode permet de réagir au début d'un maintien lorsqu'un joueur commence une action : refus annoncé tout de
 -- suite (lumière, limite), bruit de préparation lancé sinon.
 function TrapService:_onHoldBegan(player, item)
+	local refusedSet = self.refused[item.prompt]
+	if refusedSet then
+		refusedSet[player] = nil
+	end
 	if item.action ~= "work" or self.deps.roleOf(player) ~= Role.Death then
 		return
 	end
@@ -768,8 +789,8 @@ function TrapService:_onHoldBegan(player, item)
 end
 
 -- Cette méthode permet d'arrêter le bruit de préparation lorsque la Mort lâche l'invite (ou la termine).
-function TrapService:_onHoldEnded(_player, item)
-	if item.action == "work" then
+function TrapService:_onHoldEnded(player, item)
+	if item.action == "work" and player == item.entry.noiseHolder then
 		item.entry.noiseHolder = nil
 		self.deps.stop(item.entry.noise)
 	end
@@ -839,7 +860,13 @@ function TrapService:_onPrompt(player, item)
 		)
 	elseif item.action == "blow" then
 		if self.deps.isExposed(player) then
-			self.deps.notify(player, "dans la lumière, impossible de souffler")
+			self.deps.notify(player, "dans la lumière, impossible d'agir sur un piège")
+			return
+		end
+		local trap = self.rules:get(id)
+		if trap and trap.state == State.Preparing then
+			self:disarm(id)
+			self.deps.notify(player, label .. " abandonné")
 			return
 		end
 		local ok, err = self:blow(id)

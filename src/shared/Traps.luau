@@ -292,9 +292,8 @@ function Traps.sameLevel(floor: Vector3, root: Vector3): boolean
 	return dy >= -1 and dy <= Traps.LEVEL_HEIGHT
 end
 
--- Cette méthode permet de savoir si un accident touche un personnage lorsque le piège se déclenche : rayon horizontal
--- autour du point au sol du piège, même niveau. L'étagère (`front` : direction de sa chute, `box` : taille du meuble,
--- non tourné) touche la bande où elle s'abat : devant elle sur sa hauteur, sur sa largeur, un stud de marge autour.
+-- Cette méthode permet de savoir si un accident touche un personnage lorsque le piège se déclenche : rayon au sol, même
+-- niveau ; l'étagère (`front` sa chute, `box` sa taille) touche la bande où elle s'abat, un stud de marge autour.
 function Traps.hits(kind: string, floor: Vector3, root: Vector3, front: Vector3?, box: Vector3?): boolean
 	local spec = Traps.KINDS[kind]
 	if not spec or not Traps.sameLevel(floor, root) then
