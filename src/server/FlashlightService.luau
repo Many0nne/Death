@@ -221,9 +221,10 @@ function FlashlightService.new(deps: Deps?)
 		spots = spots,
 		spotList = spotList,
 		respawns = respawns,
-		-- Clés faibles : un joueur parti ne reste pas en mémoire
-		holders = setmetatable({}, { __mode = "k" }) :: any, -- mortel -> { on, battery, aim, published, ... }
-		dispels = setmetatable({}, { __mode = "k" }) :: any, -- joueur Mort -> Flashlight.Dispel
+		-- Tables ordinaires vidées au départ du joueur (PlayerRemoving) : avec des clés faibles, Roblox peut ramasser le
+		-- Player d'un joueur encore là (aucune référence Lua entre deux frames) et perdre sa batterie
+		holders = {} :: { [any]: any }, -- mortel -> { on, battery, aim, published, ... }
+		dispels = {} :: { [any]: Flashlight.Dispel }, -- joueur Mort -> cumul de dissipation
 		beams = {} :: { { origin: Vector3, direction: Vector3 } }, -- faisceaux allumés à la dernière frame
 		debugBeams = {} :: { { origin: Vector3, direction: Vector3, untilClock: number } },
 		batteries = {} :: { [string]: BasePart }, -- emplacement -> pile posée
@@ -280,6 +281,12 @@ function FlashlightService:start()
 		end)
 		d.remotes.aim.OnServerEvent:Connect(function(player, direction)
 			self:_onAim(player, direction)
+		end)
+	end
+	if d.players.PlayerRemoving then
+		d.players.PlayerRemoving:Connect(function(player)
+			self.holders[player] = nil
+			self.dispels[player] = nil
 		end)
 	end
 	if d.isStudio then
@@ -597,6 +604,10 @@ end
 
 -- Cette méthode permet d'allumer ou d'éteindre une lampe lorsque le mortel la bascule ou que la batterie se vide.
 function FlashlightService:_setOn(player, holder, on: boolean)
+	-- Rallumée : l'ancien regard est périmé, le faisceau part devant la tête jusqu'au prochain regard reçu
+	if on and not holder.on then
+		holder.aim = nil
+	end
 	holder.on = on
 	if holder.light then
 		holder.light.Enabled = on
