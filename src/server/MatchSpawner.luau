@@ -132,7 +132,8 @@ function MatchSpawner.start(matchService, house: Instance)
 		for id, placement in plan do
 			local anchors = if placement.kind == Match.Role.Death then deathSpawns else mortalSpawns
 			placements[id] = anchors[placement.index].CFrame + Vector3.new(0, DROP_HEIGHT, 0)
-			local player = Players:GetPlayerByUserId(id)
+			-- Un faux joueur de debug (#12) est placé par son mannequin
+			local player = Players:GetPlayerByUserId(id) or matchService:getBot(id)
 			if player then
 				-- Personnage pas encore chargé : CharacterAdded le placera
 				moveTo(player, placements[id])
