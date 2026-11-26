@@ -36,6 +36,7 @@ toujours avec lui.
 | Hall, salle d'attente, groupes, HUD, bilan, monétisation, architecture des places | `docs/parcours-joueur.md` |
 | Maquettes de principe (disposition, pas le rendu) | `docs/maquettes.html` |
 | Plan de la carte sans Studio (généré : `lune run tools/house-map`) | `docs/plan/plan.svg`, `docs/plan/maison-3d.html` |
+| Captures de la carte dans Studio, versionnées (procédure de reprise) | `docs/captures/README.md` |
 
 ## Rojo et Studio
 - Mapping : `src/shared` → `ReplicatedStorage/Shared`, `src/server` → `ServerScriptService/Server`,
@@ -71,7 +72,8 @@ toujours avec lui.
 1. Une tâche = une issue = une branche `feature|fix|tooling/<n>-<slug>` = un worktree `worktrees/dth-<slug>/` (ignoré par
    git), créé ou repris par `.\scripts\dth-worktree.ps1 <branche>` (section « Worktrees »).
 2. Implémenter, puis `bash tools/check.sh` dans le worktree ; vérifier en jeu via le MCP Studio si le changement le demande,
-   sous le verrou Studio.
+   sous le verrou Studio. Une PR qui change la carte reprend aussi ses captures (`docs/captures/README.md`) : sinon
+   l'étape `captures` de `check.sh` échoue.
 3. Pas de test par l'utilisateur à ce stade : noter dans le compte rendu la section « Pour la sprint review ».
 4. Fonctionnement vérifié : commit, push, PR vers `main` avec `Closes #<n>`.
 5. **Merger soi-même**, sans attendre d'ordre (règle propre à ce dépôt, elle remplace le « pas de merge sans ordre

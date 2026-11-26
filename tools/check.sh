@@ -40,6 +40,10 @@ echo "== plan"
 # docs/plan (plan 2D et vue 3D) se régénère depuis HouseLayout : lune run tools/house-map
 lune run tools/house-map -- --check || status=1
 
+echo "== captures"
+# docs/captures (rendu Studio) se reprend quand une source de la carte change : docs/captures/README.md
+lune run tools/captures -- --check || status=1
+
 echo "== tests"
 lune run tests/run.luau || status=1
 
