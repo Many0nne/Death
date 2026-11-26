@@ -18,6 +18,8 @@ end
 -- à un départ : Connect branche les deux, la connexion renvoyée les coupe ensemble.
 function Roster._merged(playerSignal, botSignal)
 	return {
+		-- Cette méthode permet de brancher `fn` sur l'arrivée (ou le départ) d'un joueur et d'un bot lorsqu'un service
+		-- s'abonne.
 		Connect = function(_, fn)
 			local connections = { botSignal:Connect(fn) }
 			if playerSignal then

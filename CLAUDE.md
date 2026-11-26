@@ -63,8 +63,9 @@ toujours avec lui.
   attributs `Debug*` se posent sur le mannequin : `DebugSetState = "Agony"` vise ce faux mortel. `DebugClearBots = true`
   retire tous les bots (comme un départ de joueur). Pièges, lumière, lampe torche, Mort et agonie parcourent
   `MatchService:roster()` (joueurs + bots, API de `Players`) : un bot mortel est touché par un piège, porte une lampe
-  (`DebugFlashlight = "on"` sur le mannequin), un bot Mort est exposé par la lumière. Code : `Server.DebugBots`,
-  `Server.Roster`.
+  (`DebugFlashlight = "on"` sur le mannequin), un bot Mort est exposé par la lumière (attribut `DeathExposed` sur le
+  mannequin). Limite : les vues client (`Client.DeathView`, `Client.AgonyClient`) parcourent encore `Players`, donc un
+  bot Mort reste visible dans l'ombre. Code : `Server.DebugBots`, `Server.Roster`.
 
 ## Qualité
 - Outils Rokit (`rokit.toml`) : `rojo`, `stylua`, `selene`, `luau-lsp`, `lune`. Installer avec `rokit install`.

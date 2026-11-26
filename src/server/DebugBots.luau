@@ -62,6 +62,8 @@ function DebugBots.createMannequin(name: string): Instance
 	humanoid.RequiresNeck = false -- pas de Neck : la tête est soudée, le Humanoid ne doit pas mourir
 	humanoid.Parent = model
 	model.PrimaryPart = root
+	-- Traversé par les rayons comme un personnage (Shared.LineOfSight) : sinon il cacherait sa propre racine au faisceau
+	model:AddTag(A.BotTag)
 	model.Parent = workspace
 	return model
 end
