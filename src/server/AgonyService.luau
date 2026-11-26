@@ -642,6 +642,7 @@ end
 
 -- Cette méthode permet d'oublier un joueur lorsqu'il quitte le serveur (ou qu'un bot est retiré) : maintiens, vitesse
 -- d'origine, révélation et écoute du debug. Son agonie et son massage suivent l'événement de manche (mort, cause Left).
+-- Roblox ne garantit pas l'ordre des abonnés de PlayerRemoving : ce chemin de départ ne doit rien réécrire par joueur.
 function AgonyService:_forget(player)
 	for _, holds in self.holds do
 		holds[player] = nil
