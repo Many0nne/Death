@@ -23,11 +23,12 @@ function ResetControl.start()
 	-- Cette méthode permet d'appliquer le réglage du bouton lorsque le rôle ou l'état change ; réessaie si le coeur de
 	-- l'interface n'est pas prêt (SetCore échoue avant son chargement).
 	local function apply()
-		local allowed = PromptVisibility.canReset(
-			player:GetAttribute(MatchAttributes.Role),
-			player:GetAttribute(MatchAttributes.MortalState)
-		)
 		for _ = 1, SETCORE_TRIES do
+			-- Recalculé à chaque essai : un essai tardif ne doit pas écraser un réglage plus récent
+			local allowed = PromptVisibility.canReset(
+				player:GetAttribute(MatchAttributes.Role),
+				player:GetAttribute(MatchAttributes.MortalState)
+			)
 			if pcall(StarterGui.SetCore, StarterGui, "ResetButtonCallback", allowed) then
 				return
 			end
