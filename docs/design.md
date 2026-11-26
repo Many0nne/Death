@@ -63,7 +63,8 @@ accomplir des objectifs pour fuir avant la fin de la nuit, en repérant les pré
   8 studs ; désamorcer 4 / 6 / 8 s. Éclairée, la Mort ne prépare, ne désarme ni ne souffle ; un piège éclairé (lustre
   allumé, cuisine) ne se prépare pas : il faut d'abord éteindre. Un grand piège commencé se finit, s'abandonne (touche du
   souffle, sans charge dépensée) ou se fait désamorcer.
-  Le lustre tombé s'éteint jusqu'à la fin de la manche.
+  Buée et accidents seulement dans la pièce du piège (rien à travers un mur). Le lustre tombé s'éteint jusqu'à la fin
+  de la manche.
 - **Enchaînements** : un piège peut en déclencher un autre (l'étagère renverse la bougie, qui enflamme le rideau).
 - **Technique** : accidents scriptés (résultat maîtrisé, pas de raté dû à la latence), joués avec la vraie physique
   pour le rendu.
