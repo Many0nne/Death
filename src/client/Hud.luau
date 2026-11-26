@@ -186,18 +186,23 @@ local function makeSummary(playerGui: Instance)
 	return { gui = gui, title = title, rows = rows, souls = souls }
 end
 
--- Cette méthode permet de lister les mortels de la manche (Players qui ont le rôle Mortal) triés par UserId lorsque le
--- HUD les affiche : même ordre pour tous les clients, comme le tirage du serveur.
-local function mortalsInMatch(): { Player }
+-- Mortel suivi par la liste du HUD : Player, ou mannequin d'un faux joueur de debug (#12, attributs sur le Model)
+type RosterEntry = { source: Instance, name: string, bot: boolean, order: number }
+
+-- Cette méthode permet de trouver les mortels visibles de la manche (Players et mannequins des faux joueurs qui ont le
+-- rôle Mortal) lorsque le HUD complète sa liste.
+local function visibleMortals(): { Instance }
 	local list = {}
 	for _, player in Players:GetPlayers() do
 		if player:GetAttribute(MA.Role) == Match.Role.Mortal then
 			table.insert(list, player)
 		end
 	end
-	table.sort(list, function(a, b)
-		return a.UserId < b.UserId
-	end)
+	for _, child in workspace:GetChildren() do
+		if child:IsA("Model") and child:GetAttribute(MA.Role) == Match.Role.Mortal then
+			table.insert(list, child)
+		end
+	end
 	return list
 end
 
@@ -209,6 +214,37 @@ function Hud.start()
 	local summary = makeSummary(playerGui)
 	-- Résultat déjà affiché (texte JSON) : on ne le décode qu'à son changement
 	local shownResult: string? = nil
+	-- Mortels de la manche en cours, dans un ordre fixe (UserId des joueurs, puis faux joueurs par nom) : un mortel
+	-- parti garde sa ligne, comme le veut docs/parcours-joueur.md (« même emplacement, même ordre »)
+	local roster: { RosterEntry } = {}
+	local known: { [Instance]: boolean } = {}
+
+	-- Cette méthode permet d'ajouter à la liste les mortels pas encore suivis lorsque la manche tourne (attributs
+	-- répliqués avec un léger retard au démarrage), puis de la trier dans l'ordre fixe.
+	local function updateRoster()
+		local added = false
+		for _, source in visibleMortals() do
+			if not known[source] then
+				known[source] = true
+				added = true
+				local bot = not source:IsA("Player")
+				table.insert(roster, {
+					source = source,
+					name = source.Name,
+					bot = bot,
+					order = if bot then 0 else (source :: Player).UserId,
+				})
+			end
+		end
+		if added then
+			table.sort(roster, function(a, b)
+				if a.bot ~= b.bot then
+					return not a.bot
+				end
+				return if a.bot then a.name < b.name else a.order < b.order
+			end)
+		end
+	end
 
 	-- Cette méthode permet de remplir l'écran de fin depuis MatchResult lorsque la phase Ended commence (ou que le
 	-- résultat change) ; le cache si le résultat est absent ou illisible.
@@ -241,6 +277,7 @@ function Hud.start()
 	-- lorsque le HUD se rafraîchit.
 	local function refreshDeath(now: number)
 		local private = playerGui:FindFirstChild(TA.PrivateName)
+		-- Cette méthode permet de lire un attribut du conteneur privé lorsqu'il existe déjà (nil sinon).
 		local function read(name: string): any
 			return if private then private:GetAttribute(name) else nil
 		end
@@ -268,6 +305,12 @@ function Hud.start()
 		local role = localPlayer:GetAttribute(MA.Role) or localPlayer:GetAttribute(LA.LightRole)
 		local running = phase == Match.Phase.Running
 		local now = workspace:GetServerTimeNow()
+		if running then
+			updateRoster()
+		elseif #roster > 0 then
+			table.clear(roster)
+			table.clear(known)
+		end
 
 		local fraction, clockText = HudFormat.hourglass(
 			ReplicatedStorage:GetAttribute(MA.TimeLeft),
@@ -282,20 +325,25 @@ function Hud.start()
 		if hud.roster.Visible then
 			hud.role.Text = "Tu es : " .. roleText
 			local isDeath = role == Match.Role.Death
-			local mortals = if running then mortalsInMatch() else {}
 			for i, label in hud.rows do
-				local player = mortals[i]
-				label.Visible = player ~= nil
-				if player then
-					local agonyEnd = player:GetAttribute(AgonyAttributes.AgonyEnd)
-					local state = HudFormat.mortalState(
-						player:GetAttribute(MA.MortalState),
-						player:GetAttribute(MA.SoulFate),
-						if type(agonyEnd) == "number" then agonyEnd - now else nil,
-						isDeath
-					)
-					label.Text = string.format("%s — %s", player.DisplayName, state)
-					label.TextColor3 = if player == localPlayer then LOCAL_ROW else TEXT
+				local entry = roster[i]
+				label.Visible = entry ~= nil
+				if entry then
+					local source = entry.source
+					local state
+					if source.Parent == nil or source:GetAttribute(MA.Role) ~= Match.Role.Mortal then
+						state = HudFormat.LEFT -- joueur parti (ou mannequin retiré) pendant la manche
+					else
+						local agonyEnd = source:GetAttribute(AgonyAttributes.AgonyEnd)
+						state = HudFormat.mortalState(
+							source:GetAttribute(MA.MortalState),
+							source:GetAttribute(MA.SoulFate),
+							if type(agonyEnd) == "number" then agonyEnd - now else nil,
+							isDeath
+						)
+					end
+					label.Text = string.format("%s — %s", entry.name, state)
+					label.TextColor3 = if source == localPlayer then LOCAL_ROW else TEXT
 				end
 			end
 		end

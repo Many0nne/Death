@@ -7,6 +7,8 @@ local HudFormat = {}
 
 -- Sous ce temps restant (secondes), le sablier affiche aussi des chiffres ; au-dessus, la barre seule
 HudFormat.CLOCK_THRESHOLD = 60
+-- État d'un mortel parti pendant la manche (sa ligne reste à sa place dans la liste)
+HudFormat.LEFT = "Parti"
 
 local State = Match.MortalState
 local Cause = Match.DeathCause
@@ -14,10 +16,10 @@ local Cause = Match.DeathCause
 local ROLE_LABELS = { [Match.Role.Death] = "La Mort", [Match.Role.Mortal] = "Mortel" }
 -- Cause d'une âme échappée, dans le bilan (la cause Reaped s'affiche « Fauché »)
 local CAUSE_LABELS = {
-	[Cause.Accident] = "mort sur le coup",
-	[Cause.Agony] = "mort en agonie",
-	[Cause.TimeUp] = "encore là à l'aube",
-	[Cause.Left] = "parti",
+	[Cause.Accident] = "Mort sur le coup",
+	[Cause.Agony] = "Mort en agonie",
+	[Cause.TimeUp] = "Encore là à l'aube",
+	[Cause.Left] = "Parti",
 }
 local REASON_LABELS = {
 	[Match.EndReason.TimeUp] = "La nuit s'achève",
@@ -51,7 +53,7 @@ function HudFormat.role(role: string?): string?
 end
 
 -- Cette méthode permet de nommer l'état d'un mortel en manche lorsque le HUD liste les mortels : `agonyLeft` (secondes)
--- complète l'agonie ; une âme échappée n'est précisée que pour la Mort (`forDeath`), qui suit ses âmes.
+-- complète l'agonie ; le sort de l'âme (fauchée ou échappée) n'est dit qu'à la Mort (`forDeath`), qui suit ses âmes.
 function HudFormat.mortalState(state: string?, soul: string?, agonyLeft: number?, forDeath: boolean?): string
 	if state == State.Alive then
 		return "Vivant"
@@ -60,10 +62,10 @@ function HudFormat.mortalState(state: string?, soul: string?, agonyLeft: number?
 	elseif state == State.Saved then
 		return "Enfui"
 	elseif state == State.Dead then
-		if soul == Match.SoulFate.Reaped then
-			return "Fauché"
+		if not forDeath then
+			return "Mort"
 		end
-		return if forDeath then "Mort · âme échappée" else "Mort"
+		return if soul == Match.SoulFate.Reaped then "Fauché" else "Mort · âme échappée"
 	end
 	return "—"
 end
@@ -117,16 +119,13 @@ function HudFormat.verdict(state: string?, soul: string?, cause: string?): strin
 			return "Fauché"
 		end
 		local label = cause and CAUSE_LABELS[cause]
-		return if label
-			then label:sub(1, 1):upper() .. label:sub(2) .. " · âme échappée"
-			else "Mort · âme échappée"
+		return (label or "Mort") .. " · âme échappée"
 	end
 	return "—"
 end
 
--- Cette méthode permet de construire l'écran de fin depuis le résultat décodé (MatchAttributes.Result) lorsque la
--- manche passe en phase Ended : titre (raison), une ligne par mortel (le joueur local repéré) et âmes de la Mort.
--- Renvoie nil pour un résultat absent ou illisible.
+-- Cette méthode permet de construire l'écran de fin (titre, une ligne par mortel, âmes de la Mort, joueur local repéré)
+-- lorsque la manche passe en phase Ended, depuis MatchAttributes.Result décodé ; nil si le résultat est illisible.
 function HudFormat.summary(result: any, localUserId: number?): Summary?
 	if type(result) ~= "table" or type(result.mortals) ~= "table" then
 		return nil
@@ -151,14 +150,15 @@ function HudFormat.summary(result: any, localUserId: number?): Summary?
 		reaped = result.reaped
 	end
 	local death = if type(result.death) == "table" then result.death else {}
-	local deathName = tostring(death.name or "La Mort")
-	local souls =
-		string.format("%s a récolté %d âme%s sur %d", deathName, reaped, if reaped > 1 then "s" else "", #rows)
+	local isDeath = localUserId ~= nil and death.userId == localUserId
+	-- La Mort lit sa propre moisson ; les mortels, celle de la Mort nommée
+	local who = if isDeath then "Tu as" else tostring(death.name or "La Mort") .. " a"
+	local souls = string.format("%s récolté %d âme%s sur %d", who, reaped, if reaped > 1 then "s" else "", #rows)
 	return {
 		title = REASON_LABELS[result.reason] or "Fin de la manche",
 		rows = rows,
 		souls = souls,
-		isDeath = localUserId ~= nil and death.userId == localUserId,
+		isDeath = isDeath,
 	}
 end
 
