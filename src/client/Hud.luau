@@ -214,8 +214,9 @@ function Hud.start()
 	local summary = makeSummary(playerGui)
 	-- Résultat déjà affiché (texte JSON) : on ne le décode qu'à son changement
 	local shownResult: string? = nil
-	-- Mortels de la manche en cours, dans un ordre fixe (UserId des joueurs, puis faux joueurs par nom) : un mortel
-	-- parti garde sa ligne, comme le veut docs/parcours-joueur.md (« même emplacement, même ordre »)
+	-- Mortels de la manche en cours, dans un ordre fixe proche de celui du bilan (faux joueurs d'abord, leurs UserId
+	-- négatifs ne sont pas répliqués : par nom ; puis joueurs par UserId) : un mortel parti garde sa ligne, comme le veut
+	-- docs/parcours-joueur.md (« même emplacement, même ordre »)
 	local roster: { RosterEntry } = {}
 	local known: { [Instance]: boolean } = {}
 
@@ -239,7 +240,7 @@ function Hud.start()
 		if added then
 			table.sort(roster, function(a, b)
 				if a.bot ~= b.bot then
-					return not a.bot
+					return a.bot
 				end
 				return if a.bot then a.name < b.name else a.order < b.order
 			end)
@@ -301,8 +302,11 @@ function Hud.start()
 			summary.gui.Enabled = false
 		end
 
-		-- Rôle de manche, ou rôle de lumière hors manche (DebugDeath)
-		local role = localPlayer:GetAttribute(MA.Role) or localPlayer:GetAttribute(LA.LightRole)
+		-- Rôle de manche ; hors manche, seule la Mort de debug (DebugDeath) a un HUD : LightRole vaut Mortal pour tous
+		local role = localPlayer:GetAttribute(MA.Role)
+		if role == nil and localPlayer:GetAttribute(LA.LightRole) == Match.Role.Death then
+			role = Match.Role.Death
+		end
 		local running = phase == Match.Phase.Running
 		local now = workspace:GetServerTimeNow()
 		if running then
