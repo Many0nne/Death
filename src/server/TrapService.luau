@@ -12,6 +12,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local DeathRules = require(Shared.DeathRules)
+local HouseGeometry = require(Shared.HouseGeometry)
+local HouseLayout = require(Shared.HouseLayout)
 local LightAttributes = require(Shared.LightAttributes)
 local MapTags = require(Shared.MapTags)
 local Match = require(Shared.Match)
@@ -70,7 +72,9 @@ local STEP_PERIOD = 0.2
 export type Deps = {
 	house: Instance,
 	match: any?, -- MatchService : down(player), MatchStarted, PhaseChanged
-	lights: any?, -- LightService : breakLamp(lampId) quand le lustre tombe
+	-- LightService : canPrepareAt(position) (point du piège dans l'ombre), breakLamp(lampId) quand le lustre tombe
+	lights: any?,
+	layout: any?, -- description de la maison (Shared.HouseLayout) : orientation des meubles
 	players: any, -- service Players : GetPlayers, PlayerAdded
 	isStudio: boolean,
 	roleOf: (any) -> string?, -- rôle effectif (attribut LightRole)
@@ -123,6 +127,7 @@ local function defaultDeps(): Deps
 		house = house,
 		match = require(script.Parent.MatchService).get(),
 		lights = require(script.Parent.LightService).get(),
+		layout = HouseLayout,
 		players = Players,
 		isStudio = RunService:IsStudio(),
 		roleOf = function(player)
@@ -179,6 +184,29 @@ local function trapId(part: BasePart): string
 	return if part.Parent and part.Parent:IsA("Model") then part.Parent.Name else part.Name
 end
 
+-- Avant d'un meuble selon son orientation (HouseGeometry.propFacing) : nord = +Z, est = +X
+local FACING_VECTORS = {
+	North = Vector3.new(0, 0, 1),
+	South = Vector3.new(0, 0, -1),
+	East = Vector3.new(1, 0, 0),
+	West = Vector3.new(-1, 0, 0),
+}
+
+-- Cette méthode permet de donner l'orientation de chaque étagère piège lorsque le service lit la maison : la même que
+-- celle de ses blocs (HouseGeometry.propFacing, orientation imposée par la description sinon dos au mur le plus proche).
+function TrapService.shelfFacings(layout): { [string]: string }
+	local rooms = HouseGeometry.roomsById(layout)
+	local facings = {}
+	for _, prop in layout.props do
+		local room = rooms[prop.room]
+		if prop.trap == MapTags.TrapKinds.Shelf and room then
+			facings[prop.id] =
+				HouseGeometry.propFacing(layout, room, prop.x, prop.z, prop.size[1], prop.size[3], prop.facing)
+		end
+	end
+	return facings
+end
+
 -- Cette méthode permet de créer le service sur une maison construite lorsqu'on veut l'instance du jeu (`get`) ou un
 -- service isolé en test ; les points fragiles sont lus par leur tag (MapTags.TrapCandidate).
 function TrapService.new(deps: Deps?)
@@ -192,6 +220,7 @@ function TrapService.new(deps: Deps?)
 			table.insert(candidates, part)
 		end
 	end
+	local facings = TrapService.shelfFacings(d.layout or HouseLayout)
 	local kinds = {}
 	local entries = {}
 	for _, part in candidates do
@@ -203,7 +232,8 @@ function TrapService.new(deps: Deps?)
 			d.warn(string.format("point fragile %s : type inconnu %s", id, tostring(kind)))
 		else
 			kinds[id] = kind
-			entries[id] = TrapService._describe(id, kind, part, rooms[part:GetAttribute(MapTags.Attributes.RoomId)])
+			local room = rooms[part:GetAttribute(MapTags.Attributes.RoomId)]
+			entries[id] = TrapService._describe(id, kind, part, room, facings[id])
 		end
 	end
 	return setmetatable({
@@ -213,18 +243,21 @@ function TrapService.new(deps: Deps?)
 		entries = entries, -- id -> { id, kind, part, floor, front?, prompts, ... }
 		prompts = {} :: { any }, -- { prompt, action, entry, role }
 		holds = {} :: { [any]: { [any]: number } }, -- invite -> joueur -> début du maintien
+		-- invite -> joueur à qui le refus a déjà été annoncé au début du maintien
+		refused = {} :: { [any]: { [any]: boolean } },
 		nextCue = {} :: { [string]: number }, -- piège armé -> prochain indice visuel (horloge)
-		chilled = {} :: { [any]: boolean },
-		published = {} :: { [any]: string }, -- joueur Mort -> dernière publication du souffle
+		-- Clés faibles : un joueur parti ne reste pas en mémoire
+		chilled = setmetatable({}, { __mode = "k" }) :: any,
+		published = setmetatable({}, { __mode = "k" }) :: any, -- joueur Mort -> souffle publié
 		elapsed = 0,
 		Triggered = Signal.new(),
 	}, TrapService)
 end
 
 -- Cette méthode permet de décrire un point fragile lorsque le service le découvre : point au sol (zone touchée, buée),
--- direction de chute de l'étagère (dos au mur le plus proche, comme HouseGeometry.propFacing) et blocs qui tombent.
+-- direction de chute de l'étagère (son avant, `facing`) et blocs qui tombent.
 -- Positions lues par CFrame : Part.Position n'existe pas dans les instances simulées des tests.
-function TrapService._describe(id: string, kind: string, part: BasePart, room: BasePart?)
+function TrapService._describe(id: string, kind: string, part: BasePart, room: BasePart?, facing: string?)
 	local pos = part.CFrame.Position
 	local roomPos = room and room.CFrame.Position
 	local floorY = if room and roomPos then roomPos.Y - room.Size.Y / 2 else pos.Y - part.Size.Y / 2
@@ -238,23 +271,7 @@ function TrapService._describe(id: string, kind: string, part: BasePart, room: B
 		origins = {} :: { [BasePart]: CFrame },
 	}
 	if kind == MapTags.TrapKinds.Shelf then
-		entry.front = Vector3.new(0, 0, 1)
-		if room and roomPos then
-			local lo, hi = roomPos - room.Size / 2, roomPos + room.Size / 2
-			local best = math.huge
-			for _, c in
-				{
-					{ pos.Z - lo.Z, Vector3.new(0, 0, 1) },
-					{ hi.Z - pos.Z, Vector3.new(0, 0, -1) },
-					{ pos.X - lo.X, Vector3.new(1, 0, 0) },
-					{ hi.X - pos.X, Vector3.new(-1, 0, 0) },
-				}
-			do
-				if c[1] < best then
-					best, entry.front = c[1], c[2]
-				end
-			end
-		end
+		entry.front = FACING_VECTORS[facing or "North"]
 		local model = part.Parent
 		if model and model:IsA("Model") then
 			for _, d in model:GetDescendants() do
@@ -454,7 +471,7 @@ function TrapService:_victims(entry): { any }
 	for _, player in self.deps.players:GetPlayers() do
 		if self.deps.roleOf(player) == Role.Mortal then
 			local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-			if root and Traps.hits(entry.kind, entry.floor, root.CFrame.Position, entry.front) then
+			if root and Traps.hits(entry.kind, entry.floor, root.CFrame.Position, entry.front, entry.part.Size) then
 				table.insert(victims, player)
 			end
 		end
@@ -591,7 +608,13 @@ function TrapService:_accident(entry)
 		local hinge = Vector3.new(origin.Position.X, origin.Position.Y - size.Y / 2, origin.Position.Z)
 			+ front * (depth / 2)
 		local axis = Vector3.new(0, 1, 0):Cross(front)
+		local token = {}
+		entry.fall = token
 		self.deps.animate(FALL_TIME, function(alpha)
+			-- Remise à zéro pendant la chute : l'animation s'arrête, l'objet reste relevé
+			if entry.fall ~= token then
+				return
+			end
 			local angle = (math.pi / 2) * alpha * alpha
 			local turn = CFrame.new(hinge) * CFrame.fromAxisAngle(axis, angle) * CFrame.new(-hinge)
 			for _, moving in entry.moving do
@@ -600,7 +623,12 @@ function TrapService:_accident(entry)
 		end)
 	elseif entry.kind == MapTags.TrapKinds.Chandelier then
 		local drop = entry.part.CFrame.Position.Y - entry.floor.Y - entry.part.Size.Y / 2
+		local token = {}
+		entry.fall = token
 		self.deps.animate(FALL_TIME, function(alpha)
+			if entry.fall ~= token then
+				return
+			end
 			local offset = Vector3.new(0, -drop * alpha * alpha, 0)
 			for _, moving in entry.moving do
 				moving.CFrame = entry.origins[moving] + offset
@@ -614,6 +642,8 @@ end
 
 -- Cette méthode permet de remettre un objet à sa place d'origine lorsque la manche est remise à zéro.
 function TrapService:_restore(entry)
+	entry.fall = nil
+	entry.noiseHolder = nil
 	self.deps.stop(entry.noise)
 	if entry.cue then
 		entry.cue.Enabled = false
@@ -648,6 +678,7 @@ function TrapService:_makePrompt(entry, action: string, role: string, props: { [
 	table.insert(self.prompts, item)
 	local holds = setmetatable({}, { __mode = "k" })
 	self.holds[prompt] = holds
+	self.refused[prompt] = setmetatable({}, { __mode = "k" })
 	self.deps.connectPrompt(prompt, function(player)
 		self:_onPrompt(player, item)
 	end, function(player)
@@ -692,8 +723,8 @@ function TrapService:_refreshPrompts()
 end
 
 -- Cette méthode permet de savoir si la Mort peut préparer ce point maintenant lorsqu'elle commence ou finit le
--- maintien (préparer ou désarmer) : jamais dans la lumière, et selon la limite de pièges ; renvoie aussi la raison d'un
--- refus.
+-- maintien (préparer ou désarmer) : jamais quand elle est éclairée, ni sur un piège éclairé, et selon la limite de
+-- pièges ; renvoie aussi la raison d'un refus.
 function TrapService:_canWork(player, id: string): (boolean, string?)
 	if self.deps.isExposed(player) then
 		return false, "dans la lumière, impossible d'agir sur un piège"
@@ -702,7 +733,17 @@ function TrapService:_canWork(player, id: string): (boolean, string?)
 	if trap and trap.state == State.Armed then
 		return true
 	end
-	return self.rules:canPrepare(id)
+	local ok, err = self.rules:canPrepare(id)
+	if not ok then
+		return false, err
+	end
+	-- Le piège lui-même doit être dans l'ombre (lustre allumé, cuisine éclairée) : éteindre d'abord
+	local lights = self.deps.lights
+	local entry = self.entries[id]
+	if lights and entry and not lights:canPrepareAt(entry.floor + Vector3.new(0, 1, 0)) then
+		return false, "ce piège est dans la lumière : éteindre d'abord"
+	end
+	return true
 end
 
 -- Cette méthode permet de réagir au début d'un maintien lorsqu'un joueur commence une action : refus annoncé tout de
@@ -714,9 +755,14 @@ function TrapService:_onHoldBegan(player, item)
 	local ok, err = self:_canWork(player, item.entry.id)
 	if not ok then
 		self.deps.notify(player, tostring(err))
+		local refused = self.refused[item.prompt]
+		if refused then
+			refused[player] = true
+		end
 		return
 	end
 	if self.rules:nextStepDuration(item.entry.id) then
+		item.entry.noiseHolder = player
 		self.deps.play(item.entry.noise)
 	end
 end
@@ -724,6 +770,7 @@ end
 -- Cette méthode permet d'arrêter le bruit de préparation lorsque la Mort lâche l'invite (ou la termine).
 function TrapService:_onHoldEnded(_player, item)
 	if item.action == "work" then
+		item.entry.noiseHolder = nil
 		self.deps.stop(item.entry.noise)
 	end
 end
@@ -732,7 +779,13 @@ end
 -- maintien, de la distance et de la vue depuis le personnage : le client n'est jamais cru sur parole.
 function TrapService:_onPrompt(player, item)
 	if item.action == "work" then
+		item.entry.noiseHolder = nil
 		self.deps.stop(item.entry.noise)
+	end
+	local refusedSet = self.refused[item.prompt]
+	local announced = refusedSet and refusedSet[player] == true
+	if refusedSet then
+		refusedSet[player] = nil
 	end
 	if self.deps.roleOf(player) ~= item.role then
 		return
@@ -765,7 +818,10 @@ function TrapService:_onPrompt(player, item)
 	if item.action == "work" then
 		local ok, err = self:_canWork(player, id)
 		if not ok then
-			self.deps.notify(player, tostring(err))
+			-- Déjà annoncé au début du maintien : pas une seconde fois à la fin
+			if not announced then
+				self.deps.notify(player, tostring(err))
+			end
 			return
 		end
 		local trap = self.rules:get(id)
@@ -845,6 +901,17 @@ function TrapService:step()
 		self:_refreshPrompts()
 	end
 	self:_publish()
+	-- Bruit de préparation orphelin : la Mort est partie (ou a changé de rôle) sans lâcher l'invite
+	local present = {}
+	for _, player in self.deps.players:GetPlayers() do
+		present[player] = self.deps.roleOf(player) == Role.Death
+	end
+	for _, entry in self.entries do
+		if entry.noiseHolder and not present[entry.noiseHolder] then
+			entry.noiseHolder = nil
+			self.deps.stop(entry.noise)
+		end
+	end
 	local armed = self.rules:armed()
 	for _, id in armed do
 		local at = self.nextCue[id]

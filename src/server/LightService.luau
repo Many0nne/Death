@@ -269,14 +269,16 @@ function LightService:burnRoom(roomId: string): (boolean, string?)
 end
 
 -- Cette méthode permet d'éteindre une lampe cassée jusqu'à la fin de la manche lorsqu'un piège la fait tomber (lustre,
--- #5) : grésillement bref, sans recharge ni bruit d'ampoule. Renvoie true si elle éclairait encore.
+-- #5) : grésillement bref s'il éclairait (pas de lueur dans une aile coupée), sans recharge ni bruit d'ampoule. Renvoie
+-- true s'il éclairait encore.
 function LightService:breakLamp(lampId: string): boolean
+	local wasOn = self.illumination:isLampOn(lampId)
 	if not self.illumination:breakLamp(lampId) then
 		return false
 	end
 	self.deps.log("lampe cassée : " .. lampId)
-	self:_changed({ lampId })
-	return true
+	self:_changed(if wasOn then { lampId } else nil)
+	return wasOn
 end
 
 -- Cette méthode permet de rallumer toute la maison et d'effacer les recharges lorsqu'une manche commence ou se termine.

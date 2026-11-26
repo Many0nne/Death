@@ -20,9 +20,11 @@ return function(T, Loader)
 		root.CFrame = CFrame.new(position or Vector3.zero)
 		root.Parent = character
 		local player = { Name = name, role = role, Character = character, attributes = {} }
+		-- Cette méthode permet de lire un attribut du faux joueur lorsque le service le consulte.
 		function player.GetAttribute(self, key)
 			return self.attributes[key]
 		end
+		-- Cette méthode permet d'écrire un attribut du faux joueur lorsque le service publie un état.
 		function player.SetAttribute(self, key, value)
 			self.attributes[key] = value
 		end
@@ -41,6 +43,9 @@ return function(T, Loader)
 			delays = {},
 			los = true,
 			exposed = false,
+			lit = false,
+			falls = {},
+			deferFalls = false,
 			triggers = {},
 			notices = {},
 			warnings = {},
@@ -67,6 +72,9 @@ return function(T, Loader)
 			house = env.house,
 			match = env.match,
 			lights = {
+				canPrepareAt = function()
+					return not env.lit
+				end,
 				breakLamp = function(_, id)
 					table.insert(env.broken, id)
 					return true
@@ -93,7 +101,11 @@ return function(T, Loader)
 				table.insert(env.delays, { at = env.now + seconds, fn = fn })
 			end,
 			animate = function(_, step)
-				step(1)
+				if env.deferFalls then
+					table.insert(env.falls, step)
+				else
+					step(1)
+				end
 			end,
 			lineOfSight = function()
 				return env.los
@@ -207,6 +219,39 @@ return function(T, Loader)
 			-- KitchenShelf : contre le mur nord de la cuisine (z = 34.75), tombe vers le sud
 			T.expectEqual(service.entries.KitchenShelf.front, Vector3.new(0, 0, -1))
 		end)
+
+		T.it(
+			"fait tomber chaque étagère vers son avant, celui de ses blocs (orientation imposée comprise)",
+			function()
+				local HouseGeometry = loader:require("src/shared/HouseGeometry")
+				local HouseLayout = loader:require("src/shared/HouseLayout")
+				local rooms = HouseGeometry.roomsById(HouseLayout)
+				local vectors = {
+					North = Vector3.new(0, 0, 1),
+					South = Vector3.new(0, 0, -1),
+					East = Vector3.new(1, 0, 0),
+					West = Vector3.new(-1, 0, 0),
+				}
+				local checked = 0
+				for _, prop in HouseLayout.props do
+					if prop.trap == "Shelf" then
+						local facing = HouseGeometry.propFacing(
+							HouseLayout,
+							rooms[prop.room],
+							prop.x,
+							prop.z,
+							prop.size[1],
+							prop.size[3],
+							prop.facing
+						)
+						T.expectEqual(service.entries[prop.id].front, vectors[facing], prop.id)
+						checked += 1
+					end
+				end
+				T.expect(checked >= 20, checked .. " étagères")
+				T.expectEqual(service.entries.WineRackMiddle.front, Vector3.new(0, 0, 1), "orientation imposée (nord)")
+			end
+		)
 	end)
 
 	T.describe("TrapService : la Mort", function()
@@ -239,6 +284,18 @@ return function(T, Loader)
 			T.expectEqual(service.rules:get("LivingChandelier").state, "Idle")
 		end)
 
+		T.it("le bruit s'arrête si la Mort quitte la partie en plein maintien", function()
+			local service, env = setup()
+			local death = env.join("Mort", "Death", env.near("LivingChandelier"))
+			env.triggers[env.prompt("LivingChandelier", "work")].hold(death)
+			local noise = service.entries.LivingChandelier.noise
+			service:step()
+			T.expectEqual(env.playing[noise], true, "toujours là")
+			table.clear(env.list)
+			service:step()
+			T.expectEqual(env.playing[noise], nil)
+		end)
+
 		T.it("le lustre se prépare en deux maintiens de 5 s", function()
 			local service, env = setup()
 			local death = env.join("Mort", "Death", env.near("LivingChandelier"))
@@ -261,7 +318,13 @@ return function(T, Loader)
 			env.advance(prompt.HoldDuration)
 			env.triggers[prompt].fn(death)
 			T.expectEqual(service.rules:get("KitchenShelf").state, "Idle", "lumière")
+			T.expectEqual(#env.notices, 1, "refus annoncé une seule fois")
 			env.exposed = false
+			env.lit = true
+			env.trigger(prompt, death)
+			T.expectEqual(service.rules:get("KitchenShelf").state, "Idle", "piège éclairé")
+			T.expect(string.find(env.notices[#env.notices], "éteindre", 1, true) ~= nil, env.notices[#env.notices])
+			env.lit = false
 			env.trigger(prompt, env.join("Vivant", "Mortal", env.near("KitchenShelf", Vector3.new(0, 0, -3))))
 			T.expectEqual(service.rules:get("KitchenShelf").state, "Idle", "mortel")
 			env.trigger(prompt, env.join("Loin", "Death", env.near("KitchenShelf", Vector3.new(0, 0, -30))))
@@ -342,6 +405,32 @@ return function(T, Loader)
 			T.expect(after.Position.Y < before.Position.Y, "plus bas")
 			service:reset()
 			T.expect((box.CFrame.Position - before.Position).Magnitude < 1e-3, "relevé à la remise à zéro")
+		end)
+
+		T.it("une remise à zéro pendant la chute laisse l'objet relevé", function()
+			local service, env = setup()
+			env.deferFalls = true
+			service:prepare("KitchenShelf")
+			local box = service.entries.KitchenShelf.part
+			local before = box.CFrame
+			service:blow("KitchenShelf")
+			env.falls[1](0.5)
+			T.expect((box.CFrame.Position - before.Position).Magnitude > 0.1, "en train de tomber")
+			service:reset()
+			env.falls[1](1)
+			T.expect((box.CFrame.Position - before.Position).Magnitude < 1e-3, "l'animation ne le refait pas tomber")
+		end)
+
+		T.it("l'étagère touche toute la bande où elle s'abat, pas plus", function()
+			local service, env = setup()
+			service:prepare("KitchenShelf")
+			-- KitchenShelf : 6 de large, 7 de haut, 1,5 de profondeur, tombe vers -Z
+			env.join("Loin", "Mortal", env.near("KitchenShelf", Vector3.new(0, 0, -7.5)))
+			env.join("Bord", "Mortal", env.near("KitchenShelf", Vector3.new(3.5, 0, -4)))
+			env.join("Hors", "Mortal", env.near("KitchenShelf", Vector3.new(0, 0, -10)))
+			env.join("Cote", "Mortal", env.near("KitchenShelf", Vector3.new(5, 0, -3)))
+			service:blow("KitchenShelf")
+			T.expectEqual(table.concat(env.downs, ","), "Loin,Bord")
 		end)
 
 		T.it("refuse le souffle dans la lumière, sans charge ou sur un objet non armé", function()

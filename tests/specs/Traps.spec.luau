@@ -211,6 +211,16 @@ return function(T, Loader)
 			T.expectEqual(Traps.hits("Shelf", floor, Vector3.new(0, 3, 9), front), false, "trop loin")
 		end)
 
+		T.it("avec sa taille, l'étagère touche la bande où elle s'abat", function()
+			-- 8 de large (X), 7 de haut, 1,5 de profondeur (Z), tombe vers +Z : jusqu'à 0,75 + 7 (+ 1) devant
+			local front, box = Vector3.new(0, 0, 1), Vector3.new(8, 7, 1.5)
+			T.expectEqual(Traps.hits("Shelf", floor, Vector3.new(0, 3, 7.5), front, box), true, "au bout")
+			T.expectEqual(Traps.hits("Shelf", floor, Vector3.new(4.5, 3, 3), front, box), true, "au bord")
+			T.expectEqual(Traps.hits("Shelf", floor, Vector3.new(0, 3, 9.5), front, box), false, "au-delà")
+			T.expectEqual(Traps.hits("Shelf", floor, Vector3.new(6, 3, 3), front, box), false, "à côté")
+			T.expectEqual(Traps.hits("Shelf", floor, Vector3.new(0, 3, -3), front, box), false, "derrière")
+		end)
+
 		T.it("la buée prévient à environ 3 m, sur le même niveau", function()
 			T.expectEqual(Traps.chills(floor, Vector3.new(Traps.CHILL_RADIUS - 0.5, 3, 0)), true)
 			T.expectEqual(Traps.chills(floor, Vector3.new(Traps.CHILL_RADIUS + 1, 3, 0)), false)
