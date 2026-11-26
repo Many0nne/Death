@@ -179,6 +179,12 @@ function AgonyClient.start()
 			pulse.Visible = true
 			local size = 44 + 20 * (1 - metronome) ^ 3
 			pulse.Size = UDim2.fromOffset(size, size)
+			-- La lutte commence et avance sans compression : lue sur l'agonisant, pas seulement au retour d'un appui
+			local target = Players:GetPlayerByUserId(massaging)
+			local livePull = target and target:GetAttribute(AA.SoulPull)
+			if type(livePull) == "number" then
+				beat.pull = livePull
+			end
 			local recent = os.clock() - beat.at < VERDICT_TIME
 			local rhythm = if recent then verdict(beat.quality, beat.interval) else "appuie en rythme (Espace)"
 			if beat.pull then

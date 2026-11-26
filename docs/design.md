@@ -106,7 +106,7 @@ La lumière **révèle** la Mort, elle ne la bloque pas.
   ± 0,04 s de latence, nulle à 0,2 s au-delà), 16 compressions au rythme parfait (≈ 8 s à 110), massage abandonné
   après 1,5 s sans compression (avancée perdue). Lutte : fauchage fini pendant un massage, l'âme part à moitié
   sortie, la faux la tire en 4 s, chaque compression la repousse de 0,125 × qualité : il faut une qualité moyenne
-  d'environ 55 % pour gagner. Mort immobile pendant la lutte.
+  d'environ 55 % pour gagner. Mort immobile pendant la lutte, minuterie de l'agonie arrêtée.
 - **Mort par Roblox pendant la manche (#48)** : un mortel vivant tué par Roblox (`/reset`, chute, Health = 0) subit un
   accident (agonie, ou mort s'il a déjà été ranimé) ; un agonisant tué ainsi reste en agonie et réapparaît là où il
   est mort.

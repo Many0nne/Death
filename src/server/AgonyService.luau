@@ -338,6 +338,9 @@ function AgonyService:_makePrompt(root: BasePart, role: string, props: { [string
 		(prompt :: any)[property] = value
 	end
 	prompt:SetAttribute(LA.PromptRole, role)
+	if role == Role.Mortal then
+		prompt:SetAttribute(LA.PromptState, Match.MortalState.Alive)
+	end
 	prompt:SetAttribute(LA.PromptAvailable, true)
 	prompt:SetAttribute(LA.PromptSight, true)
 	prompt:AddTag(LA.PromptTag)

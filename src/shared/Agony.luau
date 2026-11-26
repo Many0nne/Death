@@ -8,7 +8,8 @@
 -- PRESS_VALUE, soit MASSAGE_DURATION secondes à TARGET_BPM. Un mauvais rythme avance moins, donc plus lentement.
 -- Lutte : la Mort finit son fauchage pendant un massage -> l'âme est à moitié sortie (`pull` = STRUGGLE_START) ; la
 -- faux la tire de STRUGGLE_PULL par seconde, chaque compression la repousse de STRUGGLE_PUSH × qualité. À 1 l'âme est
--- fauchée, à 0 le mortel est ranimé : au rythme parfait le massage gagne, sous BREAK_EVEN_QUALITY il perd.
+-- fauchée, à 0 le mortel est ranimé : au rythme parfait le massage gagne, sous BREAK_EVEN_QUALITY il perd. La minuterie
+-- de l'agonie s'arrête pendant la lutte ; elle continue pendant un simple massage.
 local GameConfig = require(script.Parent.GameConfig)
 
 local Agony = {}
@@ -168,6 +169,9 @@ function Agony:reap(userId: number, reaperId: number?): (string?, string?)
 	if dying.pull then
 		return nil, "lutte déjà en cours"
 	end
+	if dying.progress >= 1 then
+		return nil, "déjà ranimé"
+	end
 	if dying.massager then
 		dying.pull = Agony.STRUGGLE_START
 		dying.reaper = reaperId
@@ -192,7 +196,10 @@ function Agony:advance(dt: number, now: number): ({ Resolution }, { number })
 		if dying.progress >= 1 or (dying.pull ~= nil and dying.pull <= 0) then
 			outcome = Agony.Outcome.Revived
 		else
-			dying.timeLeft -= dt
+			-- Pendant la lutte, la minuterie s'arrête : seul le rythme décide
+			if dying.pull == nil then
+				dying.timeLeft -= dt
+			end
 			if dying.pull then
 				dying.pull = math.min(1, dying.pull + Agony.STRUGGLE_PULL * dt)
 			end
