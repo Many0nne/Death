@@ -14,11 +14,13 @@ local RunService = game:GetService("RunService")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Escape = require(Shared.Escape)
 local GameConfig = require(Shared.GameConfig)
+local LightAttributes = require(Shared.LightAttributes)
 local MapTags = require(Shared.MapTags)
 local Match = require(Shared.Match)
 local MatchAttributes = require(Shared.MatchAttributes)
 
 local A = MatchAttributes
+local LA = LightAttributes
 local EscapeService = {}
 
 -- Intervalle de surveillance de la sortie, en secondes (inutile de tester à chaque frame)
@@ -49,6 +51,12 @@ local function makePrompt(
 	lineOfSight: boolean
 ): ProximityPrompt
 	local prompt = Instance.new("ProximityPrompt")
+	-- Enabled reste à false : le client décide (Shared.PromptVisibility), le serveur n'y touche plus (#18, #19)
+	prompt.Enabled = false
+	prompt:SetAttribute(LA.PromptRole, Match.Role.Mortal)
+	prompt:SetAttribute(LA.PromptState, Match.MortalState.Alive)
+	prompt:SetAttribute(LA.PromptAvailable, true)
+	prompt:AddTag(LA.PromptTag)
 	prompt.ObjectText = objectText
 	prompt.ActionText = actionText
 	prompt.HoldDuration = hold
@@ -82,7 +90,7 @@ function EscapeService.start(matchService, house: Instance)
 	local keyParts: { [string]: BasePart } = {}
 	-- La voiture est large (12 studs) : son action se voit de tout le tour, sans ligne de vue vers le centre
 	local carPrompt = makePrompt(car.PrimaryPart, "Voiture", "Démarrer", GameConfig.CAR_START_DURATION, false)
-	carPrompt.Enabled = false
+	carPrompt:SetAttribute(LA.PromptAvailable, false)
 	local beacon: BasePart? = nil
 	local exitClock = 0
 
@@ -145,7 +153,7 @@ function EscapeService.start(matchService, house: Instance)
 		if part then
 			part:Destroy()
 		end
-		carPrompt.Enabled = objective:canStartCar()
+		carPrompt:SetAttribute(LA.PromptAvailable, objective:canStartCar())
 		publish()
 		print(
 			string.format(
@@ -171,7 +179,7 @@ function EscapeService.start(matchService, house: Instance)
 		if not ok then
 			return false, err
 		end
-		carPrompt.Enabled = false
+		carPrompt:SetAttribute(LA.PromptAvailable, false)
 		openExit()
 		publish()
 		print(string.format("[Fuite] %s a démarré la voiture : sortie ouverte", player.Name))
@@ -186,7 +194,7 @@ function EscapeService.start(matchService, house: Instance)
 			part:Destroy()
 		end
 		keyParts = {}
-		carPrompt.Enabled = false
+		carPrompt:SetAttribute(LA.PromptAvailable, false)
 		if beacon then
 			beacon:Destroy()
 			beacon = nil
@@ -201,11 +209,11 @@ function EscapeService.start(matchService, house: Instance)
 	-- Cette méthode permet de couper les actions lorsque la manche se termine : clés et voiture restent visibles
 	-- pendant le résultat, mais plus rien ne se déclenche.
 	local function freeze()
-		carPrompt.Enabled = false
+		carPrompt:SetAttribute(LA.PromptAvailable, false)
 		for _, part in keyParts do
 			local prompt = part:FindFirstChildOfClass("ProximityPrompt")
 			if prompt then
-				prompt.Enabled = false
+				prompt:SetAttribute(LA.PromptAvailable, false)
 			end
 		end
 	end
@@ -261,7 +269,7 @@ function EscapeService.start(matchService, house: Instance)
 			placeKey(spotId)
 		end
 		-- Sans clé à trouver (carte sans emplacement), la voiture est démarrable tout de suite
-		carPrompt.Enabled = objective:canStartCar()
+		carPrompt:SetAttribute(LA.PromptAvailable, objective:canStartCar())
 		publish()
 		print("[Fuite] clés posées : " .. table.concat(chosen, ", "))
 	end)
