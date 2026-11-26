@@ -706,6 +706,9 @@ end
 function TrapService:_makePrompt(entry, action: string, role: string, props: { [string]: any })
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = TA.PromptName
+	-- Masquée jusqu'à la décision du client (#19). Pas de PromptState : un LightRole « Mortal » est déjà un mortel vivant
+	-- en manche, et le bac à sable de Studio (hors manche) garde ses invites
+	prompt.Enabled = false
 	prompt.RequiresLineOfSight = false
 	for property, value in props do
 		(prompt :: any)[property] = value

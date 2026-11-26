@@ -204,6 +204,9 @@ return function(T, Loader)
 			T.expectEqual(env.prompt("KitchenShelf", "work"):GetAttribute(LA.PromptRole), "Death")
 			T.expectEqual(env.prompt("KitchenShelf", "examine"):GetAttribute(LA.PromptRole), "Mortal")
 			T.expect(env.prompt("KitchenShelf", "defuse"):HasTag(LA.PromptTag), "filtrées comme celles de la lumière")
+			for _, item in service.prompts do
+				T.expectEqual(item.prompt.Enabled, false, "créée masquée, le client décide (#19)")
+			end
 			T.expectEqual(env.prompt("KitchenShelf", "work").ActionText, "Préparer")
 			T.expectEqual(env.prompt("KitchenShelf", "work").HoldDuration, Traps.KINDS.Shelf.steps[1])
 			T.expectEqual(env.prompt("LivingChandelier", "work").ActionText, "Préparer (1/2)")
