@@ -148,6 +148,9 @@ function MatchSpawner.start(matchService, house: Instance)
 			for _, player in Players:GetPlayers() do
 				sendBack(player)
 			end
+			for _, bot in matchService:listBots() do
+				sendBack(bot)
+			end
 		end
 	end)
 

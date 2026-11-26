@@ -314,7 +314,8 @@ function MatchService:_step(dt: number)
 			self:_returnToWaiting()
 		end
 	else
-		local count = #self:_presentPlayers()
+		-- Démarrage automatique : vrais joueurs seulement, les bots ne lancent pas une manche seuls
+		local count = #self:_presentPlayers(false)
 		if GameConfig.canStartMatch(count - 1, count > 0) then
 			self.phaseClock += dt
 			if self.phaseClock >= GameConfig.INTERMISSION_DURATION then
@@ -426,23 +427,29 @@ end
 
 -- Cette méthode permet de lister les joueurs présents lorsqu'une manche peut démarrer, sans le joueur en train de
 -- partir (Players:GetPlayers le liste encore pendant PlayerRemoving).
-function MatchService:_presentPlayers(): { any }
+function MatchService:_presentPlayers(withBots: boolean?): { any }
 	local present = {}
 	for _, player in self.deps.players:GetPlayers() do
 		if player ~= self.leaving then
 			table.insert(present, player)
 		end
 	end
-	for _, bot in self.bots:list() do
-		if bot ~= self.leaving then
-			table.insert(present, bot)
+	if withBots ~= false then
+		for _, bot in self.bots:list() do
+			if bot ~= self.leaving then
+				table.insert(present, bot)
+			end
 		end
 	end
 	return present
 end
 
--- Cette méthode permet de retrouver un faux joueur par son UserId lorsqu'un module de manche doit le placer (nil pour
--- un vrai joueur).
+-- Cette méthode permet de lister les faux joueurs lorsqu'un module de manche doit les ramener à l'attente.
+function MatchService:listBots(): { any }
+	return self.bots:list()
+end
+
+-- Cette méthode permet de retrouver un faux joueur par son UserId lorsqu'un module de manche doit le placer.
 function MatchService:getBot(userId: number): any?
 	return self.bots:find(userId)
 end

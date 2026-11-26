@@ -3,6 +3,10 @@
 -- Ses attributs vivent sur son mannequin (un Model avec Humanoid) : `DebugSetState` posé sur le mannequin vise ce faux
 -- mortel, comme sur un vrai joueur. Limite : TrapService, LightService et DeathController parcourent `Players`, donc
 -- les bots n'en sont pas encore la cible (voir le compte rendu de #12).
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local A = require(ReplicatedStorage:WaitForChild("Shared").MatchAttributes)
+
 local DebugBots = {}
 DebugBots.__index = DebugBots
 
@@ -10,6 +14,7 @@ local BotMethods = {}
 BotMethods.__index = BotMethods
 
 -- Les UserId des bots sont négatifs et loin de ceux des joueurs de test de Studio : aucune collision avec un Player
+local ROLE_LABELS = { Death = "Mort", Mortal = "Mortel" }
 local FIRST_USER_ID = -1000000
 
 -- Cette méthode permet de lire un attribut du bot lorsqu'un service le traite comme un Player.
@@ -46,6 +51,7 @@ function DebugBots.createMannequin(name: string): Instance
 	head.Parent = model
 	local humanoid = Instance.new("Humanoid")
 	humanoid.DisplayName = name
+	humanoid.RequiresNeck = false -- pas de Neck : la tête est soudée, le Humanoid ne doit pas mourir
 	humanoid.Parent = model
 	model.PrimaryPart = root
 	model.Parent = workspace
@@ -58,7 +64,8 @@ function DebugBots.new(createModel: (string) -> any)
 	return setmetatable({
 		createModel = createModel,
 		bots = {} :: { any },
-		counter = 0,
+		counter = 0, -- UserId des bots
+		perRole = {} :: { [string]: number }, -- numéro du dernier bot de chaque rôle
 	}, DebugBots)
 end
 
@@ -66,8 +73,8 @@ end
 -- (rôle imposé par DebugRole) ; renvoie le bot.
 function DebugBots:add(role: string)
 	self.counter += 1
-	local label = if role == "Death" then "Mort" else "Mortel"
-	local name = string.format("Bot %s %d", label, self.counter)
+	self.perRole[role] = (self.perRole[role] or 0) + 1
+	local name = string.format("Bot %s %d", ROLE_LABELS[role] or role, self.perRole[role])
 	local model = self.createModel(name)
 	local bot = setmetatable({
 		UserId = FIRST_USER_ID - self.counter,
@@ -76,7 +83,7 @@ function DebugBots:add(role: string)
 		Character = model,
 		AttributeChanged = model.AttributeChanged,
 	}, BotMethods)
-	model:SetAttribute("DebugRole", role)
+	model:SetAttribute(A.DebugRole, role)
 	table.insert(self.bots, bot)
 	return bot
 end
