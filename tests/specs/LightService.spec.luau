@@ -303,6 +303,21 @@ return function(T, Loader)
 			service:burnRoom("Kitchen")
 			T.expectEqual(service:canPrepareAt(under), true)
 		end)
+
+		T.it("une source mobile (faisceau de lampe torche) éclaire et empêche de préparer", function()
+			local service, env = setup()
+			local dark = env.lamp("KitchenLamp").CFrame.Position + Vector3.new(0, -8, 0)
+			service:burnRoom("Kitchen")
+			local beamOn = false
+			service:addLightSource(function(position)
+				return beamOn and position == dark
+			end)
+			T.expectEqual(service:isLit(dark), false)
+			beamOn = true
+			T.expectEqual(service:isLit(dark), true)
+			T.expectEqual(service:canPrepareAt(dark), false)
+			T.expectEqual(service:canPrepareAt(dark + Vector3.new(1, 0, 0)), true, "hors du faisceau")
+		end)
 	end)
 
 	T.describe("LightService : debug", function()

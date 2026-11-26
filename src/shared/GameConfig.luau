@@ -28,6 +28,10 @@ local GameConfig = {
 	KEY_PICKUP_DURATION = 1,
 	CAR_START_DURATION = 8,
 	EXIT_RADIUS = 4,
+	-- Lampe torche (#8) : piles cachées par manche (sur les emplacements KeySpot laissés libres par les clés, une par
+	-- pièce au plus), maintien pour en ramasser une, en secondes
+	FLASHLIGHT_BATTERY_COUNT = 3,
+	BATTERY_PICKUP_DURATION = 1,
 }
 
 -- Cette méthode permet de savoir si une manche peut démarrer lorsque la file a réuni des mortels et une Mort.

@@ -3,8 +3,10 @@
 -- joue les sons et remet tout à zéro à chaque manche.
 --
 -- API pour les étapes suivantes (pièges #5, lampe torche #8, HUD #9), via `LightService.get()` :
---   :isLit(position)          point éclairé par une lampe allumée (règle Shared.Illumination)
---   :canPrepareAt(position)   la Mort peut préparer un piège ici (jamais dans la lumière)
+--   :isLit(position)          point éclairé par une lampe allumée (règle Shared.Illumination) ou par une autre source
+--                             (faisceau de lampe torche, #8)
+--   :canPrepareAt(position)   la Mort peut préparer un piège ici (jamais dans la lumière, faisceaux compris)
+--   :addLightSource(test)     ajoute une source de lumière mobile : test(position) -> éclairé (lampe torche, #8)
 --   :isRoomLit(roomId), :roomAt(position)
 --   :cutPower(wingId), :restorePower(), :burnRoom(roomId)   (true) ou (false, raison)
 --   :breakLamp(lampId)        lampe cassée jusqu'à la fin de la manche (lustre tombé, #5)
@@ -137,6 +139,7 @@ function LightService.new(deps: Deps?)
 		flickering = {} :: { [string]: {} }, -- lampe en train de grésiller -> jeton du grésillement en cours
 		holds = {} :: { [any]: { [any]: number } }, -- invite -> joueur -> début du maintien (horloge du serveur)
 		sounds = {},
+		sources = {} :: { (Vector3) -> boolean }, -- sources mobiles (faisceaux de lampe torche)
 		Changed = Signal.new(),
 	}, LightService)
 	for _, part in d.house:GetDescendants() do
@@ -197,14 +200,31 @@ end
 
 -- Lecture ------------------------------------------------------------------------------------------------------
 
--- Cette méthode permet de savoir si un point est éclairé lorsque la Mort s'y trouve ou qu'un système teste la lumière.
+-- Cette méthode permet de savoir si un point est éclairé lorsque la Mort s'y trouve ou qu'un système teste la lumière :
+-- lampes de la maison, puis sources mobiles (faisceaux de lampe torche).
 function LightService:isLit(position: Vector3): boolean
-	return (self.illumination:isLit(position))
+	return self.illumination:isLit(position) or self:_inSource(position)
 end
 
 -- Cette méthode permet de savoir si la Mort peut préparer un piège à un endroit lorsque #5 lance une préparation.
 function LightService:canPrepareAt(position: Vector3): boolean
-	return DeathRules.canPrepare(self.illumination, position)
+	return DeathRules.canPrepare(self.illumination, position) and not self:_inSource(position)
+end
+
+-- Cette méthode permet d'ajouter une source de lumière mobile lorsque la lampe torche démarre (#8) : `test(position)`
+-- dit si elle éclaire ce point (règle et ligne de vue à sa charge).
+function LightService:addLightSource(test: (Vector3) -> boolean)
+	table.insert(self.sources, test)
+end
+
+-- Cette méthode permet de savoir si une source mobile éclaire un point lorsque isLit ou canPrepareAt le demande.
+function LightService:_inSource(position: Vector3): boolean
+	for _, test in self.sources do
+		if test(position) then
+			return true
+		end
+	end
+	return false
 end
 
 -- Cette méthode permet de savoir si une pièce a une de ses lampes allumée lorsque l'on raisonne par pièce (fauchage,
