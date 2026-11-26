@@ -155,6 +155,12 @@ return function(T, Loader)
 			T.expectEqual(death.isDeath, true)
 			T.expectEqual(death.souls, "Tu as récolté 1 âme sur 3")
 		end)
+		T.it("réservé aux joueurs de la manche", function()
+			T.expectEqual(HudFormat.summary(result, 1).involved, true)
+			T.expectEqual(HudFormat.summary(result, 4).involved, true)
+			T.expectEqual(HudFormat.summary(result, 99).involved, false)
+			T.expectEqual(HudFormat.summary(result, nil).involved, false)
+		end)
 		T.it("pluriel des âmes et titre de fin anticipée", function()
 			local all = {
 				reason = "AllResolved",

@@ -27,7 +27,8 @@ local REASON_LABELS = {
 }
 
 export type SummaryRow = { name: string, verdict: string, isLocal: boolean }
-export type Summary = { title: string, rows: { SummaryRow }, souls: string, isDeath: boolean }
+-- involved : le joueur local a joué la manche (la Mort ou l'un des mortels)
+export type Summary = { title: string, rows: { SummaryRow }, souls: string, isDeath: boolean, involved: boolean }
 
 -- Cette méthode permet d'écrire une durée en minutes et secondes (« 4:05 ») lorsque le HUD affiche un temps restant ;
 -- arrondie à la seconde au-dessus, jamais négative.
@@ -135,11 +136,15 @@ function HudFormat.summary(result: any, localUserId: number?): Summary?
 	end
 	local rows = {}
 	local reaped = 0
+	local involved = false
 	for _, mortal in result.mortals do
 		if type(mortal) == "table" then
 			local verdict = HudFormat.verdict(mortal.state, mortal.soul, mortal.cause)
 			if verdict == "Fauché" then
 				reaped += 1
+			end
+			if localUserId ~= nil and mortal.userId == localUserId then
+				involved = true
 			end
 			table.insert(rows, {
 				name = tostring(mortal.name or mortal.userId or "?"),
@@ -162,6 +167,7 @@ function HudFormat.summary(result: any, localUserId: number?): Summary?
 		rows = rows,
 		souls = souls,
 		isDeath = isDeath,
+		involved = involved or isDeath,
 	}
 end
 

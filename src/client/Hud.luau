@@ -187,7 +187,8 @@ local function makeSummary(playerGui: Instance)
 end
 
 -- Mortel suivi par la liste du HUD : Player, ou mannequin d'un faux joueur de debug (#12, attributs sur le Model)
-type RosterEntry = { source: Instance, name: string, bot: boolean, order: number }
+-- (`state` / `soul` : derniers état et sort d'âme lus, gardés si le mortel quitte la partie)
+type RosterEntry = { source: Instance, name: string, bot: boolean, order: number, state: string?, soul: string? }
 
 -- Faux joueurs de debug : Studio seulement, inutile de parcourir le workspace en jeu publié
 local IS_STUDIO = RunService:IsStudio()
@@ -224,6 +225,8 @@ function Hud.start()
 	-- docs/parcours-joueur.md (« même emplacement, même ordre »)
 	local roster: { RosterEntry } = {}
 	local known: { [Instance]: boolean } = {}
+	-- Dernier temps restant lu en manche : s'il remonte, une nouvelle manche a démarré sans phase visible entre les deux
+	local lastTimeLeft: number? = nil
 
 	-- Cette méthode permet d'ajouter à la liste les mortels pas encore suivis lorsque la manche tourne (attributs
 	-- répliqués avec un léger retard au démarrage), puis de la trier ; elle retire ceux d'une manche précédente.
@@ -272,7 +275,8 @@ function Hud.start()
 			return if raw then HttpService:JSONDecode(raw) else nil
 		end)
 		local data = HudFormat.summary(if ok then decoded else nil, localPlayer.UserId)
-		summary.gui.Enabled = data ~= nil
+		-- Bilan réservé aux joueurs de la manche (pas à ceux arrivés pendant la nuit)
+		summary.gui.Enabled = data ~= nil and data.involved
 		if not data then
 			return
 		end
@@ -323,17 +327,18 @@ function Hud.start()
 		end
 		local running = phase == Match.Phase.Running
 		local now = workspace:GetServerTimeNow()
-		if running then
-			updateRoster()
-		elseif #roster > 0 then
+		local timeLeft = ReplicatedStorage:GetAttribute(MA.TimeLeft)
+		local restarted = running and lastTimeLeft ~= nil and type(timeLeft) == "number" and timeLeft > lastTimeLeft + 1
+		if (not running or restarted) and #roster > 0 then
 			table.clear(roster)
 			table.clear(known)
 		end
+		lastTimeLeft = if running and type(timeLeft) == "number" then timeLeft else nil
+		if running then
+			updateRoster()
+		end
 
-		local fraction, clockText = HudFormat.hourglass(
-			ReplicatedStorage:GetAttribute(MA.TimeLeft),
-			ReplicatedStorage:GetAttribute(MA.Duration)
-		)
+		local fraction, clockText = HudFormat.hourglass(timeLeft, ReplicatedStorage:GetAttribute(MA.Duration))
 		hud.glass.Visible = running and role ~= nil
 		hud.fill.Size = UDim2.fromScale(fraction, 1)
 		hud.clock.Text = clockText or ""
@@ -350,12 +355,17 @@ function Hud.start()
 					local source = entry.source
 					local state
 					if source.Parent == nil or source:GetAttribute(MA.Role) ~= Match.Role.Mortal then
-						state = HudFormat.LEFT -- joueur parti (ou mannequin retiré) pendant la manche
+						-- Parti pendant la manche : son sort reste affiché s'il était déjà fixé (enfui, mort)
+						state = if entry.state and Match.isResolved(entry.state)
+							then HudFormat.mortalState(entry.state, entry.soul, nil, isDeath)
+							else HudFormat.LEFT
 					else
+						entry.state = source:GetAttribute(MA.MortalState)
+						entry.soul = source:GetAttribute(MA.SoulFate)
 						local agonyEnd = source:GetAttribute(AgonyAttributes.AgonyEnd)
 						state = HudFormat.mortalState(
-							source:GetAttribute(MA.MortalState),
-							source:GetAttribute(MA.SoulFate),
+							entry.state,
+							entry.soul,
 							if type(agonyEnd) == "number" then agonyEnd - now else nil,
 							isDeath
 						)
