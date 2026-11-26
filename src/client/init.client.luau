@@ -8,5 +8,6 @@ require(script.TrapCues).start()
 require(script.DeathTrapPrompts).start()
 require(script.AgonyClient).start()
 require(script.Flashlight).start()
+require(script.Hud).start()
 
 print("Death : client prêt")
