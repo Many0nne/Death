@@ -27,9 +27,11 @@ DeathController.__index = DeathController
 -- Cette méthode permet de construire les dépendances réelles lorsque le contrôleur est créé en jeu.
 local function defaultDeps()
 	local RunService = game:GetService("RunService")
+	local match = require(script.Parent.MatchService).get()
 	return {
-		players = game:GetService("Players"),
-		match = require(script.Parent.MatchService).get(),
+		-- Joueurs et faux joueurs de debug (Server.Roster) : un bot reçoit son rôle de lumière comme un joueur
+		players = match:roster(),
+		match = match,
 		lights = require(script.Parent.LightService).get(),
 		heartbeat = RunService.Heartbeat,
 		isStudio = RunService:IsStudio(),
@@ -173,7 +175,8 @@ function DeathController:_stepDeath(player, dt: number)
 		return
 	end
 	local exposure = self.exposures[player]
-	local lit = self.deps.lights:isLit(root.Position)
+	-- CFrame.Position : lisible aussi sous Lune (tests), comme dans les autres services
+	local lit = self.deps.lights:isLit(root.CFrame.Position)
 	local was = exposure.exposed
 	local exposed = DeathRules.updateExposure(exposure, lit, dt)
 	if exposed ~= was or player:GetAttribute(LA.Exposed) == nil then

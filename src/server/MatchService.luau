@@ -19,6 +19,7 @@ local Match = require(Shared.Match)
 local MatchAttributes = require(Shared.MatchAttributes)
 local Signal = require(Shared.Signal)
 local DebugBots = require(script.Parent.DebugBots)
+local Roster = require(script.Parent.Roster)
 
 local Phase = Match.Phase
 local A = MatchAttributes
@@ -89,9 +90,11 @@ end
 -- service isolé en test (`deps` simulées).
 function MatchService.new(deps: Deps?)
 	local resolved = deps or defaultDeps()
+	local bots = DebugBots.new(resolved.createMannequin or DebugBots.createMannequin) -- faux joueurs de debug (#12)
 	return setmetatable({
 		deps = resolved,
-		bots = DebugBots.new(resolved.createMannequin or DebugBots.createMannequin), -- faux joueurs de debug (#12)
+		bots = bots,
+		everyone = Roster.new(resolved.players, bots), -- joueurs + bots, API de Players (#52)
 		started = false,
 		phase = Phase.Waiting,
 		phaseClock = 0, -- secondes passées dans la phase (attente avant démarrage auto, affichage du résultat)
@@ -450,6 +453,12 @@ function MatchService:_presentPlayers(withBots: boolean?): { any }
 		end
 	end
 	return present
+end
+
+-- Cette méthode permet de fournir les participants (vrais joueurs et bots, API de Players) lorsqu'un service de jeu
+-- doit viser les bots comme des joueurs (Server.Roster).
+function MatchService:roster()
+	return self.everyone
 end
 
 -- Cette méthode permet de lister les faux joueurs lorsqu'un module de manche doit les ramener à l'attente.
