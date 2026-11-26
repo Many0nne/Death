@@ -362,11 +362,13 @@ function AgonyService:_attach(entry)
 		return
 	end
 	local id = entry.player.UserId
+	-- Un faux joueur de debug (#12) n'a pas de DisplayName
+	local name = entry.player.DisplayName or entry.player.Name
 	entry.root = root
 	entry.prompts = {
 		reap = self:_makePrompt(root, Role.Death, {
 			ActionText = "Faucher",
-			ObjectText = entry.player.DisplayName,
+			ObjectText = name,
 			KeyboardKeyCode = Enum.KeyCode.F,
 			GamepadKeyCode = Enum.KeyCode.ButtonY,
 			HoldDuration = GameConfig.REAP_DURATION,
@@ -376,7 +378,7 @@ function AgonyService:_attach(entry)
 		end),
 		massage = self:_makePrompt(root, Role.Mortal, {
 			ActionText = "Masser",
-			ObjectText = entry.player.DisplayName,
+			ObjectText = name,
 			KeyboardKeyCode = Enum.KeyCode.E,
 			GamepadKeyCode = Enum.KeyCode.ButtonX,
 			HoldDuration = 0,
