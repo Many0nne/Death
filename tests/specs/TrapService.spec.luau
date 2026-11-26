@@ -746,6 +746,10 @@ return function(T, Loader)
 			local noise = service.entries.WetFloorGarage.noise
 			env.action(death, TA.ActionPhase.Began, "WetFloorGarage", "work")
 			T.expectEqual(env.playing[noise], nil, "trop loin")
+			T.expectEqual(env.notices[#env.notices], "Mort : hors de portée : recommencer", "annoncé au début")
+			env.advance(Traps.KINDS.WetFloor.steps[1])
+			env.action(death, TA.ActionPhase.Triggered, "WetFloorGarage", "work")
+			T.expectEqual(#env.notices, 1, "pas une seconde fois à la fin")
 			death:moveTo(env.near("WetFloorGarage", Vector3.new(0, 0, -3)))
 			env.los = false
 			env.action(death, TA.ActionPhase.Began, "WetFloorGarage", "work")
@@ -799,6 +803,7 @@ return function(T, Loader)
 			T.expect(count >= 25, "aucun point fragile écarté")
 			T.expectEqual(#env.warnings, 0, table.concat(env.warnings, "\n"))
 			T.expect(not TrapPrompts.isValidId("Hall_Step"), "le suffixe d'étape n'est jamais un identifiant")
+			T.expect(not TrapPrompts.isValidId("RBXLamp"), "préfixe réservé par Roblox")
 		end)
 	end)
 

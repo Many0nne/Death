@@ -42,9 +42,9 @@ end
 
 -- Cette méthode permet de savoir si un identifiant de point fragile peut nommer un attribut de l'état privé
 -- (TrapAttributes.TrapStates) lorsque le serveur lit la maison : lettres et chiffres seulement, donc jamais confondu
--- avec `<id>` .. StepSuffix, qui contient un « _ ».
+-- avec `<id>` .. StepSuffix, qui contient un « _ » ; le préfixe « RBX » est réservé par Roblox.
 function TrapPrompts.isValidId(id: string): boolean
-	return string.match(id, "^%a%w*$") ~= nil and #id <= 90
+	return string.match(id, "^%a%w*$") ~= nil and #id <= 90 and string.upper(string.sub(id, 1, 3)) ~= "RBX"
 end
 
 -- Cette méthode permet de donner les propriétés de départ d'une invite lorsqu'elle est créée : textes, touches, portée,

@@ -259,7 +259,8 @@ function TrapService.new(deps: Deps?)
 		rules = Traps.new(kinds),
 		entries = entries, -- id -> { id, kind, part, floor, front?, prompts, ... }
 		-- { prompt, action, entry, role } ; pour la Mort, `prompt` est une vue serveur (ActionText, HoldDuration,
-		-- MaxActivationDistance, available) de l'invite que seul son client crée
+		-- MaxActivationDistance, available) de l'invite que seul son client crée. HoldDuration et la portée servent aux
+		-- contrôles ; `available` n'est qu'un reflet (tests) : les règles (_canWork, Traps) décident
 		prompts = {} :: { any },
 		deathItems = {} :: { [string]: { [string]: any } }, -- id -> action -> élément d'une invite de la Mort
 		holds = {} :: { [any]: { [any]: number } }, -- invite -> joueur -> début du maintien
@@ -751,6 +752,9 @@ function TrapService:_onAction(player, phase: any, id: any, action: any)
 	if type(phase) ~= "string" or type(id) ~= "string" or type(action) ~= "string" then
 		return
 	end
+	if not TrapPrompts.DEATH_ACTIONS[action] then
+		return
+	end
 	local items = self.deathItems[id]
 	local item = items and items[action]
 	local handler = item and item.handlers[phase]
@@ -816,11 +820,14 @@ function TrapService:_onHoldBegan(player, item)
 	-- L'invite de la Mort vit sur son client : portée et vue contrôlées ici aussi, sinon un client modifié lancerait le
 	-- bruit de préparation de n'importe quel piège de la maison
 	local reach = self:_reach(player, item)
+	local ok, err = true, nil
 	if reach ~= nil then
-		self.deps.warn(string.format("%s : %s refusé au début, %s", player.Name, item.action, reach))
-		return
+		-- Annoncé tout de suite (et pas une seconde fois à la fin) : la vue du client et celle du serveur peuvent
+		-- diverger un instant, la Mort ne doit pas tenir tout le maintien pour rien
+		ok, err = false, "hors de portée : recommencer"
+	else
+		ok, err = self:_canWork(player, item.entry.id)
 	end
-	local ok, err = self:_canWork(player, item.entry.id)
 	if not ok then
 		self.deps.notify(player, tostring(err))
 		local refused = self.refused[item.prompt]

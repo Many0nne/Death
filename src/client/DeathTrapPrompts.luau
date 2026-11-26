@@ -157,7 +157,7 @@ function DeathTrapPrompts.start()
 
 	-- Cette méthode permet de suivre le conteneur privé lorsque le serveur le crée (souffle, états des pièges).
 	local function bind(container: Instance)
-		if container.Name ~= TA.PrivateName then
+		if container.Name ~= TA.PrivateName or private == container then
 			return
 		end
 		private = container
