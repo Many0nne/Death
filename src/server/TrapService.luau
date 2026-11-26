@@ -243,6 +243,8 @@ function TrapService.new(deps: Deps?)
 		local kind = part:GetAttribute(MapTags.Attributes.TrapKind)
 		if kinds[id] then
 			d.warn("point fragile en double : " .. id)
+		elseif not TrapPrompts.isValidId(id) then
+			d.warn("point fragile ignoré, identifiant inutilisable comme attribut : " .. id)
 		elseif not Traps.KINDS[kind] then
 			d.warn(string.format("point fragile %s : type inconnu %s", id, tostring(kind)))
 		else
@@ -811,6 +813,13 @@ function TrapService:_onHoldBegan(player, item)
 	if item.action ~= Action.Work or self.deps.roleOf(player) ~= Role.Death then
 		return
 	end
+	-- L'invite de la Mort vit sur son client : portée et vue contrôlées ici aussi, sinon un client modifié lancerait le
+	-- bruit de préparation de n'importe quel piège de la maison
+	local reach = self:_reach(player, item)
+	if reach ~= nil then
+		self.deps.warn(string.format("%s : %s refusé au début, %s", player.Name, item.action, reach))
+		return
+	end
 	local ok, err = self:_canWork(player, item.entry.id)
 	if not ok then
 		self.deps.notify(player, tostring(err))
@@ -833,6 +842,25 @@ function TrapService:_onHoldEnded(player, item)
 		item.entry.noiseHolder = nil
 		self.deps.stop(item.entry.noise)
 	end
+end
+
+-- Cette méthode permet de vérifier qu'un joueur peut atteindre la cible d'une invite lorsqu'il la tient ou la
+-- déclenche : personnage présent, portée de l'invite (plus la tolérance) et vue ; renvoie nil, ou la raison du refus.
+function TrapService:_reach(player, item): string?
+	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	if not root then
+		return "sans personnage"
+	end
+	local from = root.CFrame.Position
+	local part = item.entry.part
+	local target = part.CFrame.Position
+	if (target - from).Magnitude > item.prompt.MaxActivationDistance + DeathRules.DISTANCE_TOLERANCE then
+		return "trop loin"
+	end
+	if not self.deps.lineOfSight(player, from, target, part) then
+		return "cible hors de vue"
+	end
+	return nil
 end
 
 -- Cette méthode permet d'exécuter l'action d'une invite lorsqu'un joueur la déclenche, après contrôle du rôle, du
@@ -866,19 +894,11 @@ function TrapService:_onPrompt(player, item)
 		self.deps.warn(string.format("%s : %s refusé, maintien invalide", player.Name, item.action))
 		return
 	end
-	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-	if not root then
+	local reach = self:_reach(player, item)
+	if reach == "sans personnage" then
 		return
-	end
-	local from = root.CFrame.Position
-	local part = item.entry.part
-	local target = part.CFrame.Position
-	if (target - from).Magnitude > item.prompt.MaxActivationDistance + DeathRules.DISTANCE_TOLERANCE then
-		self.deps.warn(string.format("%s : %s refusé, trop loin", player.Name, item.action))
-		return
-	end
-	if not self.deps.lineOfSight(player, from, target, part) then
-		self.deps.warn(string.format("%s : %s refusé, cible hors de vue", player.Name, item.action))
+	elseif reach ~= nil then
+		self.deps.warn(string.format("%s : %s refusé, %s", player.Name, item.action, reach))
 		return
 	end
 	local id = item.entry.id
@@ -993,10 +1013,17 @@ function TrapService:step()
 	for _, player in self.deps.players:GetPlayers() do
 		present[player] = self.deps.roleOf(player) == Role.Death
 	end
-	for _, entry in self.entries do
-		if entry.noiseHolder and not present[entry.noiseHolder] then
-			entry.noiseHolder = nil
-			self.deps.stop(entry.noise)
+	-- ou n'a jamais envoyé la fin du maintien (client modifié, invite détruite en plein maintien)
+	for id, entry in self.entries do
+		local holder = entry.noiseHolder
+		if holder then
+			local item = self.deathItems[id] and self.deathItems[id][Action.Work]
+			local began = item and self.holds[item.prompt][holder]
+			local stale = began == nil or now - began > item.prompt.HoldDuration + DeathRules.HOLD_STALE
+			if not present[holder] or stale then
+				entry.noiseHolder = nil
+				self.deps.stop(entry.noise)
+			end
 		end
 	end
 	local armed = self.rules:armed()

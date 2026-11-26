@@ -20,10 +20,10 @@ return table.freeze({
 	BreathRechargeEnd = "BreathRechargeEnd",
 	ArmedTraps = "ArmedTraps",
 	-- Folder enfant du conteneur privé de la Mort : un attribut par point fragile trafiqué, nommé par son identifiant
-	-- (Shared.TrapPrompts.idOf) et valant Traps.State ("Preparing", "Armed", "Spent" ; nil = "Idle"), plus
+	-- (Shared.TrapPrompts.idOf, lettres et chiffres seulement) et valant Traps.State ("Preparing", "Armed", "Spent" ; nil = "Idle"), plus
 	-- `<id>` .. StepSuffix = étapes faites pendant une préparation (grand piège commencé)
 	TrapStates = "TrapStates",
-	StepSuffix = "Step",
+	StepSuffix = "_Step",
 
 	-- Attribut du conteneur privé d'un mortel vivant : true quand il est à environ 3 m d'un piège armé (buée et frisson,
 	-- Client.TrapCues). Privé lui aussi : un autre client ne doit pas savoir qu'un piège est armé près de lui.

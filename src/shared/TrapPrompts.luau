@@ -40,6 +40,13 @@ function TrapPrompts.idOf(part: Instance): string
 	return if parent and parent:IsA("Model") then parent.Name else part.Name
 end
 
+-- Cette méthode permet de savoir si un identifiant de point fragile peut nommer un attribut de l'état privé
+-- (TrapAttributes.TrapStates) lorsque le serveur lit la maison : lettres et chiffres seulement, donc jamais confondu
+-- avec `<id>` .. StepSuffix, qui contient un « _ ».
+function TrapPrompts.isValidId(id: string): boolean
+	return string.match(id, "^%a%w*$") ~= nil and #id <= 90
+end
+
 -- Cette méthode permet de donner les propriétés de départ d'une invite lorsqu'elle est créée : textes, touches, portée,
 -- maintien et place de la bulle (au-dessus pour préparer et examiner, en dessous pour souffler et désamorcer).
 function TrapPrompts.props(kind: string, action: string): { [string]: any }

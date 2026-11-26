@@ -30,6 +30,10 @@ type Entry = { id: string, kind: string, prompts: { [string]: ProximityPrompt } 
 function DeathTrapPrompts.start()
 	local player = Players.LocalPlayer
 	local entries: { [Instance]: Entry } = {}
+	-- Identifiants déjà pris : comme le serveur, seul le premier objet d'un identifiant en double a ses invites
+	local ids: { [string]: Instance } = {}
+	-- Invites en cours de maintien : la fin est envoyée au serveur si l'invite disparaît avant (bruit arrêté)
+	local holding: { [ProximityPrompt]: boolean } = {}
 	local private: Instance? = nil
 	local event: RemoteEvent? = nil
 
@@ -83,7 +87,12 @@ function DeathTrapPrompts.start()
 		if type(kind) ~= "string" or not Traps.KINDS[kind] then
 			return
 		end
-		local entry: Entry = { id = TrapPrompts.idOf(part), kind = kind, prompts = {} }
+		local id = TrapPrompts.idOf(part)
+		if ids[id] or not TrapPrompts.isValidId(id) then
+			return
+		end
+		ids[id] = part
+		local entry: Entry = { id = id, kind = kind, prompts = {} }
 		for _, action in { Action.Work, Action.Blow } do
 			local prompt = Instance.new("ProximityPrompt")
 			prompt.Name = TA.DeathPromptName
@@ -97,9 +106,11 @@ function DeathTrapPrompts.start()
 			prompt:SetAttribute(LA.PromptSight, true)
 			prompt:AddTag(LA.PromptTag)
 			prompt.PromptButtonHoldBegan:Connect(function()
+				holding[prompt] = true
 				send(Phase.Began, entry.id, action)
 			end)
 			prompt.PromptButtonHoldEnded:Connect(function()
+				holding[prompt] = nil
 				send(Phase.Ended, entry.id, action)
 			end)
 			prompt.Triggered:Connect(function()
@@ -117,7 +128,14 @@ function DeathTrapPrompts.start()
 		local entry = entries[part]
 		entries[part] = nil
 		if entry then
-			for _, prompt in entry.prompts do
+			if ids[entry.id] == part then
+				ids[entry.id] = nil
+			end
+			for action, prompt in entry.prompts do
+				if holding[prompt] then
+					holding[prompt] = nil
+					send(Phase.Ended, entry.id, action)
+				end
 				prompt:Destroy()
 			end
 		end
@@ -143,7 +161,8 @@ function DeathTrapPrompts.start()
 			return
 		end
 		private = container
-		container.AttributeChanged:Connect(refreshAll)
+		-- Seul le souffle change les invites (pas la dissipation ni la recharge, qui bougent souvent)
+		container:GetAttributeChangedSignal(TA.BreathCharges):Connect(refreshAll)
 		container.ChildAdded:Connect(watchStates)
 		container.ChildRemoved:Connect(refreshAll)
 		for _, child in container:GetChildren() do

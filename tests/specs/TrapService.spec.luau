@@ -740,6 +740,36 @@ return function(T, Loader)
 			T.expectEqual(death.private:FindFirstChild(TA.TrapStates), nil)
 		end)
 
+		T.it("ne lance pas le bruit de préparation d'un piège hors de portée ou hors de vue", function()
+			local service, env = setup()
+			local death = env.join("Mort", "Death", env.near("WetFloorGarage", Vector3.new(0, 0, 40)))
+			local noise = service.entries.WetFloorGarage.noise
+			env.action(death, TA.ActionPhase.Began, "WetFloorGarage", "work")
+			T.expectEqual(env.playing[noise], nil, "trop loin")
+			death:moveTo(env.near("WetFloorGarage", Vector3.new(0, 0, -3)))
+			env.los = false
+			env.action(death, TA.ActionPhase.Began, "WetFloorGarage", "work")
+			T.expectEqual(env.playing[noise], nil, "hors de vue")
+			env.los = true
+			env.action(death, TA.ActionPhase.Began, "WetFloorGarage", "work")
+			T.expectEqual(env.playing[noise], true, "à portée : le bruit part")
+		end)
+
+		T.it("arrête un bruit de préparation dont la fin du maintien n'arrive jamais", function()
+			local service, env = setup()
+			local death = env.join("Mort", "Death", env.near("KitchenShelf", Vector3.new(0, 0, -3)))
+			local noise = service.entries.KitchenShelf.noise
+			env.action(death, TA.ActionPhase.Began, "KitchenShelf", "work")
+			env.advance(Traps.KINDS.Shelf.steps[1])
+			service:step()
+			T.expectEqual(env.playing[noise], true, "maintien normal : le bruit continue")
+			env.advance(5)
+			service:step()
+			T.expectEqual(env.playing[noise], nil, "maintien périmé : bruit arrêté")
+			env.action(death, TA.ActionPhase.Triggered, "KitchenShelf", "work")
+			T.expectEqual(service.rules:get("KitchenShelf").state, "Idle", "et la préparation est refusée")
+		end)
+
 		T.it("ignore une action de la Mort mal formée, inconnue ou envoyée par un mortel", function()
 			local service, env = setup()
 			local spot = env.near("KitchenShelf", Vector3.new(0, 0, -3))
@@ -758,11 +788,17 @@ return function(T, Loader)
 		end)
 
 		T.it("donne à chaque point fragile un identifiant utilisable comme nom d'attribut", function()
-			local service = setup()
+			local service, env = setup()
+			local count = 0
 			for id in service.entries do
-				T.expect(string.match(id, "^[%a_][%w_]*$") ~= nil, id)
+				count += 1
+				T.expect(TrapPrompts.isValidId(id), id)
 				T.expect(#id + #TA.StepSuffix <= 100, id)
+				T.expect(string.find(id, TA.StepSuffix, 1, true) == nil, "pas de confusion avec une étape : " .. id)
 			end
+			T.expect(count >= 25, "aucun point fragile écarté")
+			T.expectEqual(#env.warnings, 0, table.concat(env.warnings, "\n"))
+			T.expect(not TrapPrompts.isValidId("Hall_Step"), "le suffixe d'étape n'est jamais un identifiant")
 		end)
 	end)
 
