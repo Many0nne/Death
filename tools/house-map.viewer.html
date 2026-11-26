@@ -94,6 +94,27 @@ renderer.clippingPlanes = [plane];
 
 const pickables = [];
 const lampLights = [];
+
+// Géométries unitaires partagées par tous les blocs de même forme (mises à l'échelle par bloc)
+const UNIT = {};
+// Cette fonction permet de donner la géométrie unitaire d'une forme (1 boule, 2 cylindre, sinon boîte) lorsque l'on
+// construit un bloc rond ou tourné ; le cylindre a son axe sur X, comme celui de Roblox.
+function unitGeometry(shape) {
+  if (!UNIT[shape ?? 0]) {
+    if (shape === 1) UNIT[shape] = new THREE.SphereGeometry(0.5, 20, 14);
+    else if (shape === 2) UNIT[shape] = new THREE.CylinderGeometry(0.5, 0.5, 1, 20).rotateZ(Math.PI / 2);
+    else UNIT[0] = new THREE.BoxGeometry(1, 1, 1);
+  }
+  return UNIT[shape ?? 0];
+}
+// Cette fonction permet de convertir les axes d'un bloc (repère du jeu, z vers le nord) en rotation Three.js (z = -z)
+// lorsque l'on oriente un bloc ; le miroir inverse le sens de l'axe Z local (sans effet sur boîte, cylindre, boule).
+function basisMatrix(m) {
+  const ex = new THREE.Vector3(m[0], m[1], -m[2]);
+  const ey = new THREE.Vector3(m[3], m[4], -m[5]);
+  const ez = new THREE.Vector3(-m[6], -m[7], m[8]);
+  return new THREE.Matrix4().makeBasis(ex, ey, ez);
+}
 // Repère du jeu : x vers l'est, z vers le nord ; Three.js : z vers la caméra, donc z = -z du jeu
 for (const b of DATA.boxes) {
   const [x0, y0, z0, x1, y1, z1] = b.b;
@@ -113,7 +134,14 @@ for (const b of DATA.boxes) {
       emissive: emissive ? color : 0x000000, emissiveIntensity: emissive ? 1 : 0,
       transparent: key === "WetFloor", opacity: key === "WetFloor" ? 0.8 : 1,
     });
-    mesh = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), mat);
+    if (b.s) {
+      // Bloc rond ou tourné : géométrie unitaire mise à la taille du bloc, puis orientée par ses axes
+      mesh = new THREE.Mesh(unitGeometry(b.f), mat);
+      mesh.scale.set(Math.max(b.s[0], 0.05), Math.max(b.s[1], 0.05), Math.max(b.s[2], 0.05));
+      if (b.m) mesh.quaternion.setFromRotationMatrix(basisMatrix(b.m));
+    } else {
+      mesh = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), mat);
+    }
     mesh.position.set((x0 + x1) / 2, (y0 + y1) / 2, -(z0 + z1) / 2);
     if (emissive) {
       const light = new THREE.PointLight(0xffd9a0, 0, 24, 1.2);
