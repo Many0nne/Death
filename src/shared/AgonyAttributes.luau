@@ -18,7 +18,7 @@ return table.freeze({
 	-- portent le tag et les attributs de LightAttributes, filtrées par Client.LightPrompts
 	PromptName = "AgonyPrompt",
 
-	-- Debug, sur le Player en agonie, en contexte serveur, Studio seulement. Commande remise à nil une fois lue :
+	-- Debug, sur le Player en agonie (ou le mannequin d'un faux joueur, #12), en contexte serveur, Studio seulement. Commande remise à nil une fois lue :
 	-- "reap" (fauchage fini par une Mort simulée), "massage:<bpm>" (masseur simulé qui appuie à cette cadence),
 	-- "stop" (le masseur simulé s'arrête). Les règles de Shared.Agony s'appliquent, pas les contrôles de distance.
 	DebugAgony = "DebugAgony",

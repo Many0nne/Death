@@ -135,6 +135,7 @@ function AgonyService.new(deps: Deps?)
 		-- Joueur ralenti ou immobilisé -> vitesse, hauteur et puissance de saut d'origine
 		saved = setmetatable({}, { __mode = "k" }) :: any,
 		bot = nil :: { target: number, period: number, nextPress: number }?,
+		watched = setmetatable({}, { __mode = "k" }) :: any, -- participants dont DebugAgony est écouté
 	}, AgonyService)
 end
 
@@ -262,6 +263,10 @@ function AgonyService:_startAgony(player, id: number)
 	player:SetAttribute(AA.AgonyEnd, self.deps.serverTime() + GameConfig.AGONY_DURATION)
 	self:_attach(self.entries[id])
 	self:_slow(player, GameConfig.CRAWL_SPEED)
+	-- Faux joueur de debug (#12) : absent de PlayerAdded, sa commande DebugAgony s'écoute sur son mannequin
+	if self.deps.isStudio and player.IsBot then
+		self:_watchPlayer(player)
+	end
 	self.deps.log(string.format("%s en agonie (%d s)", player.Name, GameConfig.AGONY_DURATION))
 end
 
@@ -609,8 +614,13 @@ end
 
 -- Debug --------------------------------------------------------------------------------------------------------------
 
--- Cette méthode permet d'écouter la commande DebugAgony d'un joueur lorsqu'il rejoint le serveur (Studio seulement).
+-- Cette méthode permet d'écouter la commande DebugAgony d'un joueur lorsqu'il rejoint le serveur, ou d'un faux joueur
+-- lorsqu'il tombe en agonie (Studio seulement, une fois par participant).
 function AgonyService:_watchPlayer(player)
+	if self.watched[player] then
+		return
+	end
+	self.watched[player] = true
 	player.AttributeChanged:Connect(function(name)
 		if name == AA.DebugAgony then
 			self:_onDebug(player)
