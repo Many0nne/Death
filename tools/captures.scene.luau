@@ -1,10 +1,10 @@
--- Mise en scène d'une capture de la carte, exécutée en Play dans le contexte Server via le MCP Studio (execute_luau).
--- Ne pas lancer tel quel : `lune run tools/captures -- scene <vue>` l'imprime précédé de la ligne `local VIEW = {...}`.
+-- Mise en scène des captures de la carte, exécutée en Play dans le contexte Server via le MCP Studio (execute_luau).
+-- `lune run tools/captures -- install` imprime ce fichier : l'exécuter une fois par Play installe _G.DeathCapture ;
+-- chaque vue s'appelle ensuite en une ligne (`lune run tools/captures -- list`), par exemple
+-- `return _G.DeathCapture({ light = "jour", cut = 10 })`. Sans argument, remet la scène du jeu.
 -- Idempotent et réversible : chaque appel annule d'abord la mise en scène précédente (lumière, blocs masqués).
--- VIEW.light = "jour" (lecture du décor) ou "nuit" (éclairage du jeu) ; VIEW.cut = hauteur au-dessus de laquelle les
--- blocs sont masqués (coupe d'un niveau), nil pour la maison entière.
-local VIEW = VIEW :: { light: string, cut: number? }
-
+-- light = "jour" (lecture du décor) ou "nuit" (éclairage du jeu) ; cut = hauteur au-dessus de laquelle les blocs sont
+-- masqués (coupe d'un niveau), nil pour la maison entière.
 local Lighting = game:GetService("Lighting")
 local ServerStorage = game:GetService("ServerStorage")
 local STASH = "CaptureStash"
@@ -71,9 +71,17 @@ local function cut(height: number): number
 	return hidden
 end
 
-restore()
-if VIEW.light == "jour" then
-	daylight()
+-- Cette méthode permet de mettre en scène une vue lorsque l'on s'apprête à la capturer (nil : scène du jeu).
+_G.DeathCapture = function(view: { light: string, cut: number? }?): string
+	restore()
+	if not view then
+		return "scène du jeu remise"
+	end
+	if view.light == "jour" then
+		daylight()
+	end
+	local hidden = if view.cut then cut(view.cut) else 0
+	return string.format("scène prête : lumière %s, %d blocs masqués", view.light, hidden)
 end
-local hidden = if VIEW.cut then cut(VIEW.cut) else 0
-return string.format("scène prête : lumière %s, %d blocs masqués", VIEW.light, hidden)
+
+return "installé : _G.DeathCapture"
