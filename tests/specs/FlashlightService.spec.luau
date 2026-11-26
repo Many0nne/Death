@@ -347,6 +347,18 @@ return function(T, Loader)
 			T.expectEqual(env.breathRemoved, 1)
 		end)
 
+		T.it("ne se reforme pas à côté d'un mortel en agonie (sans rôle de lumière)", function()
+			local service, env = setup()
+			local death = env.player("Mort", "Death", Vector3.new(0, 3, -15))
+			service:dispel(death)
+			local first = death.Character.HumanoidRootPart.CFrame.Position
+			death.Character.HumanoidRootPart.CFrame = CFrame.new(0, 3, -15)
+			env.player("Agonie", nil, first)
+			service:dispel(death)
+			local second = death.Character.HumanoidRootPart.CFrame.Position
+			T.expect((second - first).Magnitude >= Flashlight.RESPAWN_MIN_DISTANCE, "loin du mortel à terre")
+		end)
+
 		T.it("se reforme dans l'ombre : les points éclairés sont écartés", function()
 			local service, env = setup()
 			local mortal = env.player("Mortel", "Mortal", Vector3.new(0, 3, 0))

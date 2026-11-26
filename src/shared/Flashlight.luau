@@ -39,12 +39,18 @@ function Flashlight.inBeam(origin: Vector3, direction: Vector3, point: Vector3, 
 	if distance - r > Flashlight.RANGE then
 		return false
 	end
-	if distance <= r or distance < 1e-6 then
+	if distance < 1e-6 then
 		return true
 	end
-	local angle = math.acos(math.clamp(direction.Unit:Dot(offset / distance), -1, 1))
-	local slack = math.asin(math.min(1, r / distance))
-	return angle - slack <= math.rad(Flashlight.HALF_ANGLE)
+	local cos = direction.Unit:Dot(offset / distance)
+	-- Jamais à côté ni derrière la lampe, même tout près
+	if cos <= 0 then
+		return false
+	end
+	-- Marge du corps plafonnée : tout près de la lampe, le cône s'élargit au plus du double
+	local half = math.rad(Flashlight.HALF_ANGLE)
+	local slack = math.min(math.asin(math.min(1, r / distance)), half)
+	return math.acos(math.clamp(cos, -1, 1)) - slack <= half
 end
 
 -- Cette méthode permet de vider la batterie (0 à 1) lorsque la lampe reste allumée `dt` secondes.
@@ -70,9 +76,8 @@ function Flashlight.newDispel(): Dispel
 	return { held = 0, gap = 0, immunity = 0 }
 end
 
--- Cette méthode permet de cumuler le faisceau tenu sur la Mort à chaque frame lorsque l'on sait si un faisceau la
--- touche ; renvoie (dissipée maintenant, progression 0 à 1). Une coupure plus longue que DISPEL_GAP efface le cumul ;
--- après une dissipation, DISPEL_IMMUNITY secondes sans cumul.
+-- Cette méthode permet de cumuler le faisceau tenu sur la Mort à chaque frame lorsque l'on sait s'il la touche ;
+-- renvoie (dissipée, progression 0 à 1). Coupure > DISPEL_GAP : cumul effacé ; après dissipation, DISPEL_IMMUNITY.
 function Flashlight.updateDispel(state: Dispel, hit: boolean, dt: number): (boolean, number)
 	if state.immunity > 0 then
 		state.immunity = math.max(0, state.immunity - dt)
@@ -96,9 +101,8 @@ function Flashlight.updateDispel(state: Dispel, hit: boolean, dt: number): (bool
 	return false, state.held / Flashlight.DISPEL_TIME
 end
 
--- Cette méthode permet de choisir où la Mort se reforme lorsqu'elle est dissipée : un point dans l'ombre (`isLit`
--- faux), loin d'elle et de chaque mortel (RESPAWN_MIN_DISTANCE), tiré au hasard (`pick(n)` de 1 à n) ; à défaut, le
--- point d'ombre le plus éloigné du mortel le plus proche ; nil si tous sont éclairés.
+-- Cette méthode permet de choisir où la Mort se reforme lorsqu'elle est dissipée : une ombre à RESPAWN_MIN_DISTANCE
+-- d'elle et des mortels, au hasard ; sinon l'ombre la plus éloignée du plus proche ; nil si tout est éclairé.
 function Flashlight.chooseRespawn(
 	candidates: { Vector3 },
 	from: Vector3,

@@ -34,6 +34,16 @@ return function(T, Loader)
 			T.expect(Flashlight.inBeam(origin, forward, point, Flashlight.BODY_RADIUS))
 		end)
 
+		T.it("tout près de la lampe, ni à côté ni derrière, et la marge du corps reste bornée", function()
+			local side = origin + Vector3.new(1, 0, 0)
+			local behind = origin + Vector3.new(0, 0, 1)
+			T.expect(not Flashlight.inBeam(origin, forward, side, Flashlight.BODY_RADIUS), "à côté")
+			T.expect(not Flashlight.inBeam(origin, forward, behind, Flashlight.BODY_RADIUS), "derrière")
+			local wide = math.rad(60)
+			local near = origin + Vector3.new(math.sin(wide), 0, -math.cos(wide)) * 2
+			T.expect(not Flashlight.inBeam(origin, forward, near, Flashlight.BODY_RADIUS), "60° à 2 studs")
+		end)
+
 		T.it("accepte une direction non normalisée", function()
 			T.expect(Flashlight.inBeam(origin, forward * 7, origin + forward * 10))
 		end)
