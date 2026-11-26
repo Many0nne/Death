@@ -1,11 +1,13 @@
 -- Faux joueurs de debug (#12), Studio seulement : un bot ressemble à un Player pour Server.MatchService (UserId, Name,
 -- attributs, AttributeChanged, Character) et compte comme la Mort ou comme un mortel d'une manche de test.
 -- Ses attributs vivent sur son mannequin (un Model avec Humanoid) : `DebugSetState` posé sur le mannequin vise ce faux
--- mortel, comme sur un vrai joueur. Limite : TrapService, LightService et DeathController parcourent `Players`, donc
--- les bots n'en sont pas encore la cible (voir le compte rendu de #12).
+-- mortel, comme sur un vrai joueur. Les services de jeu les voient par Server.Roster (#52) : arrivée (Added) et départ
+-- (Removing, mannequin encore en place) comme PlayerAdded et PlayerRemoving.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local A = require(ReplicatedStorage:WaitForChild("Shared").MatchAttributes)
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local A = require(Shared.MatchAttributes)
+local Signal = require(Shared.Signal)
 
 local DebugBots = {}
 DebugBots.__index = DebugBots
@@ -25,6 +27,12 @@ end
 -- Cette méthode permet d'écrire un attribut du bot lorsqu'un service le traite comme un Player.
 function BotMethods:SetAttribute(name: string, value: any)
 	self.Character:SetAttribute(name, value)
+end
+
+-- Cette méthode permet de répondre comme un Player sans enfant lorsqu'un service cherche son PlayerGui (conteneur
+-- privé, Server.PrivateState) : un bot n'a ni PlayerGui ni client à qui répliquer.
+function BotMethods:FindFirstChildOfClass(_className: string): Instance?
+	return nil
 end
 
 -- Cette méthode permet de construire le mannequin d'un bot lorsqu'il est ajouté en jeu : un Model avec Humanoid et
@@ -54,6 +62,8 @@ function DebugBots.createMannequin(name: string): Instance
 	humanoid.RequiresNeck = false -- pas de Neck : la tête est soudée, le Humanoid ne doit pas mourir
 	humanoid.Parent = model
 	model.PrimaryPart = root
+	-- Traversé par les rayons comme un personnage (Shared.LineOfSight) : sinon il cacherait sa propre racine au faisceau
+	model:AddTag(A.BotTag)
 	model.Parent = workspace
 	return model
 end
@@ -66,6 +76,8 @@ function DebugBots.new(createModel: (string) -> any)
 		bots = {} :: { any },
 		counter = 0, -- UserId des bots
 		perRole = {} :: { [string]: number }, -- numéro du dernier bot de chaque rôle
+		Added = Signal.new(), -- bot ajouté (comme Players.PlayerAdded)
+		Removing = Signal.new(), -- bot sur le départ, mannequin encore en place (comme Players.PlayerRemoving)
 	}, DebugBots)
 end
 
@@ -82,16 +94,21 @@ function DebugBots:add(role: string)
 		IsBot = true,
 		Character = model,
 		AttributeChanged = model.AttributeChanged,
+		-- Jamais déclenché : le mannequin ne réapparaît pas (Server.DeathController s'y abonne comme pour un joueur)
+		CharacterAdded = Signal.new(),
 	}, BotMethods)
 	model:SetAttribute(A.DebugRole, role)
 	table.insert(self.bots, bot)
+	self.Added:Fire(bot)
 	return bot
 end
 
--- Cette méthode permet de retirer un bot du registre et de détruire son mannequin lorsqu'il quitte la manche.
+-- Cette méthode permet de retirer un bot du registre et de détruire son mannequin lorsqu'il quitte la manche ; les
+-- services sont prévenus avant (Removing, bot encore listé), comme au départ d'un joueur.
 function DebugBots:remove(bot)
 	local index = table.find(self.bots, bot)
 	if index then
+		self.Removing:Fire(bot)
 		table.remove(self.bots, index)
 		bot.Character:Destroy()
 	end

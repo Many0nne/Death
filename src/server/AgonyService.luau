@@ -39,7 +39,7 @@ AgonyService.__index = AgonyService
 export type Deps = {
 	match: any, -- MatchService : MortalStateChanged, PhaseChanged, MatchStarted, getPhase, revive, kill
 	death: any?, -- DeathController : setRooted(player, rooted)
-	players: any, -- service Players : GetPlayers, GetPlayerByUserId, PlayerAdded
+	players: any, -- participants (Server.Roster, API de Players) : GetPlayers, PlayerAdded, PlayerRemoving
 	isStudio: boolean,
 	roleOf: (any) -> string?, -- rôle effectif (attribut LightRole)
 	clock: () -> number,
@@ -58,17 +58,17 @@ export type Deps = {
 
 -- Cette méthode permet de construire les dépendances réelles (services Roblox) lorsque le service est créé en jeu.
 local function defaultDeps(): Deps
-	local Players = game:GetService("Players")
 	local RunService = game:GetService("RunService")
 	local LineOfSight = require(Shared.LineOfSight)
 	local TrapAttributes = require(Shared.TrapAttributes)
 	local event = Instance.new("RemoteEvent")
 	event.Name = AA.Event
 	event.Parent = ReplicatedStorage
+	local match = require(script.Parent.MatchService).get()
 	return {
-		match = require(script.Parent.MatchService).get(),
+		match = match,
 		death = require(script.Parent.DeathController).get(),
-		players = Players,
+		players = match:roster(), -- joueurs et faux joueurs de debug (Server.Roster)
 		isStudio = RunService:IsStudio(),
 		-- Cette méthode permet de lire le rôle répliqué d'un joueur lorsqu'il agit sur un agonisant.
 		roleOf = function(player)
@@ -131,11 +131,13 @@ function AgonyService.new(deps: Deps?)
 		entries = {} :: { [number]: any },
 		massagers = {} :: { [number]: any }, -- UserId du masseur -> Player
 		reveals = {} :: { [any]: number }, -- Player ranimé -> fin de sa visibilité (horloge)
-		holds = setmetatable({}, { __mode = "k" }) :: any, -- invite -> joueur -> début du maintien
+		-- Tables ordinaires : une clé faible sur un Player peut être ramassée en pleine manche (#58). Les invites sortent
+		-- de holds quand elles sont détruites (_detach), les joueurs au départ (_forget)
+		holds = {} :: { [any]: { [any]: number } }, -- invite -> joueur -> début du maintien
 		-- Joueur ralenti ou immobilisé -> vitesse, hauteur et puissance de saut d'origine
-		saved = setmetatable({}, { __mode = "k" }) :: any,
+		saved = {} :: { [any]: { walk: number, jumpHeight: number, jumpPower: number } },
 		bot = nil :: { target: number, period: number, nextPress: number }?,
-		watched = setmetatable({}, { __mode = "k" }) :: any, -- participants dont DebugAgony est écouté
+		watched = {} :: { [any]: boolean }, -- participants dont DebugAgony est écouté
 	}, AgonyService)
 end
 
@@ -173,6 +175,11 @@ function AgonyService:start()
 		self:press(player)
 	end)
 	local players = self.deps.players
+	if players.PlayerRemoving then
+		players.PlayerRemoving:Connect(function(player)
+			self:_forget(player)
+		end)
+	end
 	if self.deps.isStudio then
 		for _, player in players:GetPlayers() do
 			self:_watchPlayer(player)
@@ -267,10 +274,6 @@ function AgonyService:_startAgony(player, id: number)
 	player:SetAttribute(AA.AgonyEnd, self.deps.serverTime() + GameConfig.AGONY_DURATION)
 	self:_attach(self.entries[id])
 	self:_slow(player, GameConfig.CRAWL_SPEED)
-	-- Faux joueur de debug (#12) : absent de PlayerAdded, sa commande DebugAgony s'écoute sur son mannequin
-	if self.deps.isStudio and player.IsBot then
-		self:_watchPlayer(player)
-	end
 	self.deps.log(string.format("%s en agonie (%d s)", player.Name, GameConfig.AGONY_DURATION))
 end
 
@@ -345,7 +348,7 @@ function AgonyService:_makePrompt(root: BasePart, role: string, props: { [string
 	prompt:SetAttribute(LA.PromptSight, true)
 	prompt:AddTag(LA.PromptTag)
 	prompt.Parent = root
-	local holds = setmetatable({}, { __mode = "k" })
+	local holds = {}
 	self.holds[prompt] = holds
 	self.deps.connectPrompt(prompt, function(player)
 		local began = holds[player]
@@ -637,10 +640,22 @@ function AgonyService:_stepEntry(entry, dying: Agony.Dying, now: number)
 	end
 end
 
+-- Cette méthode permet d'oublier un joueur lorsqu'il quitte le serveur (ou qu'un bot est retiré) : maintiens, vitesse
+-- d'origine, révélation et écoute du debug ; son agonie suit l'événement de manche (mort, cause Left).
+function AgonyService:_forget(player)
+	-- Roblox ne garantit pas l'ordre des abonnés de PlayerRemoving : le chemin de départ ne doit rien réécrire par joueur
+	for _, holds in self.holds do
+		holds[player] = nil
+	end
+	self.saved[player] = nil
+	self.reveals[player] = nil
+	self.watched[player] = nil
+end
+
 -- Debug --------------------------------------------------------------------------------------------------------------
 
--- Cette méthode permet d'écouter la commande DebugAgony d'un joueur lorsqu'il rejoint le serveur, ou d'un faux joueur
--- lorsqu'il tombe en agonie (Studio seulement, une fois par participant).
+-- Cette méthode permet d'écouter la commande DebugAgony d'un participant lorsqu'il rejoint le serveur, bots compris
+-- (Studio seulement, une fois par participant).
 function AgonyService:_watchPlayer(player)
 	if self.watched[player] then
 		return

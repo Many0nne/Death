@@ -33,6 +33,8 @@ return table.freeze({
 	-- Debug* (DebugSetState...) se posent sur son mannequin, workspace["Bot Mortel 1"].
 	DebugAddBot = "DebugAddBot",
 	DebugClearBots = "DebugClearBots", -- true : retire tous les faux participants (comme un départ de joueur)
+	-- Tag CollectionService du mannequin d'un faux participant : traversé par les rayons comme un personnage (LineOfSight)
+	BotTag = "DebugBot",
 	-- "Key" : ramasse une clé restante comme ce joueur ; "Car" : démarre la voiture comme ce joueur (lu par
 	-- Server.EscapeService, mêmes règles que les actions en jeu)
 	DebugEscape = "DebugEscape",

@@ -76,7 +76,7 @@ export type Deps = {
 	-- LightService : canPrepareAt(position) (point du piège dans l'ombre), breakLamp(lampId) quand le lustre tombe
 	lights: any?,
 	layout: any?, -- description de la maison (Shared.HouseLayout) : orientation des meubles
-	players: any, -- service Players : GetPlayers, PlayerAdded
+	players: any, -- participants (Server.Roster, API de Players) : GetPlayers, PlayerAdded, PlayerRemoving
 	isStudio: boolean,
 	roleOf: (any) -> string?, -- rôle effectif (attribut LightRole)
 	isExposed: (any) -> boolean, -- la Mort est éclairée (attribut DeathExposed)
@@ -103,7 +103,6 @@ export type Deps = {
 
 -- Cette méthode permet de construire les dépendances réelles (services Roblox) lorsque le service est créé en jeu.
 local function defaultDeps(): Deps
-	local Players = game:GetService("Players")
 	local RunService = game:GetService("RunService")
 	local HouseBuilder = require(script.Parent.HouseBuilder)
 	local house = workspace:FindFirstChild(HouseBuilder.MODEL_NAME)
@@ -131,12 +130,13 @@ local function defaultDeps(): Deps
 		end)
 	end
 
+	local match = require(script.Parent.MatchService).get()
 	return {
 		house = house,
-		match = require(script.Parent.MatchService).get(),
+		match = match,
 		lights = require(script.Parent.LightService).get(),
 		layout = HouseLayout,
-		players = Players,
+		players = match:roster(), -- joueurs et faux joueurs de debug : un bot peut être victime d'un accident
 		isStudio = RunService:IsStudio(),
 		-- Cette méthode permet de lire le rôle répliqué d'un joueur lorsqu'il agit sur un piège.
 		roleOf = function(player)
@@ -267,8 +267,9 @@ function TrapService.new(deps: Deps?)
 		-- invite -> joueur à qui le refus a déjà été annoncé au début du maintien
 		refused = {} :: { [any]: { [any]: boolean } },
 		nextCue = {} :: { [string]: number }, -- piège armé -> prochain indice visuel (horloge)
-		-- Clés faibles : un joueur parti ne reste pas en mémoire
-		chilled = setmetatable({}, { __mode = "k" }) :: any,
+		-- Mortel dont la buée est publiée. Comme holds et refused, table ordinaire vidée au départ du joueur (_forget) :
+		-- une clé faible sur un Player peut être ramassée en pleine manche (#58)
+		chilled = {} :: { [any]: boolean },
 		elapsed = 0,
 		Triggered = Signal.new(),
 	}, TrapService)
@@ -364,6 +365,11 @@ function TrapService:start()
 		end)
 	end
 	local players = self.deps.players
+	if players and players.PlayerRemoving then
+		players.PlayerRemoving:Connect(function(player)
+			self:_forget(player)
+		end)
+	end
 	if players and self.deps.isStudio then
 		for _, player in players:GetPlayers() do
 			self:_watchPlayer(player)
@@ -732,9 +738,9 @@ end
 -- elle est créée ; le début du maintien est daté par l'horloge du serveur.
 function TrapService:_handlers(item): ((any) -> (), (any) -> (), (any) -> ())
 	local key = item.prompt
-	local holds = setmetatable({}, { __mode = "k" })
+	local holds = {}
 	self.holds[key] = holds
-	self.refused[key] = setmetatable({}, { __mode = "k" })
+	self.refused[key] = {}
 	return function(player)
 		self:_onPrompt(player, item)
 	end, function(player)
@@ -1066,6 +1072,23 @@ function TrapService:step()
 		if private then
 			self.chilled[player] = chilled or nil
 			PrivateState.write(private, TA.Chill, if chilled then true else nil)
+		end
+	end
+end
+
+-- Cette méthode permet d'oublier un joueur lorsqu'il quitte le serveur (ou qu'un bot est retiré) : maintiens, refus
+-- annoncés, buée publiée, et préparation en cours (le bruit orphelin s'arrête au prochain step).
+function TrapService:_forget(player)
+	for _, holds in self.holds do
+		holds[player] = nil
+	end
+	for _, refused in self.refused do
+		refused[player] = nil
+	end
+	self.chilled[player] = nil
+	for _, entry in self.entries do
+		if entry.preparer == player then
+			entry.preparer = nil
 		end
 	end
 end

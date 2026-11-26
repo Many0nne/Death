@@ -55,7 +55,7 @@ local DEBUG_BEAM_DISTANCE = 12
 
 export type Deps = {
 	house: Instance, -- maison construite (ancrages KeySpot, DeathSpawn, MortalSpawn, carrelage mouillé)
-	players: any, -- GetPlayers, PlayerAdded, PlayerRemoving
+	players: any, -- participants (Server.Roster, API de Players) : GetPlayers, PlayerAdded, PlayerRemoving
 	match: any?, -- MatchService : MatchStarted, PhaseChanged
 	lights: any?, -- LightService : addLightSource(test), isLit(position)
 	traps: any?, -- TrapService : removeBreathCharge()
@@ -78,7 +78,6 @@ export type Deps = {
 -- Cette méthode permet de construire les dépendances réelles (services Roblox) lorsque le service est créé en jeu.
 local function defaultDeps(): Deps
 	local Debris = game:GetService("Debris")
-	local Players = game:GetService("Players")
 	local RunService = game:GetService("RunService")
 	local HouseBuilder = require(script.Parent.HouseBuilder)
 	local house = workspace:FindFirstChild(HouseBuilder.MODEL_NAME)
@@ -138,10 +137,12 @@ local function defaultDeps(): Deps
 		Debris:AddItem(part, 3)
 	end
 
+	local match = require(script.Parent.MatchService).get()
 	return {
 		house = house,
-		players = Players,
-		match = require(script.Parent.MatchService).get(),
+		-- Joueurs et faux joueurs de debug (Server.Roster) : un bot mortel porte une lampe, un bot Mort peut être dissipé
+		players = match:roster(),
+		match = match,
 		lights = require(script.Parent.LightService).get(),
 		traps = require(script.Parent.TrapService).get(),
 		isStudio = RunService:IsStudio(),

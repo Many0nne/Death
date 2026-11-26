@@ -3,20 +3,27 @@
 -- (Server.HouseBuilder) ; les personnages et les blocs invisibles (ancrages) sont traversés.
 -- Pourquoi pas ProximityPrompt.RequiresLineOfSight : Roblox teste la vue depuis la caméra, qui, placée derrière le
 -- personnage, perd une lampe de plafond dès qu'elle passe sous un linteau de porte (mesuré en jeu).
+local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
+
+local MatchAttributes = require(script.Parent.MatchAttributes)
 
 local LineOfSight = {}
 
 -- Nombre maximal de blocs invisibles traversés par un même rayon
 local MAX_SKIPS = 8
 
--- Cette méthode permet de lister les personnages des joueurs lorsqu'un rayon doit les traverser.
+-- Cette méthode permet de lister les personnages des joueurs, et les mannequins des faux joueurs de debug (#52),
+-- lorsqu'un rayon doit les traverser.
 function LineOfSight.characters(): { Instance }
 	local list = {}
 	for _, player in Players:GetPlayers() do
 		if player.Character then
 			table.insert(list, player.Character)
 		end
+	end
+	for _, mannequin in CollectionService:GetTagged(MatchAttributes.BotTag) do
+		table.insert(list, mannequin)
 	end
 	return list
 end

@@ -56,7 +56,8 @@ local PROMPT_SPACING = 80
 export type Deps = {
 	house: Instance, -- maison construite (Server.HouseBuilder)
 	match: any?, -- MatchService : remise à zéro au début de manche et au retour à l'attente
-	players: any?, -- service Players : attribut DebugLight (Studio)
+	-- participants (Server.Roster, API de Players) : départ (maintiens oubliés), attribut DebugLight (Studio)
+	players: any?,
 	isStudio: boolean,
 	roleOf: (any) -> string?, -- rôle effectif d'un joueur pour la lumière (attribut LightRole)
 	clock: () -> number,
@@ -71,7 +72,6 @@ export type Deps = {
 
 -- Cette méthode permet de construire les dépendances réelles (services Roblox) lorsque le service est créé en jeu.
 local function defaultDeps(): Deps
-	local Players = game:GetService("Players")
 	local RunService = game:GetService("RunService")
 	local HouseBuilder = require(script.Parent.HouseBuilder)
 	local MatchService = require(script.Parent.MatchService)
@@ -102,10 +102,11 @@ local function defaultDeps(): Deps
 		task.delay(seconds, fn)
 	end
 
+	local match = MatchService.get()
 	return {
 		house = house,
-		match = MatchService.get(),
-		players = Players,
+		match = match,
+		players = match:roster(), -- joueurs et faux joueurs de debug (Server.Roster)
 		isStudio = RunService:IsStudio(),
 		roleOf = roleOf,
 		clock = os.clock,
@@ -188,6 +189,11 @@ function LightService:start()
 		end)
 	end
 	local players = self.deps.players
+	if players and players.PlayerRemoving then
+		players.PlayerRemoving:Connect(function(player)
+			self:_forget(player)
+		end)
+	end
 	if players and self.deps.isStudio then
 		for _, player in players:GetPlayers() do
 			self:_watchPlayer(player)
@@ -448,8 +454,9 @@ function LightService:_makePrompt(parent: Instance, role: string, props: { [stri
 	entry.prompt = prompt
 	entry.role = role
 	table.insert(self.prompts, entry)
-	-- Clés faibles : un joueur parti ne reste pas en mémoire
-	local holds = setmetatable({}, { __mode = "k" })
+	-- Table ordinaire vidée au départ du joueur (_forget) : une clé faible sur un Player peut être ramassée en pleine
+	-- manche (#58)
+	local holds = {}
 	self.holds[prompt] = holds
 	self.deps.connectPrompt(prompt, function(player)
 		self:_onPrompt(player, entry)
@@ -571,6 +578,13 @@ function LightService:_onPrompt(player, entry)
 	end
 	if not ok then
 		self.deps.warn(string.format("%s : %s refusé : %s", player.Name, entry.kind, tostring(err)))
+	end
+end
+
+-- Cette méthode permet d'oublier les maintiens d'un joueur lorsqu'il quitte le serveur (ou qu'un bot est retiré).
+function LightService:_forget(player)
+	for _, holds in self.holds do
+		holds[player] = nil
 	end
 end
 

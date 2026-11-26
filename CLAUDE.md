@@ -61,8 +61,11 @@ toujours avec lui.
 - **Faux joueur (Play Solo, Studio seulement)** : poser `DebugAddBot = "Mortal"` (ou `"Death"`) sur son Player ajoute un
   mannequin `workspace["Bot Mortel 1"]` compté par `DebugStartMatch` (1 Mort + 1 à 4 mortels, bots compris). Ses
   attributs `Debug*` se posent sur le mannequin : `DebugSetState = "Agony"` vise ce faux mortel. `DebugClearBots = true`
-  retire tous les bots (comme un départ de joueur). Limite : pièges, faisceau et lumière parcourent `Players`, donc ne
-  voient pas encore les bots (suite : #52). Code : `Server.DebugBots`.
+  retire tous les bots (comme un départ de joueur). Pièges, lumière, lampe torche, Mort et agonie parcourent
+  `MatchService:roster()` (joueurs + bots, API de `Players`) : un bot mortel est touché par un piège, porte une lampe
+  (`DebugFlashlight = "on"` sur le mannequin), un bot Mort est exposé par la lumière (attribut `DeathExposed` sur le
+  mannequin). Limites : les vues client (`Client.DeathView`, `Client.AgonyClient`) parcourent encore `Players`, donc un
+  bot Mort reste visible dans l'ombre ; `Server.EscapeService` aussi, donc un bot mortel ne peut pas s'échapper. Code : `Server.DebugBots`, `Server.Roster`.
 
 ## Qualité
 - Outils Rokit (`rokit.toml`) : `rojo`, `stylua`, `selene`, `luau-lsp`, `lune`. Installer avec `rokit install`.
