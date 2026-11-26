@@ -3,7 +3,8 @@
 -- traduit en silhouette ou en invisibilité (Client.DeathView). Pas d'attaque directe : la Mort n'a ni arme ni
 -- collision avec les mortels (groupes de collision), elle ne peut même pas leur barrer le passage.
 --
--- API, via `DeathController.get()` : :roleOf(player), :getDeath(), :isExposed().
+-- API, via `DeathController.get()` : :roleOf(player), :getDeath(), :isExposed(), :setRooted(player, rooted) (la Mort
+-- immobile pendant la lutte pour une âme, #6).
 local PhysicsService = game:GetService("PhysicsService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -48,6 +49,8 @@ function DeathController.new(deps)
 		characters = {} :: { [any]: Model }, -- Player -> personnage auquel le rôle a été appliqué
 		-- Player -> exposition, pour chaque joueur Mort (une seule en manche ; plusieurs possibles en bac à sable)
 		exposures = {} :: { [any]: DeathRules.Exposure },
+		-- Player immobilisé (lutte pour une âme) -> saut d'origine à rendre
+		rooted = {} :: { [any]: { jumpHeight: number, jumpPower: number } },
 	}, DeathController)
 end
 
@@ -82,6 +85,7 @@ function DeathController:start()
 		self.roles[player] = nil
 		self.characters[player] = nil
 		self.exposures[player] = nil
+		self.rooted[player] = nil
 	end)
 	self.deps.heartbeat:Connect(function(dt)
 		self:_step(dt)
@@ -106,6 +110,26 @@ end
 function DeathController:isExposed(player): boolean
 	local exposure = self.exposures[player]
 	return exposure ~= nil and exposure.exposed
+end
+
+-- Cette méthode permet d'immobiliser la Mort ou de lui rendre sa vitesse lorsque sa faux tire une âme (lutte pendant
+-- un massage, Server.AgonyService).
+function DeathController:setRooted(player, rooted: boolean)
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	local saved = self.rooted[player]
+	if rooted and not saved then
+		self.rooted[player] = {
+			jumpHeight = if humanoid then humanoid.JumpHeight else 7.2,
+			jumpPower = if humanoid then humanoid.JumpPower else 50,
+		}
+	elseif not rooted and saved then
+		self.rooted[player] = nil
+		if humanoid then
+			humanoid.JumpHeight = saved.jumpHeight
+			humanoid.JumpPower = saved.jumpPower
+		end
+	end
 end
 
 -- Boucle -------------------------------------------------------------------------------------------------------
@@ -156,7 +180,12 @@ function DeathController:_stepDeath(player, dt: number)
 		player:SetAttribute(LA.Exposed, exposed)
 	end
 	-- Réécrite à chaque frame : un autre script (ou un reset du personnage) ne peut pas la faire dériver
-	humanoid.WalkSpeed = DeathRules.speed(exposed)
+	local rooted = self.rooted[player] ~= nil
+	humanoid.WalkSpeed = if rooted then 0 else DeathRules.speed(exposed)
+	if rooted and humanoid.JumpHeight ~= 0 then
+		humanoid.JumpHeight = 0
+		humanoid.JumpPower = 0
+	end
 end
 
 -- Cette méthode permet d'appliquer un rôle à un joueur et à son personnage lorsqu'il change ou que le personnage

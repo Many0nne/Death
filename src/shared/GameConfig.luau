@@ -4,8 +4,16 @@ local GameConfig = {
 	MATCH_DURATION = 8 * 60,
 	MAX_ARMED_TRAPS = 4,
 	BREATH_CHARGES = 3,
+	-- Agonie, fauchage, réanimation (#6, docs/design.md) : agonie avant de mourir seul, maintien du fauchage, durée
+	-- d'un massage au bon rythme, cadence attendue (battements par minute), mortel ranimé visible par la Mort, et
+	-- vitesse de reptation en agonie (studs/s, contre 16 debout). Réglages fins (tolérance, lutte) : Shared.Agony
 	AGONY_DURATION = 45,
 	REAP_DURATION = 4,
+	MASSAGE_DURATION = 8,
+	MASSAGE_BPM_MIN = 100,
+	MASSAGE_BPM_MAX = 120,
+	REVEAL_DURATION = 20,
+	CRAWL_SPEED = 4,
 	WAITING_ROOM_MAX = 30,
 	-- Durée d'affichage du résultat (phase Ended) avant le retour à l'attente, en secondes
 	RESULT_DURATION = 10,

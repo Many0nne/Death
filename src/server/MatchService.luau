@@ -2,6 +2,7 @@
 -- l'état aux clients par attributs (`MatchAttributes`). Cycle : Waiting -> Running -> Ended -> Waiting.
 --
 -- API pour les étapes suivantes (pièges #5, agonie #6, fuite #7), via `MatchService.get()` :
+--   :accident(player)               mortel vivant -> agonie, ou mort sans agonie s'il a déjà été ranimé (#6)
 --   :down(player)                   mortel vivant -> agonie
 --   :revive(player)                 agonie -> vivant
 --   :kill(player, reaped?, cause?)  -> mort ; reaped = fauché par la Mort (depuis l'agonie seulement)
@@ -41,6 +42,7 @@ export type Deps = {
 -- États acceptés par DebugSetState : nom de l'état visé -> méthode de l'API et argument `reaped`
 local DEBUG_STATES = {
 	Agony = { method = "down" },
+	Accident = { method = "accident" },
 	Alive = { method = "revive" },
 	Dead = { method = "kill", reaped = false },
 	Reaped = { method = "kill", reaped = true },
@@ -184,6 +186,12 @@ end
 -- Cette méthode permet de faire tomber un mortel vivant en agonie lorsqu'un piège le touche.
 function MatchService:down(player): (boolean, string?)
 	return self:_mutate(player, "down")
+end
+
+-- Cette méthode permet d'appliquer un accident à un mortel vivant lorsqu'un piège le touche ou qu'il meurt par Roblox
+-- (#48) : agonie, ou mort sans agonie (âme échappée) s'il a déjà été ranimé.
+function MatchService:accident(player): (boolean, string?)
+	return self:_mutate(player, "accident")
 end
 
 -- Cette méthode permet de ranimer un mortel en agonie lorsque le massage ou le défibrillateur réussit.

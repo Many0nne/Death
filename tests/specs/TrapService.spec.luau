@@ -58,7 +58,8 @@ return function(T, Loader)
 		env.match = {
 			MatchStarted = Signal.new(),
 			PhaseChanged = Signal.new(),
-			down = function(_, player)
+			MortalStateChanged = Signal.new(),
+			accident = function(_, player)
 				table.insert(env.downs, player.Name)
 				return true
 			end,
@@ -503,6 +504,19 @@ return function(T, Loader)
 			service:step()
 			T.expectEqual(env.prompt("WetFloorKitchen", "blow"):GetAttribute(LA.PromptAvailable), true, "rechargé")
 			T.expectEqual(death:GetAttribute(TA.BreathCharges), 1)
+		end)
+
+		T.it("une âme fauchée recharge tout le souffle, une âme échappée rien", function()
+			local service, env = setup()
+			local death = env.join("Mort", "Death", Vector3.zero)
+			for _ = 1, 3 do
+				service:removeBreathCharge()
+			end
+			env.match.MortalStateChanged:Fire({ userId = 2, from = "Agony", to = "Dead", soul = "Escaped" })
+			T.expectEqual((service:breath()), 0, "âme échappée")
+			env.match.MortalStateChanged:Fire({ userId = 2, from = "Agony", to = "Dead", soul = "Reaped" })
+			T.expectEqual((service:breath()), GameConfig.BREATH_CHARGES, "âme fauchée")
+			T.expectEqual(death:GetAttribute(TA.BreathCharges), GameConfig.BREATH_CHARGES)
 		end)
 	end)
 

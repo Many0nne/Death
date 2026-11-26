@@ -25,7 +25,8 @@ return table.freeze({
 	DebugStart = "DebugStartMatch", -- true : démarre une manche en mode test avec les joueurs présents
 	DebugStop = "DebugStopMatch", -- true : annule la manche en cours, retour à l'attente sans résultat
 	DebugRole = "DebugRole", -- "Death" ou "Mortal" : rôle imposé aux manches suivantes (nil pour le tirage)
-	DebugState = "DebugSetState", -- "Agony", "Alive", "Dead", "Reaped" ou "Saved" : change l'état de ce mortel
+	DebugState = "DebugSetState", -- "Agony", "Accident", "Alive", "Dead", "Reaped" ou "Saved" : change l'état
+	-- de ce mortel ("Accident" : agonie, ou mort sans agonie s'il a déjà été ranimé)
 	DebugTimeScale = "DebugTimeScale", -- multiplicateur du sablier (ex. 10), gardé jusqu'au retrait (nil = x1)
 	DebugTimeLeft = "DebugTimeLeft", -- secondes : règle le temps restant du sablier
 	-- "Death" ou "Mortal" : ajoute un faux participant (mannequin) compté par les manches de test (#12). Ses attributs

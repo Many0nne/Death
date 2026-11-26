@@ -99,6 +99,17 @@ La lumière **révèle** la Mort, elle ne la bloque pas.
 - **Lutte pour l'âme** : si la Mort fauche pendant un massage, l'âme est à moitié sortie, la faux tire d'un côté et le
   massage de l'autre. La qualité du rythme décide.
 - **Mortel ranimé** : visible par la Mort à travers les murs pendant 20 s. Un deuxième accident le tue sans agonie.
+- **Réglages du prototype (#6)**, sources `src/shared/GameConfig.luau` et `src/shared/Agony.luau` : reptation à
+  4 studs/s sans saut ; cœur de 90 à 40 battements par minute au fil de l'agonie, entendu à environ 70 studs ;
+  « Faucher » (Mort, F, maintien 4 s, 8 studs) ; « Masser » (mortel, E) puis compressions sur Espace, clic ou bouton A,
+  masseur immobile : chaque compression notée selon l'écart avec la précédente (pleine entre 100 et 120 par minute,
+  ± 0,04 s de latence, nulle à 0,2 s au-delà), 16 compressions au rythme parfait (≈ 8 s à 110), massage abandonné
+  après 1,5 s sans compression (avancée perdue). Lutte : fauchage fini pendant un massage, l'âme part à moitié
+  sortie, la faux la tire en 4 s, chaque compression la repousse de 0,125 × qualité : il faut une qualité moyenne
+  d'environ 55 % pour gagner. Mort immobile pendant la lutte, minuterie de l'agonie arrêtée.
+- **Mort par Roblox pendant la manche (#48)** : un mortel vivant tué par Roblox (`/reset`, chute, Health = 0) subit un
+  accident (agonie, ou mort s'il a déjà été ranimé) ; un agonisant tué ainsi reste en agonie et réapparaît là où il
+  est mort.
 
 ## Âmes (validé dans le principe)
 - **Âme fauchée** : la Mort la récolte. Dans la manche, elle recharge entièrement son souffle. Hors manche, c'est la
