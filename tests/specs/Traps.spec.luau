@@ -221,6 +221,13 @@ return function(T, Loader)
 			T.expectEqual(Traps.hits("Shelf", floor, Vector3.new(0, 3, -3), front, box), false, "derrière")
 		end)
 
+		T.it("reconnaît la pièce d'un piège, seuils compris", function()
+			local center, size = Vector3.new(10, 6, 10), Vector3.new(10, 12, 8)
+			T.expectEqual(Traps.inZone(center, size, Vector3.new(14, 3, 13)), true)
+			T.expectEqual(Traps.inZone(center, size, Vector3.new(15.4, 3, 10)), true, "seuil")
+			T.expectEqual(Traps.inZone(center, size, Vector3.new(17, 3, 10)), false, "pièce voisine")
+		end)
+
 		T.it("la buée prévient à environ 3 m, sur le même niveau", function()
 			T.expectEqual(Traps.chills(floor, Vector3.new(Traps.CHILL_RADIUS - 0.5, 3, 0)), true)
 			T.expectEqual(Traps.chills(floor, Vector3.new(Traps.CHILL_RADIUS + 1, 3, 0)), false)

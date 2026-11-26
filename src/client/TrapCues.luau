@@ -82,6 +82,7 @@ function TrapCues.start()
 	tint.Parent = Lighting
 	local strength = 0 -- 0 : aucun frisson, 1 : frisson plein
 	local breathClock = 0
+	local shaking = false
 
 	RunService.RenderStepped:Connect(function(dt)
 		local chilled = player:GetAttribute(TA.Chill) == true
@@ -99,15 +100,18 @@ function TrapCues.start()
 		tint.Enabled = strength > 0
 		tint.Saturation = -0.25 * strength
 		tint.TintColor = Color3.new(1, 1, 1):Lerp(Color3.fromRGB(205, 222, 255), strength)
+		-- CameraOffset touché seulement pendant le frisson (et remis à zéro une fois à la fin) : il reste libre sinon
 		local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-		if humanoid then
-			humanoid.CameraOffset = if strength > 0
-				then Vector3.new(
-					(math.random() - 0.5) * 2 * SHIVER_AMPLITUDE * strength,
-					(math.random() - 0.5) * 2 * SHIVER_AMPLITUDE * strength,
-					0
-				)
-				else Vector3.zero
+		if humanoid and strength > 0 then
+			shaking = true
+			humanoid.CameraOffset = Vector3.new(
+				(math.random() - 0.5) * 2 * SHIVER_AMPLITUDE * strength,
+				(math.random() - 0.5) * 2 * SHIVER_AMPLITUDE * strength,
+				0
+			)
+		elseif humanoid and shaking then
+			shaking = false
+			humanoid.CameraOffset = Vector3.zero
 		end
 	end)
 

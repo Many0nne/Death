@@ -324,6 +324,18 @@ return function(T, Loader)
 			T.expectEqual((service:breath()), 3, "aucune charge dépensée")
 		end)
 
+		T.it("un maintien refusé au début n'arme jamais le piège, même si la Mort passe dans l'ombre", function()
+			local service, env = setup()
+			local prompt = env.prompt("KitchenShelf", "work")
+			local death = env.join("Mort", "Death", env.near("KitchenShelf", Vector3.new(0, 0, -3)))
+			env.exposed = true
+			env.triggers[prompt].hold(death)
+			env.exposed = false
+			env.advance(prompt.HoldDuration)
+			env.triggers[prompt].fn(death)
+			T.expectEqual(service.rules:get("KitchenShelf").state, "Idle", "pas de piège armé en silence")
+		end)
+
 		T.it("un refus abandonné au début n'étouffe pas le refus d'un maintien suivant", function()
 			local service, env = setup()
 			local prompt = env.prompt("KitchenShelf", "work")
@@ -522,6 +534,17 @@ return function(T, Loader)
 			service:defuse("KitchenShelf")
 			service:step()
 			T.expectEqual(near:GetAttribute(TA.Chill), nil, "désamorcé")
+		end)
+
+		T.it("ni buée ni accident à travers un mur : seulement dans la pièce du piège", function()
+			local service, env = setup()
+			-- KitchenShelf est adossée au mur nord de la cuisine : 3 studs derrière, c'est la pièce voisine
+			local behind = env.join("Derriere", "Mortal", env.near("KitchenShelf", Vector3.new(0, 0, 3)))
+			local front = env.join("Devant", "Mortal", env.near("KitchenShelf", Vector3.new(0, 0, -6)))
+			service:prepare("KitchenShelf")
+			service:step()
+			T.expectEqual(front:GetAttribute(TA.Chill), true)
+			T.expectEqual(behind:GetAttribute(TA.Chill), nil, "derrière le mur")
 		end)
 
 		T.it("indice visuel bref toutes les 8 à 10 s tant que le piège est armé", function()

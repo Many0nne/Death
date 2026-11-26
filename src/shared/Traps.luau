@@ -318,6 +318,14 @@ function Traps.hits(kind: string, floor: Vector3, root: Vector3, front: Vector3?
 	return true
 end
 
+-- Cette méthode permet de savoir si un personnage est dans la pièce d'un piège (volume `center`, `size`, marge des seuils
+-- comme Shared.Illumination) lorsque l'on cherche victimes ou buée : rien ne passe à travers un mur.
+function Traps.inZone(center: Vector3, size: Vector3, root: Vector3): boolean
+	local half = size / 2 + Vector3.new(0.5, 0.5, 0.5)
+	local d = root - center
+	return math.abs(d.X) <= half.X and math.abs(d.Y) <= half.Y and math.abs(d.Z) <= half.Z
+end
+
 -- Cette méthode permet de savoir si un mortel sent la présence d'un piège armé (buée, frisson) lorsque le serveur
 -- teste les distances : environ 3 m à l'horizontale, même niveau.
 function Traps.chills(floor: Vector3, root: Vector3): boolean

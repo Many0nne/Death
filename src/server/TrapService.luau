@@ -14,6 +14,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local DeathRules = require(Shared.DeathRules)
 local HouseGeometry = require(Shared.HouseGeometry)
 local HouseLayout = require(Shared.HouseLayout)
+local HouseStyle = require(Shared.HouseStyle)
 local LightAttributes = require(Shared.LightAttributes)
 local MapTags = require(Shared.MapTags)
 local Match = require(Shared.Match)
@@ -266,6 +267,8 @@ function TrapService._describe(id: string, kind: string, part: BasePart, room: B
 		part = part,
 		floor = Vector3.new(pos.X, floorY, pos.Z),
 		front = nil :: Vector3?,
+		-- Volume de la pièce (centre, taille) : victimes et buée seulement dedans
+		zone = if room and roomPos then { center = roomPos, size = room.Size } else nil,
 		moving = {} :: { BasePart }, -- blocs qui tombent (étagère : tout le meuble ; lustre : lampe et habillage)
 		origins = {} :: { [BasePart]: CFrame },
 	}
@@ -280,9 +283,13 @@ function TrapService._describe(id: string, kind: string, part: BasePart, room: B
 			end
 		end
 	elseif kind == MapTags.TrapKinds.Chandelier and part.Parent then
-		-- Le lustre et son habillage (tige, bras, coupelles) : blocs nommés d'après la lampe dans le dossier de la pièce
+		-- Le lustre et son habillage (tige, bras, coupelles) : noms exacts de HouseStyle.fixture, préfixés par la lampe
+		local names = { [id] = true }
+		for _, fixture in HouseStyle.fixture("Chandelier", { 1, 1, 1 }, 1, 0) do
+			names[id .. fixture.name] = true
+		end
 		for _, sibling in part.Parent:GetChildren() do
-			if sibling:IsA("BasePart") and string.sub(sibling.Name, 1, #id) == id then
+			if sibling:IsA("BasePart") and names[sibling.Name] then
 				table.insert(entry.moving, sibling)
 			end
 		end
@@ -464,13 +471,18 @@ function TrapService:blow(id: string): (boolean, string?, { any }?)
 end
 
 -- Cette méthode permet de lister les mortels touchés par un accident lorsque le piège se déclenche (rôle mortel,
--- personnage dans la zone de Traps.hits).
+-- personnage dans la pièce du piège et dans la zone de Traps.hits).
 function TrapService:_victims(entry): { any }
 	local victims = {}
 	for _, player in self.deps.players:GetPlayers() do
 		if self.deps.roleOf(player) == Role.Mortal then
 			local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-			if root and Traps.hits(entry.kind, entry.floor, root.CFrame.Position, entry.front, entry.part.Size) then
+			local pos = root and root.CFrame.Position
+			if
+				pos
+				and (entry.zone == nil or Traps.inZone(entry.zone.center, entry.zone.size, pos))
+				and Traps.hits(entry.kind, entry.floor, pos, entry.front, entry.part.Size)
+			then
 				table.insert(victims, player)
 			end
 		end
@@ -526,7 +538,13 @@ function TrapService:_setup(entry)
 	emitter.EmissionDirection = Enum.NormalId.Bottom
 	emitter.Parent = attachment
 	entry.cue = emitter
-	entry.look = { material = part.Material, color = part.Color }
+	entry.look = {
+		material = part.Material,
+		color = part.Color,
+		transparency = part.Transparency,
+		reflectance = part.Reflectance,
+		canQuery = part.CanQuery,
+	}
 	for _, moving in entry.moving do
 		entry.origins[moving] = moving.CFrame
 	end
@@ -648,6 +666,7 @@ end
 function TrapService:_restore(entry)
 	entry.fall = nil
 	entry.noiseHolder = nil
+	entry.preparer = nil
 	self.deps.stop(entry.noise)
 	if entry.cue then
 		entry.cue.Enabled = false
@@ -657,12 +676,13 @@ function TrapService:_restore(entry)
 	end
 	if entry.kind == MapTags.TrapKinds.WetFloor then
 		local part = entry.part
-		part.Transparency = 1
-		part.Reflectance = 0
-		part.CanQuery = true
-		if entry.look then
-			part.Material = entry.look.material
-			part.Color = entry.look.color
+		local look = entry.look
+		if look then
+			part.Transparency = look.transparency
+			part.Reflectance = look.reflectance
+			part.CanQuery = look.canQuery
+			part.Material = look.material
+			part.Color = look.color
 		end
 	end
 end
@@ -770,6 +790,9 @@ function TrapService:_onHoldBegan(player, item)
 	if refusedSet then
 		refusedSet[player] = nil
 	end
+	if item.entry.preparer == player then
+		item.entry.preparer = nil
+	end
 	if item.action ~= "work" or self.deps.roleOf(player) ~= Role.Death then
 		return
 	end
@@ -784,6 +807,7 @@ function TrapService:_onHoldBegan(player, item)
 	end
 	if self.rules:nextStepDuration(item.entry.id) then
 		item.entry.noiseHolder = player
+		item.entry.preparer = player
 		self.deps.play(item.entry.noise)
 	end
 end
@@ -799,17 +823,25 @@ end
 -- Cette méthode permet d'exécuter l'action d'une invite lorsqu'un joueur la déclenche, après contrôle du rôle, du
 -- maintien, de la distance et de la vue depuis le personnage : le client n'est jamais cru sur parole.
 function TrapService:_onPrompt(player, item)
+	if self.deps.roleOf(player) ~= item.role then
+		return
+	end
+	local entry = item.entry
+	-- Une préparation n'aboutit que si son maintien a commencé avec le bruit (jamais de piège armé en silence)
+	local prepared = entry.preparer == player
 	if item.action == "work" then
-		item.entry.noiseHolder = nil
-		self.deps.stop(item.entry.noise)
+		if entry.noiseHolder == player then
+			entry.noiseHolder = nil
+			self.deps.stop(entry.noise)
+		end
+		if prepared then
+			entry.preparer = nil
+		end
 	end
 	local refusedSet = self.refused[item.prompt]
 	local announced = refusedSet and refusedSet[player] == true
 	if refusedSet then
 		refusedSet[player] = nil
-	end
-	if self.deps.roleOf(player) ~= item.role then
-		return
 	end
 	local holds = self.holds[item.prompt]
 	local began = holds[player]
@@ -849,6 +881,12 @@ function TrapService:_onPrompt(player, item)
 		if trap and trap.state == State.Armed then
 			self:disarm(id)
 			self.deps.notify(player, label .. " désarmé")
+			return
+		end
+		if not prepared then
+			if not announced then
+				self.deps.notify(player, "préparation refusée : recommencer")
+			end
 			return
 		end
 		local _, _, state = self:prepare(id)
@@ -954,8 +992,13 @@ function TrapService:step()
 		if self.deps.roleOf(player) == Role.Mortal then
 			local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 			if root then
+				local pos = root.CFrame.Position
 				for _, id in armed do
-					if Traps.chills(self.entries[id].floor, root.CFrame.Position) then
+					local entry = self.entries[id]
+					local zone = entry.zone
+					if
+						(zone == nil or Traps.inZone(zone.center, zone.size, pos)) and Traps.chills(entry.floor, pos)
+					then
 						chilled = true
 						break
 					end
