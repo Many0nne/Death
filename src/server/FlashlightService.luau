@@ -36,9 +36,13 @@ local ATTACHMENT_NAME = "FlashlightBeam"
 local EYE_HEIGHT = 1.5
 -- Hauteur où poser la Mort au-dessus d'un ancrage au sol (elle tombe sur ses pieds), comme Server.MatchSpawner
 local DROP_HEIGHT = 3
--- Intervalles minimaux entre deux messages d'un même client (secondes) : interrupteur, regard
+-- Intervalles minimaux entre deux messages d'un même client (secondes) : interrupteur, regard (le client envoie au
+-- plus 15 regards par seconde : la marge absorbe la gigue du réseau)
 local TOGGLE_INTERVAL = 0.15
-local AIM_INTERVAL = 0.05
+local AIM_INTERVAL = 0.03
+-- Faisceau vu des autres : réécrit seulement s'il bouge de plus de ORIENT_MOVE studs ou d'environ 1,5 degré
+local ORIENT_MOVE = 0.05
+local ORIENT_MIN_DOT = 0.9997
 -- Pile : petit cylindre debout, orangé pour se voir sous le faisceau
 local BATTERY_COLOR = Color3.fromRGB(190, 110, 40)
 local BATTERY_SIZE = Vector3.new(0.8, 0.4, 0.4)
@@ -172,9 +176,11 @@ local function defaultDeps(): Deps
 		end,
 		remotes = { toggle = toggle, aim = aim },
 		heartbeat = RunService.Heartbeat,
+		-- Cette méthode permet d'écrire un message de la lampe dans la sortie lorsque son état change.
 		log = function(message)
 			print("[Lampe] " .. message)
 		end,
+		-- Cette méthode permet de signaler un refus ou une anomalie de la lampe dans la sortie.
 		warn = function(message)
 			warn("[Lampe] " .. message)
 		end,
@@ -450,10 +456,14 @@ function FlashlightService:reset()
 	table.clear(self.batteries)
 	for player, holder in self.holders do
 		holder.battery = 1
-		if holder.on then
-			self:_setOn(player, holder, false)
+		holder.on = false
+		if holder.light then
+			holder.light.Enabled = false
 		end
-		self:_publish(player, holder)
+		-- Attributs réécrits seulement pour un mortel : la Mort et les joueurs sans rôle n'en ont pas (LightAttributes)
+		if self.deps.roleOf(player) == Role.Mortal then
+			self:_publish(player, holder)
+		end
 	end
 	for _, dispel in self.dispels do
 		dispel.held, dispel.gap, dispel.immunity = 0, 0, 0
@@ -638,25 +648,44 @@ function FlashlightService:_ensureLight(player, holder)
 	end
 end
 
--- Cette méthode permet d'orienter le faisceau d'un mortel vers son regard lorsqu'il en envoie un nouveau (vu des autres
--- joueurs ; le client du mortel le réoriente à chaque image pour lui-même).
-function FlashlightService:_orient(head: BasePart, holder)
+-- Cette méthode permet de trouver d'où part le faisceau lorsque la règle ou le rendu en a besoin : la lampe tenue
+-- devant le visage (HOLD_OFFSET), ou le centre de la tête si un mur les sépare (nez contre une cloison : le faisceau
+-- ne passe pas de l'autre côté).
+function FlashlightService:_holdPoint(head: BasePart): Vector3
+	local center = head.CFrame.Position
+	local held = (head.CFrame * BEAM_OFFSET).Position
+	return if self.deps.lineOfSight(center, held) then held else center
+end
+
+-- Cette méthode permet d'orienter le faisceau vu des autres joueurs vers le regard d'un mortel lorsque le regard ou la
+-- tête bouge ; l'Attachment n'est réécrit (et répliqué) que s'il a vraiment changé. Le client du mortel le réoriente
+-- à chaque image pour lui-même.
+function FlashlightService:_orient(head: BasePart, holder, origin: Vector3?)
 	local attachment = holder.attachment
 	if not attachment or not holder.aim then
 		return
 	end
-	local origin = (head.CFrame * BEAM_OFFSET).Position
-	local world = CFrame.lookAt(origin, origin + holder.aim)
-	attachment.CFrame = head.CFrame:ToObjectSpace(world)
+	local from = origin or self:_holdPoint(head)
+	local wanted = head.CFrame:ToObjectSpace(CFrame.lookAt(from, from + holder.aim))
+	local current = attachment.CFrame
+	if
+		(current.Position - wanted.Position).Magnitude > ORIENT_MOVE
+		or current.LookVector:Dot(wanted.LookVector) < ORIENT_MIN_DOT
+	then
+		attachment.CFrame = wanted
+	end
 end
 
--- Cette méthode permet de donner le faisceau d'un mortel lampe allumée lorsqu'une frame passe : depuis ses yeux, vers
--- le dernier regard reçu (ou devant la tête tant qu'aucun n'est arrivé).
+-- Cette méthode permet de donner le faisceau d'un mortel lampe allumée lorsqu'une frame passe : depuis la lampe tenue
+-- devant le visage, vers le dernier regard reçu (ou devant la tête tant qu'aucun n'est arrivé) ; le rendu vu des
+-- autres est réaligné sur ce faisceau.
 function FlashlightService:_beamOf(player, holder): { origin: Vector3, direction: Vector3 }?
 	local character = player.Character
 	local head = character and character:FindFirstChild("Head")
 	if head and head:IsA("BasePart") then
-		return { origin = head.CFrame.Position, direction = holder.aim or head.CFrame.LookVector }
+		local origin = self:_holdPoint(head)
+		self:_orient(head, holder, origin)
+		return { origin = origin, direction = holder.aim or head.CFrame.LookVector }
 	end
 	local root = self:_root(player)
 	if not root then
@@ -699,12 +728,8 @@ function FlashlightService:_onAim(player, direction)
 		return
 	end
 	holder.lastAim = now
+	-- Le faisceau vu des autres suit à la frame suivante (_beamOf)
 	holder.aim = direction.Unit
-	local character = player.Character
-	local head = character and character:FindFirstChild("Head")
-	if head and head:IsA("BasePart") then
-		self:_orient(head, holder)
-	end
 end
 
 -- Piles ----------------------------------------------------------------------------------------------------------

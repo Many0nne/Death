@@ -218,6 +218,57 @@ return function(T, Loader)
 			service:_onAim(mortal, Vector3.new(1, 0, 0))
 			T.expectEqual(service.holders[mortal].aim, Vector3.new(1, 0, 0))
 		end)
+
+		T.it("le faisceau vu des autres reste sur le regard quand la tête tourne", function()
+			local service, env = setup()
+			local mortal = env.player("Mortel", "Mortal", Vector3.new(0, 3, 0))
+			service:step(0)
+			service:toggle(mortal)
+			env.now += 1
+			service:_onAim(mortal, Vector3.new(0, 0, -1))
+			service:step(1 / 30)
+			local attachment = mortal.Character.Head.FlashlightBeam
+			local head = mortal.Character.Head
+			-- Cette méthode permet de lire la direction du faisceau dans le monde lorsque le test la compare au regard
+			-- (WorldCFrame n'est pas calculé sous Lune).
+			local function worldLook()
+				return (head.CFrame * attachment.CFrame).LookVector
+			end
+			-- Direction attendue calculée comme le service (CFrame.lookAt) : sous Lune, lookAt renvoie le sens opposé à
+			-- celui de Roblox (mesuré), le test vérifie que le faisceau suit le regard, pas la bibliothèque
+			local expected = CFrame.lookAt(Vector3.zero, Vector3.new(0, 0, -1)).LookVector
+			T.expect(worldLook():Dot(expected) > 0.999, "sur le regard")
+			-- La tête tourne d'un quart de tour, le regard ne bouge pas
+			head.CFrame = CFrame.new(head.CFrame.Position) * CFrame.Angles(0, math.rad(90), 0)
+			service:step(1 / 30)
+			T.expect(worldLook():Dot(expected) > 0.999, "toujours sur le regard")
+		end)
+
+		T.it("nez contre un mur, le faisceau part du centre de la tête", function()
+			local service, env = setup()
+			local mortal = env.player("Mortel", "Mortal", Vector3.new(0, 3, 0))
+			service:toggle(mortal)
+			env.now += 1
+			service:_onAim(mortal, Vector3.new(0, 0, -1))
+			service:step(1 / 30)
+			local head = mortal.Character.Head.CFrame.Position
+			T.expect((service.beams[1].origin - head).Magnitude > 1, "lampe tenue devant le visage")
+			env.los = false
+			service:step(1 / 30)
+			T.expectEqual(service.beams[1].origin, head)
+		end)
+
+		T.it("la remise à zéro ne donne pas d'attributs de lampe à la Mort", function()
+			local service, env = setup()
+			local player = env.player("Joueur", "Mortal", Vector3.new(0, 3, 0))
+			service:toggle(player)
+			player.role = "Death"
+			service:step(0.1)
+			T.expectEqual(player.attrs[LA.FlashlightBattery], nil)
+			service:reset()
+			T.expectEqual(player.attrs[LA.FlashlightBattery], nil)
+			T.expectEqual(player.attrs[LA.FlashlightOn], nil)
+		end)
 	end)
 
 	T.describe("FlashlightService : faisceau et dissipation", function()

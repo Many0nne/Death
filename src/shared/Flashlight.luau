@@ -9,8 +9,8 @@ local Flashlight = {}
 Flashlight.BATTERY_DURATION = 40
 -- Portée du faisceau (studs) : rendu (SpotLight.Range, 60 au plus chez Roblox) et règle
 Flashlight.RANGE = 40
--- Demi-angle du cône qui compte (degrés) : la règle (éclairer, dissiper) ; le rendu est un peu plus large pour que la
--- tache de lumière déborde du cœur qui agit
+-- Demi-angle du cône qui compte (degrés) : la règle (éclairer, dissiper). Le rendu (SpotLight.Angle, angle total) est
+-- un peu plus large, 45° soit 22,5° de demi-angle, pour que la tache de lumière déborde du cœur qui agit
 Flashlight.HALF_ANGLE = 18
 Flashlight.VISUAL_ANGLE = 45
 -- Rendu : SpotLight (avec ombres) tenue devant le visage, à droite, dans le repère de la tête ; 1,5 stud devant pour

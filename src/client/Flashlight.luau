@@ -11,13 +11,16 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local DeathRules = require(Shared:WaitForChild("DeathRules"))
 local FlashlightRules = require(Shared:WaitForChild("Flashlight"))
 local LightAttributes = require(Shared:WaitForChild("LightAttributes"))
+local LineOfSight = require(Shared:WaitForChild("LineOfSight"))
 
 local LA = LightAttributes
 
 local ACTION = "Flashlight"
--- Regard envoyé au serveur au plus AIM_RATE fois par seconde, et seulement s'il a bougé (cosinus)
+-- Regard envoyé au serveur au plus AIM_RATE fois par seconde s'il a bougé (cosinus), et renvoyé toutes les
+-- AIM_REFRESH secondes même immobile : l'événement n'est pas fiable, un paquet perdu ne fige pas le faisceau
 local AIM_RATE = 15
 local AIM_MIN_DOT = 0.9995
+local AIM_REFRESH = 0.25
 -- Même décalage que le serveur (Server.FlashlightService) : lampe tenue devant le visage, à droite
 local BEAM_OFFSET = FlashlightRules.HOLD_OFFSET
 
@@ -75,11 +78,15 @@ function Flashlight.start()
 		local look = camera.CFrame.LookVector
 		local attachment = head:FindFirstChild("FlashlightBeam")
 		if attachment and attachment:IsA("Attachment") then
-			local origin = (head.CFrame * BEAM_OFFSET).Position
+			-- Même règle que le serveur : nez contre un mur, la lampe reste en deçà (centre de la tête)
+			local center = head.CFrame.Position
+			local held = (head.CFrame * BEAM_OFFSET).Position
+			local origin = if LineOfSight.clear(center, held, nil) then held else center
 			attachment.CFrame = head.CFrame:ToObjectSpace(CFrame.lookAt(origin, origin + look))
 		end
 		aimClock += dt
-		if aimClock >= 1 / AIM_RATE and (sentAim == nil or sentAim:Dot(look) < AIM_MIN_DOT) then
+		local moved = sentAim == nil or sentAim:Dot(look) < AIM_MIN_DOT
+		if (aimClock >= 1 / AIM_RATE and moved) or aimClock >= AIM_REFRESH then
 			aimClock = 0
 			sentAim = look
 			aim:FireServer(look)
