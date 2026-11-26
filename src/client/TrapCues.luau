@@ -1,5 +1,6 @@
 -- Indices des pièges côté client (#5), sans marqueur à l'écran :
--- - buée de respiration et léger frisson quand le serveur signale un piège armé à environ 3 m (attribut TrapChill) ;
+-- - buée de respiration et léger frisson quand le serveur signale un piège armé à environ 3 m (attribut TrapChill du
+--   conteneur privé du joueur, Shared.TrapAttributes) ;
 -- - message bref pour le joueur local (résultat d'un examen, refus d'une préparation : événement TrapNotice).
 -- Les bruits de préparation, l'indice visuel intermittent et les chutes sont joués par le serveur (Server.TrapService).
 local Lighting = game:GetService("Lighting")
@@ -83,9 +84,18 @@ function TrapCues.start()
 	local strength = 0 -- 0 : aucun frisson, 1 : frisson plein
 	local breathClock = 0
 	local shaking = false
+	-- Conteneur privé (créé par le serveur, parfois après le démarrage du client) : relu tant qu'il manque
+	local playerGui: Instance? = nil
+	local private: Instance? = nil
+	task.spawn(function()
+		playerGui = player:WaitForChild("PlayerGui")
+	end)
 
 	RunService.RenderStepped:Connect(function(dt)
-		local chilled = player:GetAttribute(TA.Chill) == true
+		if (private == nil or private.Parent == nil) and playerGui then
+			private = playerGui:FindFirstChild(TA.PrivateName)
+		end
+		local chilled = private ~= nil and private:GetAttribute(TA.Chill) == true
 		strength = math.clamp(strength + (if chilled then dt else -dt) * FADE_RATE, 0, 1)
 		local camera = workspace.CurrentCamera
 		if camera then

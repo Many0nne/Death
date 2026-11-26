@@ -1,5 +1,8 @@
 -- Mécanisme unique de visibilité des invites d'action (client) : lumière, fuite (#18, #19) et pièges (#5).
 -- Pour qu'une invite soit gérée ici, le serveur la crée avec `Enabled = false` puis :
+-- (une invite dont l'état est privé, comme celles des pièges de la Mort, est créée par le client de son seul
+-- utilisateur avec le même tag et les mêmes attributs : Client.DeathTrapPrompts, #49 ; jamais par le serveur, qui la
+-- répliquerait à tous)
 --   prompt:AddTag(LightAttributes.PromptTag)
 --   prompt:SetAttribute(LightAttributes.PromptRole, "Mortal" | "Death")   -- rôle qui peut s'en servir (nil : tous)
 --   prompt:SetAttribute(LightAttributes.PromptState, "Alive")             -- état de mortel requis (nil : aucun)

@@ -5,6 +5,7 @@ require(script.ResetControl).start()
 require(script.DeathView).start()
 require(script.CameraController).start()
 require(script.TrapCues).start()
+require(script.DeathTrapPrompts).start()
 require(script.AgonyClient).start()
 require(script.Flashlight).start()
 

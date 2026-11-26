@@ -9,7 +9,7 @@
 --
 -- API, via `FlashlightService.get()` : :isInBeam(position), :batteryOf(player), :toggle(player), :dispel(player).
 -- Événement : Dispelled({ player, from, to }). Attributs répliqués : Shared.LightAttributes (FlashlightBattery,
--- FlashlightOn, DispelProgress).
+-- FlashlightOn) ; DispelProgress va dans le conteneur privé de la Mort (Server.PrivateState, #49).
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
@@ -20,6 +20,8 @@ local LightAttributes = require(Shared.LightAttributes)
 local MapTags = require(Shared.MapTags)
 local Match = require(Shared.Match)
 local Signal = require(Shared.Signal)
+
+local PrivateState = require(script.Parent.PrivateState)
 
 local LA = LightAttributes
 local Role = DeathRules.Role
@@ -65,6 +67,7 @@ export type Deps = {
 	effect: (Vector3) -> (), -- fumée et son de la dissipation, à l'ancienne place de la Mort
 	pick: (number) -> number, -- index tiré de 1 à n
 	notify: (any, string) -> (), -- message bref pour un joueur
+	privateOf: (any) -> Instance?, -- conteneur privé d'un joueur (Server.PrivateState.get)
 	connectPrompt: (any, (any) -> ()) -> (), -- branche ProximityPrompt.Triggered (joueur en argument)
 	remotes: { toggle: any, aim: any }?, -- événements client -> serveur (OnServerEvent)
 	heartbeat: any?,
@@ -170,6 +173,7 @@ local function defaultDeps(): Deps
 				event:FireClient(player, text)
 			end
 		end,
+		privateOf = PrivateState.get,
 		-- Cette méthode permet de brancher l'action d'une pile lorsqu'elle est posée.
 		connectPrompt = function(prompt, onTriggered)
 			prompt.Triggered:Connect(onTriggered)
@@ -526,7 +530,10 @@ function FlashlightService:step(dt: number)
 	for player in self.dispels do
 		if not table.find(deaths, player) then
 			self.dispels[player] = nil
-			player:SetAttribute(LA.DispelProgress, nil)
+			local private = self.deps.privateOf(player)
+			if private then
+				PrivateState.write(private, LA.DispelProgress, nil)
+			end
 		end
 	end
 	for _, player in deaths do
@@ -548,8 +555,10 @@ function FlashlightService:_stepDeath(player, dt: number)
 	-- Au vingtième près, nil à 0 (une progression qui démarre ne publie pas 0)
 	local rounded = math.floor(progress * 20 + 0.5) / 20
 	local published = if rounded > 0 then rounded else nil
-	if player:GetAttribute(LA.DispelProgress) ~= published then
-		player:SetAttribute(LA.DispelProgress, published)
+	-- Privée (#49) : un client mortel ne doit pas savoir que son faisceau tient la Mort, invisible dans l'ombre
+	local private = self.deps.privateOf(player)
+	if private then
+		PrivateState.write(private, LA.DispelProgress, published)
 	end
 	if dispelled then
 		self:dispel(player)

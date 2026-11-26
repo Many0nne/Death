@@ -83,6 +83,9 @@ return function(T, Loader)
 			notify = function(player, text)
 				table.insert(env.notices, player.Name .. " : " .. text)
 			end,
+			privateOf = function(player)
+				return player.private
+			end,
 			connectPrompt = function(prompt, fn)
 				env.prompts[prompt] = fn
 			end,
@@ -107,7 +110,8 @@ return function(T, Loader)
 			head.CFrame = CFrame.new(position + Vector3.new(0, 1.5, 0))
 			head.Parent = character
 			local attrs = {}
-			local player = { Name = name, role = role, Character = character, attrs = attrs }
+			local player =
+				{ Name = name, role = role, Character = character, attrs = attrs, private = Instance.new("Folder") }
 			function player.GetAttribute(_, key)
 				return attrs[key]
 			end
@@ -310,7 +314,8 @@ return function(T, Loader)
 			service:toggle(mortal)
 			aimAt(service, env, mortal, death)
 			env.run(Flashlight.DISPEL_TIME / 2)
-			T.expect((death.attrs[LA.DispelProgress] or 0) >= 0.45, "progression publiée")
+			T.expect((death.private:GetAttribute(LA.DispelProgress) or 0) >= 0.45, "progression publiée")
+			T.expectEqual(death.attrs[LA.DispelProgress], nil, "privée : rien sur le Player, répliqué à tous (#49)")
 			T.expectEqual(dispelled, nil, "pas encore")
 			env.run(Flashlight.DISPEL_TIME / 2 + 0.05)
 			T.expect(dispelled, "dissipée")
@@ -321,7 +326,7 @@ return function(T, Loader)
 				(now - mortal.Character.HumanoidRootPart.CFrame.Position).Magnitude >= Flashlight.RESPAWN_MIN_DISTANCE,
 				"reformée loin du mortel"
 			)
-			T.expectEqual(death.attrs[LA.DispelProgress], nil)
+			T.expectEqual(death.private:GetAttribute(LA.DispelProgress), nil)
 		end)
 
 		T.it("ne dissipe pas derrière un mur ni hors du cône", function()

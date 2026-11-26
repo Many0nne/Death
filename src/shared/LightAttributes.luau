@@ -26,7 +26,8 @@ return table.freeze({
 	-- lampe allumée (true / false). Nil pour la Mort et hors rôle.
 	FlashlightBattery = "FlashlightBattery",
 	FlashlightOn = "FlashlightOn",
-	-- Sur le Player qui joue la Mort : part de la dissipation déjà tenue par un faisceau, de 0 à 1 (nil à 0)
+	-- Dans le conteneur privé de la Mort (Shared.TrapAttributes.PrivateName, #49), pas sur son Player : part de la
+	-- dissipation déjà tenue par un faisceau, de 0 à 1 (nil à 0)
 	DispelProgress = "DispelProgress",
 	-- RemoteEvent (enfant de ReplicatedStorage) : le client demande d'allumer / éteindre (argument "toggle")
 	FlashlightEvent = "FlashlightToggle",

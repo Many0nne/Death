@@ -1,6 +1,6 @@
 -- TrapService : points fragiles de la vraie maison (instances simulées par Lune), invites par rôle, contrôles serveur
 -- (rôle, lumière, maintien, distance), accidents (agonie, lustre sur plusieurs mortels), souffle publié, buée, remise à
--- zéro et commandes de debug.
+-- zéro et commandes de debug. État privé (#49) : rien de ce que sait la Mort n'est lisible par un autre client.
 return function(T, Loader)
 	local loader = Loader.new()
 	local HouseBuilder = loader:require("src/server/HouseBuilder")
@@ -11,6 +11,7 @@ return function(T, Loader)
 	local Match = loader:require("src/shared/Match")
 	local Signal = loader:require("src/shared/Signal")
 	local GameConfig = loader:require("src/shared/GameConfig")
+	local TrapPrompts = loader:require("src/shared/TrapPrompts")
 
 	-- Cette méthode permet de créer un faux joueur (rôle, position, attributs) lorsque le test agit à sa place.
 	local function fakePlayer(name, role, position)
@@ -19,7 +20,9 @@ return function(T, Loader)
 		root.Name = "HumanoidRootPart"
 		root.CFrame = CFrame.new(position or Vector3.zero)
 		root.Parent = character
-		local player = { Name = name, role = role, Character = character, attributes = {} }
+		-- private : conteneur privé (PlayerGui, Server.PrivateState), le seul objet que ce joueur est seul à recevoir
+		local player =
+			{ Name = name, role = role, Character = character, attributes = {}, private = Instance.new("Folder") }
 		-- Cette méthode permet de lire un attribut du faux joueur lorsque le service le consulte.
 		function player.GetAttribute(self, key)
 			return self.attributes[key]
@@ -98,6 +101,12 @@ return function(T, Loader)
 			connectPrompt = function(prompt, fn, holdBegan, holdEnded)
 				env.triggers[prompt] = { fn = fn, hold = holdBegan, ended = holdEnded }
 			end,
+			listenActions = function(handler)
+				env.action = handler
+			end,
+			privateOf = function(player)
+				return player.private
+			end,
 			delay = function(seconds, fn)
 				table.insert(env.delays, { at = env.now + seconds, fn = fn })
 			end,
@@ -130,6 +139,33 @@ return function(T, Loader)
 			end,
 		})
 		service:start()
+		-- Invites de la Mort : son client envoie phase, id et action par l'événement TrapAction (TrapAttributes.ActionEvent)
+		for _, item in service.prompts do
+			if item.role == "Death" then
+				local id, action = item.entry.id, item.action
+				env.triggers[item.prompt] = {
+					fn = function(player)
+						env.action(player, TA.ActionPhase.Triggered, id, action)
+					end,
+					hold = function(player)
+						env.action(player, TA.ActionPhase.Began, id, action)
+					end,
+					ended = function(player)
+						env.action(player, TA.ActionPhase.Ended, id, action)
+					end,
+				}
+			end
+		end
+
+		-- Cette méthode permet de lire si une invite est disponible lorsque le test vérifie ce qu'elle permet : vue serveur
+		-- pour une invite de la Mort, attribut répliqué pour celle d'un mortel.
+		function env.available(id, action)
+			local prompt = env.prompt(id, action)
+			if TrapPrompts.DEATH_ACTIONS[action] then
+				return prompt.available
+			end
+			return prompt:GetAttribute(LA.PromptAvailable)
+		end
 
 		-- Cette méthode permet d'avancer l'horloge simulée et d'exécuter les délais échus lorsque le test laisse passer
 		-- le temps.
@@ -196,24 +232,37 @@ return function(T, Loader)
 			T.expectEqual(#env.warnings, 0, table.concat(env.warnings, "\n"))
 		end)
 
-		T.it("crée quatre invites par objet, réservées à un rôle", function()
+		T.it("crée deux invites de mortels par objet ; celles de la Mort n'existent que sur son client", function()
 			local count = 0
 			for _ in service.entries do
 				count += 1
 			end
 			T.expectEqual(#service.prompts, 4 * count)
-			T.expectEqual(env.prompt("KitchenShelf", "work"):GetAttribute(LA.PromptRole), "Death")
 			T.expectEqual(env.prompt("KitchenShelf", "examine"):GetAttribute(LA.PromptRole), "Mortal")
 			T.expect(env.prompt("KitchenShelf", "defuse"):HasTag(LA.PromptTag), "filtrées comme celles de la lumière")
+			local mortalPrompts = 0
 			for _, item in service.prompts do
-				T.expectEqual(item.prompt.Enabled, false, "créée masquée, le client décide (#19)")
+				if item.role == "Death" then
+					T.expectEqual(typeof(item.prompt), "table", "vue serveur, pas d'Instance répliquée")
+				else
+					mortalPrompts += 1
+					T.expectEqual(item.prompt.Enabled, false, "créée masquée, le client décide (#19)")
+				end
 			end
+			local inHouse = 0
+			for _, d in env.house:GetDescendants() do
+				if d:IsA("ProximityPrompt") and d.Name == TA.PromptName then
+					inHouse += 1
+					T.expectEqual(d:GetAttribute(LA.PromptRole), "Mortal", "aucune invite de la Mort dans la maison")
+				end
+			end
+			T.expectEqual(inHouse, mortalPrompts)
 			T.expectEqual(env.prompt("KitchenShelf", "work").ActionText, "Préparer")
 			T.expectEqual(env.prompt("KitchenShelf", "work").HoldDuration, Traps.KINDS.Shelf.steps[1])
 			T.expectEqual(env.prompt("LivingChandelier", "work").ActionText, "Préparer (1/2)")
-			T.expectEqual(env.prompt("KitchenShelf", "blow"):GetAttribute(LA.PromptAvailable), false, "rien d'armé")
-			T.expectEqual(env.prompt("KitchenShelf", "examine"):GetAttribute(LA.PromptAvailable), true)
-			T.expectEqual(env.prompt("KitchenShelf", "defuse"):GetAttribute(LA.PromptAvailable), true)
+			T.expectEqual(env.available("KitchenShelf", "blow"), false, "rien d'armé")
+			T.expectEqual(env.available("KitchenShelf", "examine"), true)
+			T.expectEqual(env.available("KitchenShelf", "defuse"), true)
 		end)
 
 		T.it("place le sol du lustre au plancher du salon et fait tomber l'étagère vers la pièce", function()
@@ -271,9 +320,9 @@ return function(T, Loader)
 			T.expectEqual(env.playing[noise], nil, "silence ensuite")
 			T.expectEqual(service.rules:get("KitchenShelf").state, "Armed")
 			T.expectEqual(prompt.ActionText, "Désarmer")
-			T.expectEqual(env.prompt("KitchenShelf", "blow"):GetAttribute(LA.PromptAvailable), true)
-			T.expectEqual(death:GetAttribute(TA.ArmedTraps), 1)
-			T.expectEqual(death:GetAttribute(TA.BreathCharges), GameConfig.BREATH_CHARGES)
+			T.expectEqual(env.available("KitchenShelf", "blow"), true)
+			T.expectEqual(death.private:GetAttribute(TA.ArmedTraps), 1)
+			T.expectEqual(death.private:GetAttribute(TA.BreathCharges), GameConfig.BREATH_CHARGES)
 			T.expectEqual(env.notices[#env.notices], "Mort : Étagère armé (1/4)")
 		end)
 
@@ -320,7 +369,7 @@ return function(T, Loader)
 			T.expectEqual(service.rules:get("LivingChandelier").state, "Preparing", "éclairé : pas de seconde étape")
 			local abandon = env.prompt("LivingChandelier", "blow")
 			T.expectEqual(abandon.ActionText, "Abandonner")
-			T.expectEqual(abandon:GetAttribute(LA.PromptAvailable), true)
+			T.expectEqual(abandon.available, true)
 			env.trigger(abandon, death)
 			T.expectEqual(service.rules:get("LivingChandelier").state, "Idle")
 			T.expectEqual(service.rules:activeCount(), 0, "place rendue")
@@ -411,13 +460,13 @@ return function(T, Loader)
 			env.trigger(env.prompt("WetFloorKitchen", "blow"), death)
 			T.expectEqual(table.concat(env.downs, ","), "Dessus")
 			T.expectEqual(service.rules:get("WetFloorKitchen").state, "Spent")
-			T.expectEqual(death:GetAttribute(TA.BreathCharges), 2)
-			T.expectEqual(death:GetAttribute(TA.BreathRechargeEnd), 1000 + Traps.BREATH_RECHARGE)
+			T.expectEqual(death.private:GetAttribute(TA.BreathCharges), 2)
+			T.expectEqual(death.private:GetAttribute(TA.BreathRechargeEnd), 1000 + Traps.BREATH_RECHARGE)
 			local puddle = service.entries.WetFloorKitchen.part
 			T.expect(puddle.Transparency < 1, "flaque visible")
 			T.expectEqual(puddle.CanQuery, false, "la flaque ne cache rien")
-			T.expectEqual(env.prompt("WetFloorKitchen", "work"):GetAttribute(LA.PromptAvailable), false)
-			T.expectEqual(env.prompt("WetFloorKitchen", "examine"):GetAttribute(LA.PromptAvailable), false)
+			T.expectEqual(env.available("WetFloorKitchen", "work"), false)
+			T.expectEqual(env.available("WetFloorKitchen", "examine"), false)
 		end)
 
 		T.it("le lustre touche plusieurs mortels, tombe au sol et s'éteint", function()
@@ -497,13 +546,13 @@ return function(T, Loader)
 			for _ = 1, 3 do
 				service:removeBreathCharge()
 			end
-			T.expectEqual(env.prompt("WetFloorKitchen", "blow"):GetAttribute(LA.PromptAvailable), false, "à sec")
+			T.expectEqual(env.available("WetFloorKitchen", "blow"), false, "à sec")
 			env.trigger(env.prompt("WetFloorKitchen", "blow"), death)
 			T.expectEqual(service.rules:get("WetFloorKitchen").state, "Armed", "plus de souffle")
 			env.advance(Traps.BREATH_RECHARGE)
 			service:step()
-			T.expectEqual(env.prompt("WetFloorKitchen", "blow"):GetAttribute(LA.PromptAvailable), true, "rechargé")
-			T.expectEqual(death:GetAttribute(TA.BreathCharges), 1)
+			T.expectEqual(env.available("WetFloorKitchen", "blow"), true, "rechargé")
+			T.expectEqual(death.private:GetAttribute(TA.BreathCharges), 1)
 		end)
 
 		T.it("une âme fauchée recharge tout le souffle, une âme échappée rien", function()
@@ -516,7 +565,7 @@ return function(T, Loader)
 			T.expectEqual((service:breath()), 0, "âme échappée")
 			env.match.MortalStateChanged:Fire({ userId = 2, from = "Agony", to = "Dead", soul = "Reaped" })
 			T.expectEqual((service:breath()), GameConfig.BREATH_CHARGES, "âme fauchée")
-			T.expectEqual(death:GetAttribute(TA.BreathCharges), GameConfig.BREATH_CHARGES)
+			T.expectEqual(death.private:GetAttribute(TA.BreathCharges), GameConfig.BREATH_CHARGES)
 		end)
 	end)
 
@@ -542,15 +591,15 @@ return function(T, Loader)
 			local far = env.join("Loin", "Mortal", env.near("KitchenShelf", Vector3.new(0, 0, -20)))
 			local death = env.join("Mort", "Death", env.near("KitchenShelf", Vector3.new(0, 0, -2)))
 			service:step()
-			T.expectEqual(near:GetAttribute(TA.Chill), nil, "rien d'armé")
+			T.expectEqual(near.private:GetAttribute(TA.Chill), nil, "rien d'armé")
 			service:prepare("KitchenShelf")
 			service:step()
-			T.expectEqual(near:GetAttribute(TA.Chill), true)
-			T.expectEqual(far:GetAttribute(TA.Chill), nil)
-			T.expectEqual(death:GetAttribute(TA.Chill), nil)
+			T.expectEqual(near.private:GetAttribute(TA.Chill), true)
+			T.expectEqual(far.private:GetAttribute(TA.Chill), nil)
+			T.expectEqual(death.private:GetAttribute(TA.Chill), nil)
 			service:defuse("KitchenShelf")
 			service:step()
-			T.expectEqual(near:GetAttribute(TA.Chill), nil, "désamorcé")
+			T.expectEqual(near.private:GetAttribute(TA.Chill), nil, "désamorcé")
 		end)
 
 		T.it("ni buée ni accident à travers un mur : seulement dans la pièce du piège", function()
@@ -560,8 +609,8 @@ return function(T, Loader)
 			local front = env.join("Devant", "Mortal", env.near("KitchenShelf", Vector3.new(0, 0, -6)))
 			service:prepare("KitchenShelf")
 			service:step()
-			T.expectEqual(front:GetAttribute(TA.Chill), true)
-			T.expectEqual(behind:GetAttribute(TA.Chill), nil, "derrière le mur")
+			T.expectEqual(front.private:GetAttribute(TA.Chill), true)
+			T.expectEqual(behind.private:GetAttribute(TA.Chill), nil, "derrière le mur")
 		end)
 
 		T.it("indice visuel bref toutes les 8 à 10 s tant que le piège est armé", function()
@@ -607,6 +656,154 @@ return function(T, Loader)
 			T.expectEqual(service.rules:get("KitchenShelf").state, "Armed", "le résultat garde l'état")
 			env.match.PhaseChanged:Fire(Match.Phase.Waiting)
 			T.expectEqual(service.rules:get("KitchenShelf").state, "Idle")
+		end)
+	end)
+
+	T.describe("TrapService : état privé de la Mort (#49)", function()
+		-- Cette méthode permet de relever tout ce qu'un client mortel peut lire (maison, invites, attributs des joueurs)
+		-- lorsque le test compare deux instants : une ligne par objet ou attribut, triées.
+		local function publicSnapshot(env): string
+			local lines = {}
+			for _, d in env.house:GetDescendants() do
+				local name = d:GetFullName()
+				for key, value in d:GetAttributes() do
+					table.insert(lines, string.format("%s@%s=%s", name, key, tostring(value)))
+				end
+				if d:IsA("ProximityPrompt") then
+					table.insert(
+						lines,
+						string.format(
+							"%s|%s|%s|%s|%s|%s",
+							name,
+							d.ActionText,
+							d.ObjectText,
+							tostring(d.HoldDuration),
+							tostring(d.Enabled),
+							tostring(d.MaxActivationDistance)
+						)
+					)
+				elseif d:IsA("ParticleEmitter") then
+					table.insert(lines, name .. "|" .. tostring(d.Enabled))
+				end
+			end
+			for _, player in env.list do
+				for key, value in player.attributes do
+					table.insert(lines, string.format("%s@%s=%s", player.Name, key, tostring(value)))
+				end
+			end
+			table.sort(lines)
+			return table.concat(lines, "\n")
+		end
+
+		T.it("préparer, armer, désarmer et perdre du souffle ne change rien de ce que lit un mortel", function()
+			local service, env = setup()
+			local death = env.join("Mort", "Death", env.near("LivingChandelier"))
+			local mortal = env.join("Vivant", "Mortal", env.near("KitchenShelf", Vector3.new(0, 0, -6)))
+			service:step()
+			local before = publicSnapshot(env)
+			T.expect(#before > 0, "relevé non vide")
+			env.trigger(env.prompt("LivingChandelier", "work"), death)
+			death:moveTo(env.near("KitchenShelf", Vector3.new(0, 0, -3)))
+			env.trigger(env.prompt("KitchenShelf", "work"), death)
+			service:prepare("WetFloorKitchen")
+			service:disarm("WetFloorKitchen")
+			service:removeBreathCharge()
+			service:step()
+			T.expectEqual(service.rules:get("KitchenShelf").state, "Armed", "la scène a bien eu lieu")
+			T.expectEqual(publicSnapshot(env), before, "rien de répliqué à tous n'a changé")
+			T.expectEqual(next(death.attributes), nil, "aucun attribut sur le Player de la Mort")
+			-- Tout est dans le conteneur privé de la Mort
+			local private = death.private
+			T.expectEqual(private:GetAttribute(TA.ArmedTraps), 1)
+			T.expectEqual(private:GetAttribute(TA.BreathCharges), GameConfig.BREATH_CHARGES - 1)
+			T.expect(private:GetAttribute(TA.BreathRechargeEnd) ~= nil, "recharge en cours")
+			local states = private:FindFirstChild(TA.TrapStates)
+			T.expectEqual(states:GetAttribute("KitchenShelf"), "Armed")
+			T.expectEqual(states:GetAttribute("LivingChandelier"), "Preparing")
+			T.expectEqual(states:GetAttribute("LivingChandelier" .. TA.StepSuffix), 1)
+			T.expectEqual(states:GetAttribute("WetFloorKitchen"), nil, "désarmé : comme un objet intact")
+			-- Le mortel reçoit sa buée en privé, rien de l'état de la Mort
+			T.expectEqual(mortal.private:GetAttribute(TA.Chill), true)
+			T.expectEqual(mortal.private:GetAttribute(TA.BreathCharges), nil)
+			T.expectEqual(mortal.private:FindFirstChild(TA.TrapStates), nil)
+		end)
+
+		T.it("vide le conteneur privé d'un joueur qui n'est plus la Mort", function()
+			local service, env = setup()
+			local death = env.join("Mort", "Death", env.near("KitchenShelf"))
+			service:prepare("KitchenShelf")
+			T.expect(death.private:FindFirstChild(TA.TrapStates) ~= nil, "états publiés")
+			death.role = "Mortal"
+			service:step()
+			T.expectEqual(death.private:GetAttribute(TA.BreathCharges), nil)
+			T.expectEqual(death.private:GetAttribute(TA.ArmedTraps), nil)
+			T.expectEqual(death.private:FindFirstChild(TA.TrapStates), nil)
+		end)
+
+		T.it("ne lance pas le bruit de préparation d'un piège hors de portée ou hors de vue", function()
+			local service, env = setup()
+			local death = env.join("Mort", "Death", env.near("WetFloorGarage", Vector3.new(0, 0, 40)))
+			local noise = service.entries.WetFloorGarage.noise
+			env.action(death, TA.ActionPhase.Began, "WetFloorGarage", "work")
+			T.expectEqual(env.playing[noise], nil, "trop loin")
+			T.expectEqual(env.notices[#env.notices], "Mort : hors de portée : recommencer", "annoncé au début")
+			env.advance(Traps.KINDS.WetFloor.steps[1])
+			env.action(death, TA.ActionPhase.Triggered, "WetFloorGarage", "work")
+			T.expectEqual(#env.notices, 1, "pas une seconde fois à la fin")
+			death:moveTo(env.near("WetFloorGarage", Vector3.new(0, 0, -3)))
+			env.los = false
+			env.action(death, TA.ActionPhase.Began, "WetFloorGarage", "work")
+			T.expectEqual(env.playing[noise], nil, "hors de vue")
+			env.los = true
+			env.action(death, TA.ActionPhase.Began, "WetFloorGarage", "work")
+			T.expectEqual(env.playing[noise], true, "à portée : le bruit part")
+		end)
+
+		T.it("arrête un bruit de préparation dont la fin du maintien n'arrive jamais", function()
+			local service, env = setup()
+			local death = env.join("Mort", "Death", env.near("KitchenShelf", Vector3.new(0, 0, -3)))
+			local noise = service.entries.KitchenShelf.noise
+			env.action(death, TA.ActionPhase.Began, "KitchenShelf", "work")
+			env.advance(Traps.KINDS.Shelf.steps[1])
+			service:step()
+			T.expectEqual(env.playing[noise], true, "maintien normal : le bruit continue")
+			env.advance(5)
+			service:step()
+			T.expectEqual(env.playing[noise], nil, "maintien périmé : bruit arrêté")
+			env.action(death, TA.ActionPhase.Triggered, "KitchenShelf", "work")
+			T.expectEqual(service.rules:get("KitchenShelf").state, "Idle", "et la préparation est refusée")
+		end)
+
+		T.it("ignore une action de la Mort mal formée, inconnue ou envoyée par un mortel", function()
+			local service, env = setup()
+			local spot = env.near("KitchenShelf", Vector3.new(0, 0, -3))
+			local death = env.join("Mort", "Death", spot)
+			local mortal = env.join("Vivant", "Mortal", spot)
+			env.action(death, TA.ActionPhase.Triggered, 42, "work")
+			env.action(death, TA.ActionPhase.Triggered, "KitchenShelf", nil)
+			env.action(death, "bogus", "KitchenShelf", "work")
+			env.action(death, TA.ActionPhase.Triggered, "Inconnu", "work")
+			env.action(death, TA.ActionPhase.Triggered, "KitchenShelf", "examine")
+			T.expectEqual(#env.notices, 0, "rien d'exécuté")
+			env.trigger(env.prompt("KitchenShelf", "work"), mortal)
+			T.expectEqual(service.rules:get("KitchenShelf").state, "Idle", "un mortel ne prépare pas")
+			env.trigger(env.prompt("KitchenShelf", "work"), death)
+			T.expectEqual(service.rules:get("KitchenShelf").state, "Armed", "la Mort, si")
+		end)
+
+		T.it("donne à chaque point fragile un identifiant utilisable comme nom d'attribut", function()
+			local service, env = setup()
+			local count = 0
+			for id in service.entries do
+				count += 1
+				T.expect(TrapPrompts.isValidId(id), id)
+				T.expect(#id + #TA.StepSuffix <= 100, id)
+				T.expect(string.find(id, TA.StepSuffix, 1, true) == nil, "pas de confusion avec une étape : " .. id)
+			end
+			T.expect(count >= 25, "aucun point fragile écarté")
+			T.expectEqual(#env.warnings, 0, table.concat(env.warnings, "\n"))
+			T.expect(not TrapPrompts.isValidId("Hall_Step"), "le suffixe d'étape n'est jamais un identifiant")
+			T.expect(not TrapPrompts.isValidId("RBXLamp"), "préfixe réservé par Roblox")
 		end)
 	end)
 

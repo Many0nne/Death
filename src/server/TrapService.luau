@@ -1,5 +1,6 @@
--- Service des pièges (serveur) : tient l'état des points fragiles (Shared.Traps), crée les invites de la Mort
--- (préparer ou désarmer, souffler) et des mortels (examiner, désamorcer), joue les bruits de préparation, l'indice
+-- Service des pièges (serveur) : tient l'état des points fragiles (Shared.Traps), crée les invites des mortels
+-- (examiner, désamorcer) et reçoit celles de la Mort (préparer ou désarmer, souffler : créées par son seul client,
+-- Client.DeathTrapPrompts, relayées par TrapAttributes.ActionEvent), joue les bruits de préparation, l'indice
 -- visuel intermittent des pièges armés et les accidents (carrelage, étagère, lustre), applique l'accident aux mortels
 -- touchés (MatchService:accident : agonie, ou mort sans agonie s'ils ont déjà été ranimés) et signale la buée aux
 -- mortels proches d'un piège armé. Une âme fauchée recharge le souffle. Remise à zéro à chaque manche.
@@ -7,7 +8,10 @@
 -- API pour les étapes suivantes (dissipation #8, âmes, HUD #9), via `TrapService.get()` :
 --   :removeBreathCharge()   la Mort perd une charge (dissipée par la lampe torche) ; (true) ou (false, raison)
 --   :refillBreath()         souffle plein (âme récoltée)
---   :breath()               charges, fin de recharge (horloge du serveur) ; aussi en attributs (Shared.TrapAttributes)
+--   :breath()               charges, fin de recharge (horloge du serveur)
+-- État privé (#49) : souffle, pièges armés et état de chaque piège publiés dans le conteneur privé de la Mort, buée dans
+-- celui de chaque mortel (Server.PrivateState, noms et lecture : Shared.TrapAttributes) ; jamais sur un objet répliqué
+-- à tous.
 -- Événement : Triggered({ id, kind, victims }) après chaque accident.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -21,25 +25,20 @@ local MapTags = require(Shared.MapTags)
 local Match = require(Shared.Match)
 local Signal = require(Shared.Signal)
 local TrapAttributes = require(Shared.TrapAttributes)
+local TrapPrompts = require(Shared.TrapPrompts)
 local Traps = require(Shared.Traps)
+
+local PrivateState = require(script.Parent.PrivateState)
 
 local LA = LightAttributes
 local TA = TrapAttributes
 local Role = DeathRules.Role
 local State = Traps.State
+local Action = TrapPrompts.Action
+local Phase = TA.ActionPhase
 
 local TrapService = {}
 TrapService.__index = TrapService
-
--- Touches des invites : préparer/désarmer et désamorcer sur F, souffler sur Q, examiner sur E (celle des invites par
--- défaut, comme rétablir le courant) ; décalage vertical des bulles d'un même objet
-local KEYS = {
-	work = { key = Enum.KeyCode.F, pad = Enum.KeyCode.ButtonY },
-	blow = { key = Enum.KeyCode.Q, pad = Enum.KeyCode.ButtonR1 },
-	examine = { key = Enum.KeyCode.E, pad = Enum.KeyCode.ButtonX },
-	defuse = { key = Enum.KeyCode.F, pad = Enum.KeyCode.ButtonY },
-}
-local PROMPT_SPACING = 80
 
 -- Bruit de préparation selon la taille (docs/design.md) : presque rien, grincement à environ 15 m, bruit fort entendu
 -- dans les pièces voisines. Sons provisoires fournis avec le client Roblox, en boucle pendant le maintien.
@@ -85,6 +84,10 @@ export type Deps = {
 	serverTime: () -> number, -- horloge partagée avec les clients (workspace:GetServerTimeNow)
 	-- branche Triggered, PromptButtonHoldBegan et PromptButtonHoldEnded d'une invite (joueur en argument)
 	connectPrompt: (any, (any) -> (), (any) -> (), (any) -> ()) -> (),
+	-- branche l'événement des invites de la Mort (TrapAttributes.ActionEvent) : handler(joueur, phase, id, action)
+	listenActions: ((any, any, any, any) -> ()) -> (),
+	-- conteneur privé d'un joueur (Server.PrivateState.get), nil tant qu'il n'existe pas
+	privateOf: (any) -> Instance?,
 	delay: (number, () -> ()) -> (),
 	-- joue une animation de `duration` secondes : appelle step(alpha) de 0 à 1
 	animate: (number, (number) -> ()) -> (),
@@ -112,6 +115,9 @@ local function defaultDeps(): Deps
 	local notice = Instance.new("RemoteEvent")
 	notice.Name = TA.NoticeEvent
 	notice.Parent = ReplicatedStorage
+	local actionEvent = Instance.new("RemoteEvent")
+	actionEvent.Name = TA.ActionEvent
+	actionEvent.Parent = ReplicatedStorage
 	local rng = Random.new()
 
 	-- Cette méthode permet de jouer une animation image par image lorsque un objet tombe (étagère, lustre).
@@ -151,6 +157,11 @@ local function defaultDeps(): Deps
 			prompt.PromptButtonHoldEnded:Connect(onHoldEnded)
 			prompt.Triggered:Connect(onTriggered)
 		end,
+		-- Cette méthode permet de recevoir les invites de la Mort lorsque son client en tient ou déclenche une.
+		listenActions = function(handler)
+			actionEvent.OnServerEvent:Connect(handler)
+		end,
+		privateOf = PrivateState.get,
 		-- Cette méthode permet de différer une action (fin d'un signe d'indice) lorsque le service la programme.
 		delay = function(seconds, fn)
 			task.delay(seconds, fn)
@@ -186,16 +197,6 @@ local function defaultDeps(): Deps
 			warn("[Pièges] " .. message)
 		end,
 	}
-end
-
--- Cette méthode permet de trouver l'identifiant d'un point fragile lorsque le service lit la maison : AnchorId du
--- carrelage, LampId du lustre, sinon le nom du meuble.
-local function trapId(part: BasePart): string
-	local id = part:GetAttribute(MapTags.Attributes.AnchorId) or part:GetAttribute(MapTags.Attributes.LampId)
-	if type(id) == "string" then
-		return id
-	end
-	return if part.Parent and part.Parent:IsA("Model") then part.Parent.Name else part.Name
 end
 
 -- Avant d'un meuble selon son orientation (HouseGeometry.propFacing) : nord = +Z, est = +X
@@ -238,10 +239,12 @@ function TrapService.new(deps: Deps?)
 	local kinds = {}
 	local entries = {}
 	for _, part in candidates do
-		local id = trapId(part)
+		local id = TrapPrompts.idOf(part)
 		local kind = part:GetAttribute(MapTags.Attributes.TrapKind)
 		if kinds[id] then
 			d.warn("point fragile en double : " .. id)
+		elseif not TrapPrompts.isValidId(id) then
+			d.warn("point fragile ignoré, identifiant inutilisable comme attribut : " .. id)
 		elseif not Traps.KINDS[kind] then
 			d.warn(string.format("point fragile %s : type inconnu %s", id, tostring(kind)))
 		else
@@ -255,14 +258,17 @@ function TrapService.new(deps: Deps?)
 		started = false,
 		rules = Traps.new(kinds),
 		entries = entries, -- id -> { id, kind, part, floor, front?, prompts, ... }
-		prompts = {} :: { any }, -- { prompt, action, entry, role }
+		-- { prompt, action, entry, role } ; pour la Mort, `prompt` est une vue serveur (ActionText, HoldDuration,
+		-- MaxActivationDistance, available) de l'invite que seul son client crée. HoldDuration et la portée servent aux
+		-- contrôles ; `available` n'est qu'un reflet (tests) : les règles (_canWork, Traps) décident
+		prompts = {} :: { any },
+		deathItems = {} :: { [string]: { [string]: any } }, -- id -> action -> élément d'une invite de la Mort
 		holds = {} :: { [any]: { [any]: number } }, -- invite -> joueur -> début du maintien
 		-- invite -> joueur à qui le refus a déjà été annoncé au début du maintien
 		refused = {} :: { [any]: { [any]: boolean } },
 		nextCue = {} :: { [string]: number }, -- piège armé -> prochain indice visuel (horloge)
 		-- Clés faibles : un joueur parti ne reste pas en mémoire
 		chilled = setmetatable({}, { __mode = "k" }) :: any,
-		published = setmetatable({}, { __mode = "k" }) :: any, -- joueur Mort -> souffle publié
 		elapsed = 0,
 		Triggered = Signal.new(),
 	}, TrapService)
@@ -337,6 +343,9 @@ function TrapService:start()
 		self:_setup(self.entries[id])
 	end
 	self:_refreshPrompts()
+	self.deps.listenActions(function(player, phase, id, action)
+		self:_onAction(player, phase, id, action)
+	end)
 	local match = self.deps.match
 	if match then
 		match.MatchStarted:Connect(function()
@@ -568,43 +577,10 @@ function TrapService:_setup(entry)
 		entry.origins[moving] = moving.CFrame
 	end
 
-	local label = spec.label
-	-- Le lustre porte déjà l'invite « Griller l'ampoule » au centre : bulles des pièges écartées d'une bulle entière
-	local gap = if entry.kind == MapTags.TrapKinds.Chandelier then PROMPT_SPACING else PROMPT_SPACING / 2
-	self:_makePrompt(entry, "work", Role.Death, {
-		ObjectText = label,
-		KeyboardKeyCode = KEYS.work.key,
-		GamepadKeyCode = KEYS.work.pad,
-		MaxActivationDistance = Traps.INTERACT_DISTANCE,
-		UIOffset = Vector2.new(0, -gap),
-	})
-	self:_makePrompt(entry, "blow", Role.Death, {
-		ActionText = "Souffler",
-		ObjectText = label,
-		KeyboardKeyCode = KEYS.blow.key,
-		GamepadKeyCode = KEYS.blow.pad,
-		HoldDuration = 0,
-		MaxActivationDistance = Traps.BREATH_DISTANCE,
-		UIOffset = Vector2.new(0, gap),
-	})
-	self:_makePrompt(entry, "examine", Role.Mortal, {
-		ActionText = "Examiner",
-		ObjectText = label,
-		KeyboardKeyCode = KEYS.examine.key,
-		GamepadKeyCode = KEYS.examine.pad,
-		HoldDuration = Traps.EXAMINE_HOLD,
-		MaxActivationDistance = Traps.INTERACT_DISTANCE,
-		UIOffset = Vector2.new(0, -gap),
-	})
-	self:_makePrompt(entry, "defuse", Role.Mortal, {
-		ActionText = "Désamorcer",
-		ObjectText = label,
-		KeyboardKeyCode = KEYS.defuse.key,
-		GamepadKeyCode = KEYS.defuse.pad,
-		HoldDuration = spec.defuse,
-		MaxActivationDistance = Traps.INTERACT_DISTANCE,
-		UIOffset = Vector2.new(0, gap),
-	})
+	self:_makeDeathView(entry, Action.Work)
+	self:_makeDeathView(entry, Action.Blow)
+	self:_makePrompt(entry, Action.Examine, Role.Mortal, TrapPrompts.props(entry.kind, Action.Examine))
+	self:_makePrompt(entry, Action.Defuse, Role.Mortal, TrapPrompts.props(entry.kind, Action.Defuse))
 end
 
 -- Cette méthode permet de programmer le prochain indice visuel d'un piège armé lorsque il vient d'être armé ou qu'un
@@ -708,8 +684,8 @@ end
 
 -- Invites --------------------------------------------------------------------------------------------------------
 
--- Cette méthode permet de créer une invite réservée à un rôle sur un point fragile lorsque le service démarre ; chaque
--- client la filtre comme celles de la lumière (Client.LightPrompts : rôle, disponibilité, vue, regard).
+-- Cette méthode permet de créer une invite réservée aux mortels sur un point fragile lorsque le service démarre ;
+-- chaque client la filtre comme celles de la lumière (Client.LightPrompts : rôle, disponibilité, vue, regard).
 function TrapService:_makePrompt(entry, action: string, role: string, props: { [string]: any })
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = TA.PromptName
@@ -727,58 +703,81 @@ function TrapService:_makePrompt(entry, action: string, role: string, props: { [
 	prompt.Parent = entry.part
 	local item = { prompt = prompt, action = action, entry = entry, role = role }
 	table.insert(self.prompts, item)
+	local triggered, began, ended = self:_handlers(item)
+	self.deps.connectPrompt(prompt, triggered, began, ended)
+	return prompt
+end
+
+-- Cette méthode permet de créer la vue serveur d'une invite de la Mort lorsque le service démarre : l'invite elle-même
+-- n'existe que sur le client de la Mort (Client.DeathTrapPrompts), le serveur garde son maintien et sa portée pour
+-- contrôler les actions reçues par TrapAttributes.ActionEvent.
+function TrapService:_makeDeathView(entry, action: string)
+	local props = TrapPrompts.props(entry.kind, action)
+	local view = {
+		ActionText = props.ActionText,
+		HoldDuration = props.HoldDuration,
+		MaxActivationDistance = props.MaxActivationDistance,
+		available = false,
+	}
+	local item = { prompt = view, action = action, entry = entry, role = Role.Death }
+	table.insert(self.prompts, item)
+	local triggered, began, ended = self:_handlers(item)
+	item.handlers = { [Phase.Triggered] = triggered, [Phase.Began] = began, [Phase.Ended] = ended }
+	self.deathItems[entry.id] = self.deathItems[entry.id] or {}
+	self.deathItems[entry.id][action] = item
+	return view
+end
+
+-- Cette méthode permet de construire les réactions d'une invite (déclenchée, maintien commencé, maintien lâché) lorsque
+-- elle est créée ; le début du maintien est daté par l'horloge du serveur.
+function TrapService:_handlers(item): ((any) -> (), (any) -> (), (any) -> ())
+	local key = item.prompt
 	local holds = setmetatable({}, { __mode = "k" })
-	self.holds[prompt] = holds
-	self.refused[prompt] = setmetatable({}, { __mode = "k" })
-	self.deps.connectPrompt(prompt, function(player)
+	self.holds[key] = holds
+	self.refused[key] = setmetatable({}, { __mode = "k" })
+	return function(player)
 		self:_onPrompt(player, item)
 	end, function(player)
 		holds[player] = self.deps.clock()
 		self:_onHoldBegan(player, item)
 	end, function(player)
 		self:_onHoldEnded(player, item)
-	end)
-	return prompt
+	end
 end
 
--- Cette méthode permet de publier ce que chaque invite permet maintenant lorsque l'état des pièges ou le souffle
--- change ; l'invite de travail de la Mort devient « Préparer (étape) » ou « Désarmer ».
+-- Cette méthode permet de recevoir une invite de la Mort lorsque son client la tient, la lâche ou la déclenche : les
+-- arguments viennent du client, ils sont vérifiés avant d'atteindre les contrôles habituels (rôle, maintien, distance,
+-- vue, lumière).
+function TrapService:_onAction(player, phase: any, id: any, action: any)
+	if type(phase) ~= "string" or type(id) ~= "string" or type(action) ~= "string" then
+		return
+	end
+	if not TrapPrompts.DEATH_ACTIONS[action] then
+		return
+	end
+	local items = self.deathItems[id]
+	local item = items and items[action]
+	local handler = item and item.handlers[phase]
+	if handler then
+		handler(player)
+	end
+end
+
+-- Cette méthode permet de mettre à jour ce que chaque invite permet maintenant lorsque l'état des pièges ou le souffle
+-- change : vues serveur des invites de la Mort (même calcul que son client, Shared.TrapPrompts.deathView), et
+-- disponibilité des invites des mortels, qui ne révèle rien (tout objet encore en place).
 function TrapService:_refreshPrompts()
-	local now = self.deps.clock()
+	local charges = self.rules:breath(self.deps.clock())
 	for _, item in self.prompts do
 		local trap = self.rules:get(item.entry.id)
-		local prompt = item.prompt
-		local available = false
-		if item.action == "work" then
-			local step = self.rules:nextStepDuration(item.entry.id)
-			if step then
-				local steps = #Traps.KINDS[trap.kind].steps
-				prompt.ActionText = if steps > 1
-					then string.format("Préparer (%d/%d)", trap.step + 1, steps)
-					else "Préparer"
-				prompt.HoldDuration = step
-				available = true
-			elseif trap.state == State.Armed then
-				prompt.ActionText = "Désarmer"
-				prompt.HoldDuration = Traps.DISARM_HOLD
-				available = true
-			end
-		elseif item.action == "blow" then
-			-- Grand piège commencé : la touche du souffle sert à l'abandonner (sa place dans la limite est rendue)
-			if trap.state == State.Preparing then
-				prompt.ActionText = "Abandonner"
-				prompt.HoldDuration = Traps.DISARM_HOLD
-				available = true
-			else
-				prompt.ActionText = "Souffler"
-				prompt.HoldDuration = 0
-				available = (self.rules:canBlow(item.entry.id, now))
-			end
+		if item.role == Role.Death then
+			local view = TrapPrompts.deathView(trap.kind, item.action, trap.state, trap.step, charges)
+			item.prompt.ActionText = view.text
+			item.prompt.HoldDuration = view.hold
+			item.prompt.available = view.available
 		else
-			-- Examiner et désamorcer ne révèlent rien : possibles sur tout objet encore en place
-			available = trap.state ~= State.Spent
+			item.prompt:SetAttribute(LA.PromptAvailable, trap.state ~= State.Spent)
 		end
-		prompt:SetAttribute(LA.PromptAvailable, available)
 	end
 end
 
@@ -815,10 +814,20 @@ function TrapService:_onHoldBegan(player, item)
 	if item.entry.preparer == player then
 		item.entry.preparer = nil
 	end
-	if item.action ~= "work" or self.deps.roleOf(player) ~= Role.Death then
+	if item.action ~= Action.Work or self.deps.roleOf(player) ~= Role.Death then
 		return
 	end
-	local ok, err = self:_canWork(player, item.entry.id)
+	-- L'invite de la Mort vit sur son client : portée et vue contrôlées ici aussi, sinon un client modifié lancerait le
+	-- bruit de préparation de n'importe quel piège de la maison
+	local reach = self:_reach(player, item)
+	local ok, err = true, nil
+	if reach ~= nil then
+		-- Annoncé tout de suite (et pas une seconde fois à la fin) : la vue du client et celle du serveur peuvent
+		-- diverger un instant, la Mort ne doit pas tenir tout le maintien pour rien
+		ok, err = false, "hors de portée : recommencer"
+	else
+		ok, err = self:_canWork(player, item.entry.id)
+	end
 	if not ok then
 		self.deps.notify(player, tostring(err))
 		local refused = self.refused[item.prompt]
@@ -836,10 +845,29 @@ end
 
 -- Cette méthode permet d'arrêter le bruit de préparation lorsque la Mort lâche l'invite (ou la termine).
 function TrapService:_onHoldEnded(player, item)
-	if item.action == "work" and player == item.entry.noiseHolder then
+	if item.action == Action.Work and player == item.entry.noiseHolder then
 		item.entry.noiseHolder = nil
 		self.deps.stop(item.entry.noise)
 	end
+end
+
+-- Cette méthode permet de vérifier qu'un joueur peut atteindre la cible d'une invite lorsqu'il la tient ou la
+-- déclenche : personnage présent, portée de l'invite (plus la tolérance) et vue ; renvoie nil, ou la raison du refus.
+function TrapService:_reach(player, item): string?
+	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	if not root then
+		return "sans personnage"
+	end
+	local from = root.CFrame.Position
+	local part = item.entry.part
+	local target = part.CFrame.Position
+	if (target - from).Magnitude > item.prompt.MaxActivationDistance + DeathRules.DISTANCE_TOLERANCE then
+		return "trop loin"
+	end
+	if not self.deps.lineOfSight(player, from, target, part) then
+		return "cible hors de vue"
+	end
+	return nil
 end
 
 -- Cette méthode permet d'exécuter l'action d'une invite lorsqu'un joueur la déclenche, après contrôle du rôle, du
@@ -851,7 +879,7 @@ function TrapService:_onPrompt(player, item)
 	local entry = item.entry
 	-- Une préparation n'aboutit que si son maintien a commencé avec le bruit (jamais de piège armé en silence)
 	local prepared = entry.preparer == player
-	if item.action == "work" then
+	if item.action == Action.Work then
 		if entry.noiseHolder == player then
 			entry.noiseHolder = nil
 			self.deps.stop(entry.noise)
@@ -873,24 +901,16 @@ function TrapService:_onPrompt(player, item)
 		self.deps.warn(string.format("%s : %s refusé, maintien invalide", player.Name, item.action))
 		return
 	end
-	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-	if not root then
+	local reach = self:_reach(player, item)
+	if reach == "sans personnage" then
 		return
-	end
-	local from = root.CFrame.Position
-	local part = item.entry.part
-	local target = part.CFrame.Position
-	if (target - from).Magnitude > item.prompt.MaxActivationDistance + DeathRules.DISTANCE_TOLERANCE then
-		self.deps.warn(string.format("%s : %s refusé, trop loin", player.Name, item.action))
-		return
-	end
-	if not self.deps.lineOfSight(player, from, target, part) then
-		self.deps.warn(string.format("%s : %s refusé, cible hors de vue", player.Name, item.action))
+	elseif reach ~= nil then
+		self.deps.warn(string.format("%s : %s refusé, %s", player.Name, item.action, reach))
 		return
 	end
 	local id = item.entry.id
 	local label = Traps.KINDS[item.entry.kind].label
-	if item.action == "work" then
+	if item.action == Action.Work then
 		local ok, err = self:_canWork(player, id)
 		if not ok then
 			-- Déjà annoncé au début du maintien : pas une seconde fois à la fin
@@ -918,7 +938,7 @@ function TrapService:_onPrompt(player, item)
 				then string.format("%s armé (%d/%d)", label, self.rules:activeCount(), self.rules.timing.maxActive)
 				else label .. " : première étape faite"
 		)
-	elseif item.action == "blow" then
+	elseif item.action == Action.Blow then
 		if self.deps.isExposed(player) then
 			self.deps.notify(player, "dans la lumière, impossible d'agir sur un piège")
 			return
@@ -933,12 +953,12 @@ function TrapService:_onPrompt(player, item)
 		if not ok then
 			self.deps.notify(player, tostring(err))
 		end
-	elseif item.action == "examine" then
+	elseif item.action == Action.Examine then
 		self.deps.notify(
 			player,
 			if self.rules:isTampered(id) then label .. " : quelque chose cloche…" else label .. " : rien d'anormal"
 		)
-	elseif item.action == "defuse" then
+	elseif item.action == Action.Defuse then
 		local ok = self:defuse(id)
 		self.deps.notify(player, if ok then label .. " : piège désamorcé" else label .. " : rien à désamorcer")
 	end
@@ -953,27 +973,34 @@ function TrapService:_changed()
 	self:_publish()
 end
 
--- Cette méthode permet de publier souffle et pièges armés sur le joueur Mort lorsque l'une des valeurs change (une
--- écriture par changement, pas par frame) ; les autres joueurs n'ont pas ces attributs.
+-- Cette méthode permet de publier souffle, pièges armés et état de chaque piège dans le conteneur privé de la Mort
+-- lorsque l'une des valeurs change (écriture seulement au changement, pas par frame) ; ceux des autres joueurs sont
+-- vidés. Rien n'est posé sur le Player, répliqué à tous (#49).
 function TrapService:_publish()
 	local charges, rechargeEnd = self:breath()
 	local armed = self.rules:armedCount()
 	-- Arrondi au dixième : l'horloge du serveur avance, la fin de recharge publiée ne doit pas bouger à chaque appel
 	local roundedEnd = if rechargeEnd then math.floor(rechargeEnd * 10 + 0.5) / 10 else nil
-	local key = string.format("%d|%s|%d", charges, tostring(self.rules.rechargeAt), armed)
 	for _, player in self.deps.players:GetPlayers() do
-		if self.deps.roleOf(player) == Role.Death then
-			if self.published[player] ~= key then
-				self.published[player] = key
-				player:SetAttribute(TA.BreathCharges, charges)
-				player:SetAttribute(TA.BreathRechargeEnd, roundedEnd)
-				player:SetAttribute(TA.ArmedTraps, armed)
+		local private = self.deps.privateOf(player)
+		if private then
+			local isDeath = self.deps.roleOf(player) == Role.Death
+			PrivateState.write(private, TA.BreathCharges, if isDeath then charges else nil)
+			PrivateState.write(private, TA.BreathRechargeEnd, if isDeath then roundedEnd else nil)
+			PrivateState.write(private, TA.ArmedTraps, if isDeath then armed else nil)
+			local states = PrivateState.folder(private, TA.TrapStates, isDeath)
+			if states and not isDeath then
+				states:Destroy()
+			elseif states then
+				for id, trap in self.rules.traps do
+					PrivateState.write(states, id, if trap.state == State.Idle then nil else trap.state)
+					PrivateState.write(
+						states,
+						id .. TA.StepSuffix,
+						if trap.state == State.Preparing then trap.step else nil
+					)
+				end
 			end
-		elseif self.published[player] then
-			self.published[player] = nil
-			player:SetAttribute(TA.BreathCharges, nil)
-			player:SetAttribute(TA.BreathRechargeEnd, nil)
-			player:SetAttribute(TA.ArmedTraps, nil)
 		end
 	end
 end
@@ -993,10 +1020,17 @@ function TrapService:step()
 	for _, player in self.deps.players:GetPlayers() do
 		present[player] = self.deps.roleOf(player) == Role.Death
 	end
-	for _, entry in self.entries do
-		if entry.noiseHolder and not present[entry.noiseHolder] then
-			entry.noiseHolder = nil
-			self.deps.stop(entry.noise)
+	-- ou n'a jamais envoyé la fin du maintien (client modifié, invite détruite en plein maintien)
+	for id, entry in self.entries do
+		local holder = entry.noiseHolder
+		if holder then
+			local item = self.deathItems[id] and self.deathItems[id][Action.Work]
+			local began = item and self.holds[item.prompt][holder]
+			local stale = began == nil or now - began > item.prompt.HoldDuration + DeathRules.HOLD_STALE
+			if not present[holder] or stale then
+				entry.noiseHolder = nil
+				self.deps.stop(entry.noise)
+			end
 		end
 	end
 	local armed = self.rules:armed()
@@ -1027,9 +1061,11 @@ function TrapService:step()
 				end
 			end
 		end
-		if (self.chilled[player] == true) ~= chilled then
+		-- Buée publiée dans le conteneur privé du mortel : un autre client ne la lit pas (#49)
+		local private = if (self.chilled[player] == true) ~= chilled then self.deps.privateOf(player) else nil
+		if private then
 			self.chilled[player] = chilled or nil
-			player:SetAttribute(TA.Chill, if chilled then true else nil)
+			PrivateState.write(private, TA.Chill, if chilled then true else nil)
 		end
 	end
 end
