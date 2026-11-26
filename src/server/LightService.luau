@@ -7,6 +7,7 @@
 --   :canPrepareAt(position)   la Mort peut préparer un piège ici (jamais dans la lumière)
 --   :isRoomLit(roomId), :roomAt(position)
 --   :cutPower(wingId), :restorePower(), :burnRoom(roomId)   (true) ou (false, raison)
+--   :breakLamp(lampId)        lampe cassée jusqu'à la fin de la manche (lustre tombé, #5)
 -- Événement : Changed() après chaque changement de lumière. Attributs répliqués : Shared.LightAttributes.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -267,6 +268,17 @@ function LightService:burnRoom(roomId: string): (boolean, string?)
 	return true
 end
 
+-- Cette méthode permet d'éteindre une lampe cassée jusqu'à la fin de la manche lorsqu'un piège la fait tomber (lustre,
+-- #5) : grésillement bref, sans recharge ni bruit d'ampoule. Renvoie true si elle éclairait encore.
+function LightService:breakLamp(lampId: string): boolean
+	if not self.illumination:breakLamp(lampId) then
+		return false
+	end
+	self.deps.log("lampe cassée : " .. lampId)
+	self:_changed({ lampId })
+	return true
+end
+
 -- Cette méthode permet de rallumer toute la maison et d'effacer les recharges lorsqu'une manche commence ou se termine.
 function LightService:reset()
 	self.sabotage:reset()
@@ -505,13 +517,9 @@ function LightService:_onPrompt(player, entry)
 	local holds = self.holds[entry.prompt]
 	local began = holds[player]
 	holds[player] = nil
-	local hold = entry.prompt.HoldDuration
 	-- Un maintien se déclenche à sa durée exacte (latence près) : trop court ou périmé (lâché puis rejoué) est refusé
 	local elapsed = if began then self.deps.clock() - began else nil
-	if
-		hold > 0
-		and (elapsed == nil or elapsed < hold - DeathRules.HOLD_TOLERANCE or elapsed > hold + DeathRules.HOLD_STALE)
-	then
+	if not DeathRules.isHoldValid(elapsed, entry.prompt.HoldDuration) then
 		self.deps.warn(string.format("%s : %s refusé, maintien invalide", player.Name, entry.kind))
 		return
 	end
