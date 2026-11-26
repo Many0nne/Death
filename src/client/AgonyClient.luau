@@ -14,6 +14,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Agony = require(Shared:WaitForChild("Agony"))
 local AgonyAttributes = require(Shared:WaitForChild("AgonyAttributes"))
 local DeathRules = require(Shared:WaitForChild("DeathRules"))
+local GameConfig = require(Shared:WaitForChild("GameConfig"))
 local LightAttributes = require(Shared:WaitForChild("LightAttributes"))
 local MatchAttributes = require(Shared:WaitForChild("MatchAttributes"))
 
@@ -68,7 +69,11 @@ local function verdict(quality: number, interval: number?): string
 	if interval == nil then
 		return "en rythme…"
 	end
-	local tooFast = interval < 60 / Agony.TARGET_BPM
+	-- Écart local dans la cadence mais note du serveur plus basse : la gigue du réseau, pas le joueur
+	if interval >= 60 / GameConfig.MASSAGE_BPM_MAX and interval <= 60 / GameConfig.MASSAGE_BPM_MIN then
+		return "presque"
+	end
+	local tooFast = interval < 60 / GameConfig.MASSAGE_BPM_MAX
 	if quality <= 0 then
 		return if tooFast then "beaucoup trop vite" else "beaucoup trop lent"
 	end

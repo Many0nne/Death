@@ -177,9 +177,8 @@ function Agony:reap(userId: number, reaperId: number?): (string?, string?)
 	return Agony.Outcome.Reaped
 end
 
--- Cette méthode permet d'avancer l'agonie de `dt` secondes lorsque le serveur avance : réanimation acquise, âme
--- tirée par la faux, massage abandonné, mort au bout de la minuterie. Renvoie les issues (agonisants retirés du suivi)
--- et les masseurs dont le massage s'est arrêté faute de compression.
+-- Cette méthode permet d'avancer l'agonie de `dt` secondes lorsque le serveur avance (réanimation, faux, abandon, fin
+-- de minuterie) ; renvoie les issues (agonisants retirés) et les masseurs arrêtés faute de compression.
 function Agony:advance(dt: number, now: number): ({ Resolution }, { number })
 	local ids = {}
 	for id in self.dying do

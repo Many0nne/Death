@@ -49,7 +49,8 @@ function DeathController.new(deps)
 		characters = {} :: { [any]: Model }, -- Player -> personnage auquel le rôle a été appliqué
 		-- Player -> exposition, pour chaque joueur Mort (une seule en manche ; plusieurs possibles en bac à sable)
 		exposures = {} :: { [any]: DeathRules.Exposure },
-		rooted = {} :: { [any]: boolean }, -- Player -> immobilisé (lutte pour une âme)
+		-- Player immobilisé (lutte pour une âme) -> saut d'origine à rendre
+		rooted = {} :: { [any]: { jumpHeight: number, jumpPower: number } },
 	}, DeathController)
 end
 
@@ -114,7 +115,21 @@ end
 -- Cette méthode permet d'immobiliser la Mort ou de lui rendre sa vitesse lorsque sa faux tire une âme (lutte pendant
 -- un massage, Server.AgonyService).
 function DeathController:setRooted(player, rooted: boolean)
-	self.rooted[player] = if rooted then true else nil
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	local saved = self.rooted[player]
+	if rooted and not saved then
+		self.rooted[player] = {
+			jumpHeight = if humanoid then humanoid.JumpHeight else 7.2,
+			jumpPower = if humanoid then humanoid.JumpPower else 50,
+		}
+	elseif not rooted and saved then
+		self.rooted[player] = nil
+		if humanoid then
+			humanoid.JumpHeight = saved.jumpHeight
+			humanoid.JumpPower = saved.jumpPower
+		end
+	end
 end
 
 -- Boucle -------------------------------------------------------------------------------------------------------
@@ -165,7 +180,12 @@ function DeathController:_stepDeath(player, dt: number)
 		player:SetAttribute(LA.Exposed, exposed)
 	end
 	-- Réécrite à chaque frame : un autre script (ou un reset du personnage) ne peut pas la faire dériver
-	humanoid.WalkSpeed = if self.rooted[player] then 0 else DeathRules.speed(exposed)
+	local rooted = self.rooted[player] ~= nil
+	humanoid.WalkSpeed = if rooted then 0 else DeathRules.speed(exposed)
+	if rooted and humanoid.JumpHeight ~= 0 then
+		humanoid.JumpHeight = 0
+		humanoid.JumpPower = 0
+	end
 end
 
 -- Cette méthode permet d'appliquer un rôle à un joueur et à son personnage lorsqu'il change ou que le personnage

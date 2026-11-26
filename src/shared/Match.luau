@@ -193,6 +193,10 @@ end
 -- Cette méthode permet d'appliquer un accident à un mortel vivant lorsqu'un piège le touche (ou qu'il meurt par
 -- Roblox) : agonie la première fois, mort sans agonie (âme échappée, cause Accident) s'il a déjà été ranimé.
 function Match:accident(userId: number): (Change?, string?)
+	local state = self:stateOf(userId)
+	if state ~= nil and state ~= State.Alive then
+		return nil, string.format("accident refusé : mortel %s", state)
+	end
 	if self:wasRevived(userId) then
 		return self:_transition(userId, State.Dead, false, Match.DeathCause.Accident)
 	end

@@ -201,9 +201,8 @@ local function bodyOf(player): (BasePart?, Humanoid?)
 	return if root and root:IsA("BasePart") then root else nil, humanoid
 end
 
--- Cette méthode permet de ralentir (reptation) ou d'immobiliser (massage) un personnage lorsque son rôle dans
--- l'agonie l'exige ; réécrit à chaque frame (un personnage réapparu repart des valeurs de Roblox), ses valeurs
--- d'origine sont gardées une fois par joueur.
+-- Cette méthode permet de ralentir (reptation) ou d'immobiliser (massage) un personnage lorsque l'agonie l'exige ;
+-- réécrite à chaque frame (personnage réapparu), valeurs d'origine gardées une fois par joueur.
 function AgonyService:_slow(player, speed: number)
 	local _, humanoid = bodyOf(player)
 	if not humanoid then
@@ -244,6 +243,11 @@ function AgonyService:_onStateChanged(change)
 	if change.to ~= Match.MortalState.Alive and self.massagers[id] then
 		self:_releaseMassager(id)
 		self.rules:endMassage(id)
+	end
+	-- Un ranimé qui retombe ou meurt n'est plus montré à la Mort
+	if change.from == Match.MortalState.Alive and change.player and self.reveals[change.player] then
+		self.reveals[change.player] = nil
+		change.player:SetAttribute(AA.RevealedUntil, nil)
 	end
 	if change.from == Match.MortalState.Agony then
 		self:_endAgony(id)
@@ -286,7 +290,7 @@ function AgonyService:_endAgony(id: number)
 	end
 	self.entries[id] = nil
 	self:_detach(entry)
-	if entry.reaper then
+	if entry.reaper and not self:_reaperOf(entry.reaper) then
 		self:_root(entry.reaper, false)
 	end
 	entry.player:SetAttribute(AA.AgonyEnd, nil)
@@ -456,6 +460,10 @@ end
 -- à terme ; renvoie l'issue de Shared.Agony (Reaped, "Struggle") ou nil et la raison.
 function AgonyService:reap(id: number, reaper): (string?, string?)
 	local entry = self.entries[id]
+	if reaper and self:_reaperOf(reaper) then
+		self.deps.notify(reaper, "ta faux tire déjà une âme")
+		return nil, "lutte déjà en cours"
+	end
 	local outcome, err = self.rules:reap(id, reaper and reaper.UserId)
 	if outcome == Outcome.Reaped then
 		self.deps.log(entry.player.Name .. " : âme fauchée")
@@ -470,6 +478,16 @@ function AgonyService:reap(id: number, reaper): (string?, string?)
 		self.deps.notify(reaper, tostring(err))
 	end
 	return outcome, err
+end
+
+-- Cette méthode permet de trouver l'agonisant dont la Mort tire l'âme lorsqu'une lutte commence ou finit (nil sinon).
+function AgonyService:_reaperOf(reaper): number?
+	for id, entry in self.entries do
+		if entry.reaper == reaper then
+			return id
+		end
+	end
+	return nil
 end
 
 -- Cette méthode permet à un mortel de commencer un massage lorsqu'il déclenche « Masser » près d'un agonisant : il
@@ -598,7 +616,9 @@ end
 -- leur disponibilité, reptation, battement du cœur, part de l'âme sortie pendant une lutte.
 function AgonyService:_stepEntry(entry, dying: Agony.Dying, now: number)
 	self:_attach(entry)
-	self:_slow(entry.player, GameConfig.CRAWL_SPEED)
+	-- Massé ou pendant la lutte : il ne rampe plus (le massage ne se fait pas à distance)
+	local held = dying.massager ~= nil or dying.pull ~= nil
+	self:_slow(entry.player, if held then 0 else GameConfig.CRAWL_SPEED)
 	if entry.prompts then
 		entry.prompts.reap:SetAttribute(LA.PromptAvailable, dying.pull == nil)
 		entry.prompts.massage:SetAttribute(LA.PromptAvailable, dying.massager == nil)
@@ -658,6 +678,7 @@ function AgonyService:_onDebug(player)
 		end
 	elseif command == "stop" then
 		self.bot = nil
+		self.rules:endMassage(BOT_ID)
 	else
 		ok, err = false, "commande inconnue"
 	end
