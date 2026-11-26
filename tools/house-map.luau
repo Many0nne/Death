@@ -524,7 +524,9 @@ local function orientedFields(p): string
 		fields ..= string.format(',"m":[%s]', table.concat(m, ","))
 	end
 	if p.shape then
-		fields ..= string.format(',"f":%d', if p.shape == "Ball" then 1 else 2)
+		local code = ({ Ball = 1, Cylinder = 2 })[p.shape]
+		assert(code, "forme inconnue pour la vue 3D : " .. p.shape)
+		fields ..= string.format(',"f":%d', code)
 	end
 	return fields
 end
