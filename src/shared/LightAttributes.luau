@@ -11,10 +11,12 @@ return table.freeze({
 	-- Sur le disjoncteur (MapTags.Breaker) : aile coupée (WingId) ou nil
 	CutWing = "CutWing",
 
-	-- Invites d'action (ProximityPrompt) de la lumière : tag, rôle qui peut s'en servir, action possible maintenant.
-	-- Le serveur ne touche jamais Enabled : chaque client l'ajuste pour son joueur (rôle et disponibilité).
+	-- Invites d'action (ProximityPrompt) filtrées par le client (Client.LightPrompts : lumière, fuite, pièges) : tag,
+	-- rôle qui peut s'en servir, état de mortel requis (optionnel), action possible maintenant (Shared.PromptVisibility).
+	-- Le serveur crée l'invite avec Enabled = false puis ne le touche plus : chaque client l'ajuste pour son joueur.
 	PromptTag = "LightPrompt",
 	PromptRole = "PromptRole",
+	PromptState = "PromptState", -- Match.MortalState requis (ex. "Alive"), nil : aucun
 	PromptAvailable = "PromptAvailable",
 	-- true : l'invite n'apparaît que si rien ne cache sa cible depuis le personnage (Shared.LineOfSight)
 	PromptSight = "PromptSight",

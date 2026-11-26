@@ -1,6 +1,13 @@
--- Invites d'action de la lumière (client) : n'active, pour le joueur local, que les invites de son rôle (attribut
--- LightRole) quand l'action est possible (PromptAvailable) et, pour une ampoule, quand rien ne la cache depuis le
--- personnage (PromptSight, même rayon que le serveur). Le serveur ne touche jamais Enabled et revérifie tout.
+-- Mécanisme unique de visibilité des invites d'action (client) : lumière, fuite (#18, #19) et pièges (#5).
+-- Pour qu'une invite soit gérée ici, le serveur la crée avec `Enabled = false` puis :
+--   prompt:AddTag(LightAttributes.PromptTag)
+--   prompt:SetAttribute(LightAttributes.PromptRole, "Mortal" | "Death")   -- rôle qui peut s'en servir (nil : tous)
+--   prompt:SetAttribute(LightAttributes.PromptState, "Alive")             -- état de mortel requis (nil : aucun)
+--   prompt:SetAttribute(LightAttributes.PromptAvailable, true | false)    -- action possible maintenant (à tenir à jour)
+--   prompt:SetAttribute(LightAttributes.PromptSight, true)                -- optionnel : cible visible depuis le personnage
+-- Le client active ensuite l'invite pour le joueur local seulement (Shared.PromptVisibility, règle pure testée). Le
+-- serveur ne réécrit jamais Enabled (Triggered arrive quand même) et revérifie toute action : le client n'est qu'un
+-- affichage.
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -10,6 +17,8 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local LightAttributes = require(Shared:WaitForChild("LightAttributes"))
 local LineOfSight = require(Shared:WaitForChild("LineOfSight"))
 local CameraRules = require(Shared:WaitForChild("CameraRules"))
+local MatchAttributes = require(Shared:WaitForChild("MatchAttributes"))
+local PromptVisibility = require(Shared:WaitForChild("PromptVisibility"))
 
 local LA = LightAttributes
 
@@ -32,12 +41,16 @@ function LightPrompts.start()
 
 	-- Cette méthode permet d'activer ou non une invite pour le joueur local lorsque son rôle, l'action ou la vue change.
 	local function refresh(prompt: ProximityPrompt)
-		local role = player:GetAttribute(LA.LightRole)
-		prompt.Enabled = role ~= nil
-			and prompt:GetAttribute(LA.PromptRole) == role
-			and prompt:GetAttribute(LA.PromptAvailable) == true
-			and (prompt:GetAttribute(LA.PromptSight) ~= true or inSight[prompt] == true)
-			and (not firstPerson or inView[prompt] == true or holding[prompt] == true)
+		local spec = {
+			role = prompt:GetAttribute(LA.PromptRole),
+			state = prompt:GetAttribute(LA.PromptState),
+			available = prompt:GetAttribute(LA.PromptAvailable) == true,
+		}
+		prompt.Enabled = PromptVisibility.visible(
+			spec,
+			player:GetAttribute(LA.LightRole),
+			player:GetAttribute(MatchAttributes.MortalState)
+		) and (prompt:GetAttribute(LA.PromptSight) ~= true or inSight[prompt] == true) and (not firstPerson or inView[prompt] == true or holding[prompt] == true)
 	end
 
 	-- Cette méthode permet de suivre une invite lorsqu'elle arrive sur le client.
@@ -127,13 +140,16 @@ function LightPrompts.start()
 		track(prompt)
 	end
 	CollectionService:GetInstanceAddedSignal(LA.PromptTag):Connect(track)
-	player:GetAttributeChangedSignal(LA.LightRole):Connect(function()
+	-- Cette méthode permet de réévaluer toutes les invites lorsque le rôle ou l'état de mortel du joueur change.
+	local function refreshAll()
 		for _, prompt in CollectionService:GetTagged(LA.PromptTag) do
 			if prompt:IsA("ProximityPrompt") then
 				refresh(prompt)
 			end
 		end
-	end)
+	end
+	player:GetAttributeChangedSignal(LA.LightRole):Connect(refreshAll)
+	player:GetAttributeChangedSignal(MatchAttributes.MortalState):Connect(refreshAll)
 	local elapsed = 0
 	RunService.Heartbeat:Connect(function(dt)
 		elapsed += dt

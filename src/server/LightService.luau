@@ -400,6 +400,8 @@ end
 function LightService:_makePrompt(parent: Instance, role: string, props: { [string]: any }, entry)
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "LightPrompt"
+	-- Masquée jusqu'à la décision du client (#19) : pas de flash au chargement
+	prompt.Enabled = false
 	-- Vue testée depuis le personnage (client et serveur, Shared.LineOfSight), jamais depuis la caméra
 	prompt.RequiresLineOfSight = false
 	for property, value in props do

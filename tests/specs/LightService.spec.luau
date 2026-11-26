@@ -125,6 +125,7 @@ return function(T, Loader)
 			for _, entry in service.prompts do
 				counts[entry.kind] += 1
 				T.expect(entry.prompt:HasTag(LA.PromptTag), "tag des invites")
+				T.expectEqual(entry.prompt.Enabled, false, "créée masquée, le client décide (#19)")
 			end
 			T.expectEqual(counts.cut, 3)
 			T.expectEqual(counts.restore, 1)
