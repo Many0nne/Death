@@ -17,6 +17,7 @@ local GameConfig = require(Shared.GameConfig)
 local Match = require(Shared.Match)
 local MatchAttributes = require(Shared.MatchAttributes)
 local Signal = require(Shared.Signal)
+local DebugBots = require(script.Parent.DebugBots)
 
 local Phase = Match.Phase
 local A = MatchAttributes
@@ -30,6 +31,7 @@ export type Deps = {
 	replicated: any, -- Instance qui porte les attributs de la manche (ReplicatedStorage)
 	heartbeat: any, -- signal appelé à chaque frame avec dt (RunService.Heartbeat)
 	isStudio: boolean, -- active le mode test et les attributs de debug
+	createMannequin: ((string) -> any)?, -- fabrique le mannequin d'un faux joueur (DebugBots.createMannequin par défaut)
 	pick: (number) -> number, -- tirage d'un index de 1 à n
 	encode: (any) -> string, -- encodage JSON du résultat
 	log: (string) -> (),
@@ -84,8 +86,10 @@ end
 -- Cette méthode permet de créer un service de manche à l'arrêt lorsqu'on veut l'instance du jeu (`get`) ou un
 -- service isolé en test (`deps` simulées).
 function MatchService.new(deps: Deps?)
+	local resolved = deps or defaultDeps()
 	return setmetatable({
-		deps = deps or defaultDeps(),
+		deps = resolved,
+		bots = DebugBots.new(resolved.createMannequin or DebugBots.createMannequin), -- faux joueurs de debug (#12)
 		started = false,
 		phase = Phase.Waiting,
 		phaseClock = 0, -- secondes passées dans la phase (attente avant démarrage auto, affichage du résultat)
@@ -310,7 +314,8 @@ function MatchService:_step(dt: number)
 			self:_returnToWaiting()
 		end
 	else
-		local count = #self:_presentPlayers()
+		-- Démarrage automatique : vrais joueurs seulement, les bots ne lancent pas une manche seuls
+		local count = #self:_presentPlayers(false)
 		if GameConfig.canStartMatch(count - 1, count > 0) then
 			self.phaseClock += dt
 			if self.phaseClock >= GameConfig.INTERMISSION_DURATION then
@@ -422,14 +427,52 @@ end
 
 -- Cette méthode permet de lister les joueurs présents lorsqu'une manche peut démarrer, sans le joueur en train de
 -- partir (Players:GetPlayers le liste encore pendant PlayerRemoving).
-function MatchService:_presentPlayers(): { any }
+function MatchService:_presentPlayers(withBots: boolean?): { any }
 	local present = {}
 	for _, player in self.deps.players:GetPlayers() do
 		if player ~= self.leaving then
 			table.insert(present, player)
 		end
 	end
+	if withBots ~= false then
+		for _, bot in self.bots:list() do
+			if bot ~= self.leaving then
+				table.insert(present, bot)
+			end
+		end
+	end
 	return present
+end
+
+-- Cette méthode permet de lister les faux joueurs lorsqu'un module de manche doit les ramener à l'attente.
+function MatchService:listBots(): { any }
+	return self.bots:list()
+end
+
+-- Cette méthode permet de retrouver un faux joueur par son UserId lorsqu'un module de manche doit le placer.
+function MatchService:getBot(userId: number): any?
+	return self.bots:find(userId)
+end
+
+-- Cette méthode permet d'ajouter un faux participant lorsque DebugAddBot est posé en Studio ; il est écouté comme un
+-- joueur (ses attributs Debug* sont lus sur son mannequin).
+function MatchService:_addBot(role: any)
+	if role ~= Match.Role.Death and role ~= Match.Role.Mortal then
+		self.deps.warn('DebugAddBot attend "Death" ou "Mortal" : ' .. tostring(role))
+		return
+	end
+	local bot = self.bots:add(role)
+	self:_watchPlayer(bot)
+	self.deps.log(string.format("faux joueur ajouté : %s", bot.Name))
+end
+
+-- Cette méthode permet de retirer tous les faux joueurs lorsque DebugClearBots est posé : chacun part comme un joueur
+-- (la Mort annule la manche, un mortel meurt, âme échappée).
+function MatchService:_clearBots()
+	for _, bot in self.bots:list() do
+		self:_onPlayerRemoving(bot)
+		self.bots:remove(bot)
+	end
 end
 
 -- Cette méthode permet de changer de phase, de la répliquer et de prévenir les abonnés lorsque le cycle avance.
@@ -525,6 +568,12 @@ function MatchService:_onDebugAttribute(player, name: string)
 	elseif name == A.DebugStop then
 		player:SetAttribute(name, nil)
 		self:stopMatch()
+	elseif name == A.DebugAddBot then
+		player:SetAttribute(name, nil)
+		self:_addBot(value)
+	elseif name == A.DebugClearBots then
+		player:SetAttribute(name, nil)
+		self:_clearBots()
 	elseif name == A.DebugState then
 		player:SetAttribute(name, nil)
 		local target = DEBUG_STATES[value]

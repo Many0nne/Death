@@ -58,6 +58,11 @@ toujours avec lui.
 - **Appels courts** : jamais d'attente dans `execute_luau` (boucle, `task.wait` long), qui peut figer Studio. Lancer
   l'action, puis lire le résultat par un appel suivant (`get_console_output`).
 - Piloter le jeu par attributs de debug (sur le joueur, en contexte `Server`) plutôt qu'en simulant l'input.
+- **Faux joueur (Play Solo, Studio seulement)** : poser `DebugAddBot = "Mortal"` (ou `"Death"`) sur son Player ajoute un
+  mannequin `workspace["Bot Mortel 1"]` compté par `DebugStartMatch` (1 Mort + 1 à 4 mortels, bots compris). Ses
+  attributs `Debug*` se posent sur le mannequin : `DebugSetState = "Agony"` vise ce faux mortel. `DebugClearBots = true`
+  retire tous les bots (comme un départ de joueur). Limite : pièges, faisceau et lumière parcourent `Players`, donc ne
+  voient pas encore les bots (suite : #52). Code : `Server.DebugBots`.
 
 ## Qualité
 - Outils Rokit (`rokit.toml`) : `rojo`, `stylua`, `selene`, `luau-lsp`, `lune`. Installer avec `rokit install`.

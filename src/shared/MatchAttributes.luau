@@ -28,6 +28,10 @@ return table.freeze({
 	DebugState = "DebugSetState", -- "Agony", "Alive", "Dead", "Reaped" ou "Saved" : change l'état de ce mortel
 	DebugTimeScale = "DebugTimeScale", -- multiplicateur du sablier (ex. 10), gardé jusqu'au retrait (nil = x1)
 	DebugTimeLeft = "DebugTimeLeft", -- secondes : règle le temps restant du sablier
+	-- "Death" ou "Mortal" : ajoute un faux participant (mannequin) compté par les manches de test (#12). Ses attributs
+	-- Debug* (DebugSetState...) se posent sur son mannequin, workspace["Bot Mortel 1"].
+	DebugAddBot = "DebugAddBot",
+	DebugClearBots = "DebugClearBots", -- true : retire tous les faux participants (comme un départ de joueur)
 	-- "Key" : ramasse une clé restante comme ce joueur ; "Car" : démarre la voiture comme ce joueur (lu par
 	-- Server.EscapeService, mêmes règles que les actions en jeu)
 	DebugEscape = "DebugEscape",
