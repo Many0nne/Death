@@ -4,5 +4,6 @@ require(script.LightPrompts).start()
 require(script.ResetControl).start()
 require(script.DeathView).start()
 require(script.CameraController).start()
+require(script.TrapCues).start()
 
 print("Death : client prêt")

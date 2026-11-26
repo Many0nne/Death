@@ -219,6 +219,16 @@ function Illumination:burnRoom(roomId: string): { string }
 	return burnt
 end
 
+-- Cette méthode permet d'éteindre une seule lampe pour la manche lorsqu'elle est cassée (lustre tombé) ; renvoie true
+-- si elle vient d'être cassée (même éteinte par le disjoncteur : elle ne se rallumera pas avec le courant).
+function Illumination:breakLamp(lampId: string): boolean
+	if not self.lamps[lampId] or self.burnt[lampId] then
+		return false
+	end
+	self.burnt[lampId] = true
+	return true
+end
+
 -- Cette méthode permet de rallumer toute la maison lorsqu'une manche commence ou se termine.
 function Illumination:reset()
 	table.clear(self.unpowered)

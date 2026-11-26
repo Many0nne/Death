@@ -24,6 +24,12 @@ end
 -- Cette méthode permet de savoir si rien du décor ne sépare un personnage de sa cible lorsqu'il vise une lampe ou le
 -- disjoncteur ; toucher la cible elle-même (`target`) compte comme une vue dégagée.
 function LineOfSight.clear(from: Vector3, to: Vector3, target: Instance?): boolean
+	-- Volume invisible d'un meuble habillé (étagère piège, #5) : ses blocs visibles, frères dans le modèle, font partie de
+	-- la cible
+	local parent = target and target.Parent
+	if parent and parent:IsA("Model") and parent.PrimaryPart == target then
+		target = parent
+	end
 	local ignore = LineOfSight.characters()
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude

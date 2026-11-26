@@ -29,6 +29,15 @@ DeathRules.HOLD_TOLERANCE = 0.25
 -- Au-delà de la durée de maintien plus ce délai, le début de maintien enregistré est périmé (secondes)
 DeathRules.HOLD_STALE = 1.5
 
+-- Cette méthode permet de savoir si un maintien d'invite est valable lorsque le serveur reçoit son déclenchement :
+-- `elapsed` (nil si inconnu) atteint la durée, latence près, sans être périmé ; sans maintien, toujours valable.
+function DeathRules.isHoldValid(elapsed: number?, hold: number): boolean
+	if hold <= 0 then
+		return true
+	end
+	return elapsed ~= nil and elapsed >= hold - DeathRules.HOLD_TOLERANCE and elapsed <= hold + DeathRules.HOLD_STALE
+end
+
 -- Rôle effectif pour la lumière (attribut LightRole du joueur)
 DeathRules.Role = table.freeze({ Death = "Death", Mortal = "Mortal" })
 
