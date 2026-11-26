@@ -1,7 +1,7 @@
 -- Rendu de la Mort (client), d'après les attributs du serveur (LightRole, DeathExposed) :
 -- - pour un mortel : la Mort est invisible dans l'ombre et apparaît en silhouette noire à la lumière (fondu bref) ;
--- - pour la Mort elle-même : son corps reste visible, voilé dans l'ombre, noir plein à la lumière, avec un indicateur
---   « ombre / lumière » à l'écran ;
+-- - pour la Mort elle-même : son corps reste visible, voilé dans l'ombre, noir plein à la lumière (l'indicateur
+--   « ombre / lumière » est dans le HUD, Client.Hud) ;
 -- - pour tous : la Mort ne fait aucun bruit de pas.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -21,31 +21,6 @@ local SILHOUETTE = Color3.fromRGB(0, 0, 0)
 
 local DeathView = {}
 
--- Cette méthode permet de créer l'indicateur « ombre / lumière » de la Mort lorsque le client démarre (caché tant
--- que le joueur local n'est pas la Mort).
-local function makeIndicator(player: Player): TextLabel
-	local gui = Instance.new("ScreenGui")
-	gui.Name = "DeathLightIndicator"
-	gui.ResetOnSpawn = false
-	gui.IgnoreGuiInset = false
-	local label = Instance.new("TextLabel")
-	label.Name = "State"
-	label.AnchorPoint = Vector2.new(0.5, 1)
-	label.Position = UDim2.new(0.5, 0, 1, -24)
-	label.Size = UDim2.fromOffset(320, 34)
-	label.BackgroundColor3 = Color3.fromRGB(10, 10, 14)
-	label.BackgroundTransparency = 0.35
-	label.Font = Enum.Font.GothamMedium
-	label.TextSize = 18
-	label.Visible = false
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 6)
-	corner.Parent = label
-	label.Parent = gui
-	gui.Parent = player:WaitForChild("PlayerGui")
-	return label
-end
-
 -- Cette méthode permet d'appliquer la transparence locale à tout le corps d'un personnage lorsque la silhouette
 -- change (pièces, accessoires, visage) ; invisible, il ne projette plus d'ombre (qui le trahirait sous une lampe).
 local function setLocalTransparency(character: Model, value: number)
@@ -62,7 +37,6 @@ end
 -- Cette méthode permet de démarrer le rendu de la Mort lorsque le client se lance.
 function DeathView.start()
 	local localPlayer = Players.LocalPlayer
-	local indicator = makeIndicator(localPlayer)
 	-- Personnage suivi comme Mort -> { highlight, visibility, muted = { Sound -> volume d'origine }, applied, added }
 	local tracked: { [Model]: any } = {}
 
@@ -125,7 +99,7 @@ function DeathView.start()
 		local step = FADE_RATE * dt
 		state.visibility = math.clamp(state.visibility + math.clamp(target - state.visibility, -step, step), 0, 1)
 		if player == localPlayer then
-			-- Première personne verrouillée (#24) : pas de voile sur ses propres bras, l'indicateur suffit
+			-- Première personne verrouillée (#24) : pas de voile sur ses propres bras, le HUD l'indique
 			state.highlight.Enabled = localPlayer.CameraMode ~= Enum.CameraMode.LockFirstPerson
 			state.highlight.FillTransparency = SELF_VEIL.shadow
 				+ (SELF_VEIL.light - SELF_VEIL.shadow) * state.visibility
@@ -137,22 +111,6 @@ function DeathView.start()
 			end
 			state.highlight.Enabled = state.visibility > 0
 			state.highlight.FillTransparency = 1 - state.visibility
-		end
-	end
-
-	-- Cette méthode permet d'afficher l'état « ombre / lumière » lorsque le joueur local est la Mort.
-	local function showIndicator()
-		local isDeath = localPlayer:GetAttribute(LA.LightRole) == DeathRules.Role.Death
-		indicator.Visible = isDeath
-		if not isDeath then
-			return
-		end
-		if localPlayer:GetAttribute(LA.Exposed) == true then
-			indicator.Text = "À la lumière : visible et ralentie"
-			indicator.TextColor3 = Color3.fromRGB(255, 196, 120)
-		else
-			indicator.Text = "Dans l'ombre : invisible"
-			indicator.TextColor3 = Color3.fromRGB(170, 180, 200)
 		end
 	end
 
@@ -170,7 +128,6 @@ function DeathView.start()
 				release(character)
 			end
 		end
-		showIndicator()
 	end)
 end
 
