@@ -13,6 +13,7 @@ require(script.EscapeService).start(matchService, house)
 require(script.LightService).get():start()
 require(script.DeathController).get():start()
 require(script.TrapService).get():start()
+require(script.AgonyService).get():start()
 matchService:start()
 
 print(string.format("Death : serveur prêt (%d mortels par manche)", GameConfig.MORTALS_PER_MATCH))

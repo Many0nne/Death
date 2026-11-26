@@ -3,7 +3,8 @@
 -- traduit en silhouette ou en invisibilité (Client.DeathView). Pas d'attaque directe : la Mort n'a ni arme ni
 -- collision avec les mortels (groupes de collision), elle ne peut même pas leur barrer le passage.
 --
--- API, via `DeathController.get()` : :roleOf(player), :getDeath(), :isExposed().
+-- API, via `DeathController.get()` : :roleOf(player), :getDeath(), :isExposed(), :setRooted(player, rooted) (la Mort
+-- immobile pendant la lutte pour une âme, #6).
 local PhysicsService = game:GetService("PhysicsService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -48,6 +49,7 @@ function DeathController.new(deps)
 		characters = {} :: { [any]: Model }, -- Player -> personnage auquel le rôle a été appliqué
 		-- Player -> exposition, pour chaque joueur Mort (une seule en manche ; plusieurs possibles en bac à sable)
 		exposures = {} :: { [any]: DeathRules.Exposure },
+		rooted = {} :: { [any]: boolean }, -- Player -> immobilisé (lutte pour une âme)
 	}, DeathController)
 end
 
@@ -82,6 +84,7 @@ function DeathController:start()
 		self.roles[player] = nil
 		self.characters[player] = nil
 		self.exposures[player] = nil
+		self.rooted[player] = nil
 	end)
 	self.deps.heartbeat:Connect(function(dt)
 		self:_step(dt)
@@ -106,6 +109,12 @@ end
 function DeathController:isExposed(player): boolean
 	local exposure = self.exposures[player]
 	return exposure ~= nil and exposure.exposed
+end
+
+-- Cette méthode permet d'immobiliser la Mort ou de lui rendre sa vitesse lorsque sa faux tire une âme (lutte pendant
+-- un massage, Server.AgonyService).
+function DeathController:setRooted(player, rooted: boolean)
+	self.rooted[player] = if rooted then true else nil
 end
 
 -- Boucle -------------------------------------------------------------------------------------------------------
@@ -156,7 +165,7 @@ function DeathController:_stepDeath(player, dt: number)
 		player:SetAttribute(LA.Exposed, exposed)
 	end
 	-- Réécrite à chaque frame : un autre script (ou un reset du personnage) ne peut pas la faire dériver
-	humanoid.WalkSpeed = DeathRules.speed(exposed)
+	humanoid.WalkSpeed = if self.rooted[player] then 0 else DeathRules.speed(exposed)
 end
 
 -- Cette méthode permet d'appliquer un rôle à un joueur et à son personnage lorsqu'il change ou que le personnage

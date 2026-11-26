@@ -170,6 +170,10 @@ function Match:_transition(userId: number, to: string, reaped: boolean, cause: s
 		return nil, "seul un mortel en agonie peut être fauché"
 	end
 	local change = self:_apply(userId, to, reaped, cause)
+	if to == State.Alive then
+		-- Ranimé une fois : le prochain accident le tue sans agonie
+		mortal.revived = true
+	end
 	if self:allResolved() then
 		self:_finish(Match.EndReason.AllResolved)
 	end
@@ -184,6 +188,21 @@ end
 -- Cette méthode permet de ranimer un mortel en agonie lorsque le massage ou le défibrillateur réussit.
 function Match:revive(userId: number): (Change?, string?)
 	return self:_transition(userId, State.Alive, false)
+end
+
+-- Cette méthode permet d'appliquer un accident à un mortel vivant lorsqu'un piège le touche (ou qu'il meurt par
+-- Roblox) : agonie la première fois, mort sans agonie (âme échappée, cause Accident) s'il a déjà été ranimé.
+function Match:accident(userId: number): (Change?, string?)
+	if self:wasRevived(userId) then
+		return self:_transition(userId, State.Dead, false, Match.DeathCause.Accident)
+	end
+	return self:down(userId)
+end
+
+-- Cette méthode permet de savoir si un mortel a déjà été ranimé dans la manche lorsqu'un accident le touche.
+function Match:wasRevived(userId: number): boolean
+	local mortal = self.mortals[userId]
+	return mortal ~= nil and mortal.revived == true
 end
 
 -- Cette méthode permet de déclarer un mortel mort lorsque la Mort le fauche (`reaped`, depuis l'agonie seulement)

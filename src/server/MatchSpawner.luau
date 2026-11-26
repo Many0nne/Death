@@ -2,6 +2,9 @@
 -- - MatchStarted : chaque mortel sur son point d'apparition (un par point), la Mort sur l'un des siens (Shared.SpawnPlan) ;
 -- - un participant qui réapparaît pendant la manche (personnage rechargé) revient à son point, un mortel en agonie
 --   là où il est tombé (un reset ne le met pas hors d'atteinte de la Mort), un mortel mort ou sauvé reste dehors ;
+-- - garde serveur du reset (#48) : un mortel vivant tué par Roblox pendant la manche (`/reset`, Health = 0, chute dans
+--   le vide) subit un accident (MatchService:accident : agonie, ou mort sans agonie s'il a déjà été ranimé) ; un
+--   agonisant tué ainsi reste en agonie et réapparaît là où il est mort ;
 -- - un mortel sauvé ou mort quitte la maison aussitôt (spectateur ; l'âme errante dans la maison est prévue en v2), et tout le monde la quitte au retour à l'attente (PhaseChanged Waiting) ;
 -- - un joueur qui rejoint pendant une manche n'a pas de rôle : il reste dans la zone d'attente (spectateur).
 local Players = game:GetService("Players")
@@ -165,9 +168,43 @@ function MatchSpawner.start(matchService, house: Instance)
 		end
 	end)
 
+	-- Cette méthode permet d'appliquer la garde du reset lorsque le personnage d'un mortel meurt par Roblox pendant la
+	-- manche : accident pour un mortel vivant, lieu de réapparition mis à jour pour un agonisant.
+	local function onDied(player: Player)
+		if matchService:getPhase() ~= Match.Phase.Running or matchService:getRole(player) ~= Match.Role.Mortal then
+			return
+		end
+		local state = matchService:getMortalState(player)
+		if state == Match.MortalState.Alive then
+			local ok, err = matchService:accident(player)
+			if ok then
+				print(string.format("[Apparitions] %s tué par Roblox pendant la manche : accident", player.Name))
+			else
+				warn(string.format("[Apparitions] %s : accident refusé (%s)", player.Name, tostring(err)))
+			end
+		elseif state == Match.MortalState.Agony then
+			fallen[player.UserId] = groundBelow(player) or fallen[player.UserId]
+		end
+	end
+
+	-- Cette méthode permet de suivre la mort Roblox d'un personnage lorsqu'il apparaît (garde du reset, #48).
+	local function watchDeath(player: Player, character: Model)
+		task.spawn(function()
+			local humanoid = character:WaitForChild("Humanoid", 5)
+			if humanoid and humanoid:IsA("Humanoid") then
+				humanoid.Died:Connect(function()
+					if player.Character == character then
+						onDied(player)
+					end
+				end)
+			end
+		end)
+	end
+
 	-- Cette méthode permet de replacer un participant dans la maison lorsque son personnage réapparaît pendant la
 	-- manche (Roblox le pose d'abord sur le SpawnLocation de la zone d'attente).
 	local function onCharacter(player: Player, character: Model)
+		watchDeath(player, character)
 		local spot = spotOf(player)
 		if not spot then
 			return
@@ -186,6 +223,9 @@ function MatchSpawner.start(matchService, house: Instance)
 
 	-- Cette méthode permet de suivre les réapparitions d'un joueur lorsqu'il est sur le serveur.
 	local function watch(player: Player)
+		if player.Character then
+			watchDeath(player, player.Character)
+		end
 		player.CharacterAdded:Connect(function(character)
 			onCharacter(player, character)
 		end)

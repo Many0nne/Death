@@ -1,7 +1,8 @@
 -- Service des pièges (serveur) : tient l'état des points fragiles (Shared.Traps), crée les invites de la Mort
 -- (préparer ou désarmer, souffler) et des mortels (examiner, désamorcer), joue les bruits de préparation, l'indice
--- visuel intermittent des pièges armés et les accidents (carrelage, étagère, lustre), met les mortels touchés en
--- agonie (MatchService:down) et signale la buée aux mortels proches d'un piège armé. Remise à zéro à chaque manche.
+-- visuel intermittent des pièges armés et les accidents (carrelage, étagère, lustre), applique l'accident aux mortels
+-- touchés (MatchService:accident : agonie, ou mort sans agonie s'ils ont déjà été ranimés) et signale la buée aux
+-- mortels proches d'un piège armé. Une âme fauchée recharge le souffle. Remise à zéro à chaque manche.
 --
 -- API pour les étapes suivantes (dissipation #8, âmes, HUD #9), via `TrapService.get()` :
 --   :removeBreathCharge()   la Mort perd une charge (dissipée par la lampe torche) ; (true) ou (false, raison)
@@ -72,7 +73,7 @@ local STEP_PERIOD = 0.2
 
 export type Deps = {
 	house: Instance,
-	match: any?, -- MatchService : down(player), MatchStarted, PhaseChanged
+	match: any?, -- MatchService : accident(player), MatchStarted, PhaseChanged, MortalStateChanged
 	-- LightService : canPrepareAt(position) (point du piège dans l'ombre), breakLamp(lampId) quand le lustre tombe
 	lights: any?,
 	layout: any?, -- description de la maison (Shared.HouseLayout) : orientation des meubles
@@ -346,6 +347,12 @@ function TrapService:start()
 				self:reset()
 			end
 		end)
+		-- Âme fauchée : elle recharge entièrement le souffle de la Mort (docs/design.md « Âmes »)
+		match.MortalStateChanged:Connect(function(change)
+			if change.soul == Match.SoulFate.Reaped then
+				self:refillBreath()
+			end
+		end)
 	end
 	local players = self.deps.players
 	if players and self.deps.isStudio then
@@ -460,10 +467,10 @@ function TrapService:blow(id: string): (boolean, string?, { any }?)
 	for _, player in victims do
 		local down, reason = false, "aucune manche"
 		if match then
-			down, reason = match:down(player)
+			down, reason = match:accident(player)
 		end
 		if not down then
-			self.deps.warn(string.format("%s : %s pas mis en agonie (%s)", id, player.Name, tostring(reason)))
+			self.deps.warn(string.format("%s : accident refusé pour %s (%s)", id, player.Name, tostring(reason)))
 		end
 	end
 	local names = {}
