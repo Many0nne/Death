@@ -189,6 +189,9 @@ end
 -- Mortel suivi par la liste du HUD : Player, ou mannequin d'un faux joueur de debug (#12, attributs sur le Model)
 type RosterEntry = { source: Instance, name: string, bot: boolean, order: number }
 
+-- Faux joueurs de debug : Studio seulement, inutile de parcourir le workspace en jeu publié
+local IS_STUDIO = RunService:IsStudio()
+
 -- Cette méthode permet de trouver les mortels visibles de la manche (Players et mannequins des faux joueurs qui ont le
 -- rôle Mortal) lorsque le HUD complète sa liste.
 local function visibleMortals(): { Instance }
@@ -198,9 +201,11 @@ local function visibleMortals(): { Instance }
 			table.insert(list, player)
 		end
 	end
-	for _, child in workspace:GetChildren() do
-		if child:IsA("Model") and child:GetAttribute(MA.Role) == Match.Role.Mortal then
-			table.insert(list, child)
+	if IS_STUDIO then
+		for _, child in workspace:GetChildren() do
+			if child:IsA("Model") and child:GetAttribute(MA.Role) == Match.Role.Mortal then
+				table.insert(list, child)
+			end
 		end
 	end
 	return list
@@ -214,15 +219,23 @@ function Hud.start()
 	local summary = makeSummary(playerGui)
 	-- Résultat déjà affiché (texte JSON) : on ne le décode qu'à son changement
 	local shownResult: string? = nil
-	-- Mortels de la manche en cours, dans un ordre fixe proche de celui du bilan (faux joueurs d'abord, leurs UserId
-	-- négatifs ne sont pas répliqués : par nom ; puis joueurs par UserId) : un mortel parti garde sa ligne, comme le veut
+	-- Mortels de la manche en cours, dans l'ordre du bilan (UserId croissant : faux joueurs d'abord, du dernier créé au
+	-- premier, puisque leurs UserId négatifs décroissent ; puis joueurs) : un mortel parti garde sa ligne, comme le veut
 	-- docs/parcours-joueur.md (« même emplacement, même ordre »)
 	local roster: { RosterEntry } = {}
 	local known: { [Instance]: boolean } = {}
 
 	-- Cette méthode permet d'ajouter à la liste les mortels pas encore suivis lorsque la manche tourne (attributs
-	-- répliqués avec un léger retard au démarrage), puis de la trier dans l'ordre fixe.
+	-- répliqués avec un léger retard au démarrage), puis de la trier ; elle retire ceux d'une manche précédente.
 	local function updateRoster()
+		-- Encore présent mais plus mortel : reste d'une manche relancée dans la même frame (un départ, lui, garde sa ligne)
+		for i = #roster, 1, -1 do
+			local source = roster[i].source
+			if source.Parent ~= nil and source:GetAttribute(MA.Role) ~= Match.Role.Mortal then
+				known[source] = nil
+				table.remove(roster, i)
+			end
+		end
 		local added = false
 		for _, source in visibleMortals() do
 			if not known[source] then
@@ -233,7 +246,8 @@ function Hud.start()
 					source = source,
 					name = source.Name,
 					bot = bot,
-					order = if bot then 0 else (source :: Player).UserId,
+					-- Faux joueur : numéro du nom (« Bot Mortel 2 »), qui croît comme son UserId décroît
+					order = if bot then -(tonumber(source.Name:match("(%d+)$")) or 0) else (source :: Player).UserId,
 				})
 			end
 		end
@@ -242,7 +256,7 @@ function Hud.start()
 				if a.bot ~= b.bot then
 					return a.bot
 				end
-				return if a.bot then a.name < b.name else a.order < b.order
+				return a.order < b.order
 			end)
 		end
 	end
@@ -320,7 +334,7 @@ function Hud.start()
 			ReplicatedStorage:GetAttribute(MA.TimeLeft),
 			ReplicatedStorage:GetAttribute(MA.Duration)
 		)
-		hud.glass.Visible = running
+		hud.glass.Visible = running and role ~= nil
 		hud.fill.Size = UDim2.fromScale(fraction, 1)
 		hud.clock.Text = clockText or ""
 

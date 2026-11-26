@@ -65,7 +65,10 @@ function HudFormat.mortalState(state: string?, soul: string?, agonyLeft: number?
 		if not forDeath then
 			return "Mort"
 		end
-		return if soul == Match.SoulFate.Reaped then "Fauché" else "Mort · âme échappée"
+		if soul == Match.SoulFate.Reaped then
+			return "Fauché"
+		end
+		return if soul == Match.SoulFate.Escaped then "Mort · âme échappée" else "Mort"
 	end
 	return "—"
 end
@@ -118,8 +121,8 @@ function HudFormat.verdict(state: string?, soul: string?, cause: string?): strin
 		if soul == Match.SoulFate.Reaped or cause == Cause.Reaped then
 			return "Fauché"
 		end
-		local label = cause and CAUSE_LABELS[cause]
-		return (label or "Mort") .. " · âme échappée"
+		local label = (cause and CAUSE_LABELS[cause]) or "Mort"
+		return if soul == Match.SoulFate.Escaped then label .. " · âme échappée" else label
 	end
 	return "—"
 end
