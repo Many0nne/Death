@@ -496,6 +496,39 @@ local svgText = table.concat(svg, "\n") .. "\n"
 -- Vue 3D : blocs calculés, injectés dans le gabarit Three.js
 ---------------------------------------------------------------------------------------------------------------------
 local HIDDEN = { Zone = true, Boundary = true }
+
+-- Cette méthode permet d'écrire un composant d'axe avec trois décimales lorsque l'on exporte l'orientation d'un bloc
+-- (les quarts de tour restent exacts : 0, 1, -1).
+local function num3(n: number): string
+	local s = string.format("%.3f", n)
+	s = string.gsub(s, "0+$", "")
+	s = string.gsub(s, "%.$", "")
+	if s == "-0" then
+		return "0"
+	end
+	return s
+end
+
+-- Cette méthode permet de produire les champs JSON de forme et d'orientation d'un bloc rond ou tourné lorsque l'on
+-- exporte la vue 3D ; les axes sont donnés en repère du jeu, la vue fait la conversion vers Three.js.
+local function orientedFields(p): string
+	local s = p.size
+	local fields = string.format(',"s":[%s,%s,%s]', num(s.X), num(s.Y), num(s.Z))
+	if p.basis then
+		local m = {}
+		for _, axis in p.basis do
+			table.insert(m, num3(axis.X))
+			table.insert(m, num3(axis.Y))
+			table.insert(m, num3(axis.Z))
+		end
+		fields ..= string.format(',"m":[%s]', table.concat(m, ","))
+	end
+	if p.shape then
+		fields ..= string.format(',"f":%d', if p.shape == "Ball" then 1 else 2)
+	end
+	return fields
+end
+
 local boxes = {}
 for _, p in built.pieces do
 	if HIDDEN[p.kind] then
@@ -533,6 +566,11 @@ for _, p in built.pieces do
 	end
 	if p.hitbox then
 		extra ..= ',"h":1'
+	end
+	-- Bloc rond ou tourné : taille dans ses axes (s), axes dans le monde (m) et forme (f : 1 boule, 2 cylindre) ;
+	-- b reste sa boîte englobante, dont le centre est celui du bloc
+	if p.basis or p.shape then
+		extra ..= orientedFields(p)
 	end
 	local x0, x1, z0, z1, y0, y1 = bounds(p)
 	table.insert(
