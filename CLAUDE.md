@@ -62,7 +62,7 @@ toujours avec lui.
   mannequin `workspace["Bot Mortel 1"]` compté par `DebugStartMatch` (1 Mort + 1 à 4 mortels, bots compris). Ses
   attributs `Debug*` se posent sur le mannequin : `DebugSetState = "Agony"` vise ce faux mortel. `DebugClearBots = true`
   retire tous les bots (comme un départ de joueur). Limite : pièges, faisceau et lumière parcourent `Players`, donc ne
-  voient pas encore les bots (suite : issue « bots visibles par TrapService »). Code : `Server.DebugBots`.
+  voient pas encore les bots (suite : #52). Code : `Server.DebugBots`.
 
 ## Qualité
 - Outils Rokit (`rokit.toml`) : `rojo`, `stylua`, `selene`, `luau-lsp`, `lune`. Installer avec `rokit install`.
