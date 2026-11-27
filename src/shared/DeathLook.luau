@@ -1,5 +1,6 @@
 -- Rendu de la Mort selon qui la regarde (#80, docs/design.md « La Mort ») : règles pures lues à chaque frame par
--- Client.DeathView, indépendantes du modèle (seule la faux, `Scythe`, est retrouvée par son nom).
+-- Client.DeathView, indépendantes du modèle (la faux, `Scythe`, et les lanières du bas, `Tatters`, #81, sont retrouvées
+-- par leur nom).
 -- - Un mortel : invisible dans l'ombre ; exposée (lumière ambiante), une ombre pleine dont le bas part en fumée, sans
 --   faux ; tenue dans un faisceau de lampe (attribut public DeathInBeam), l'ombre se déchire et laisse voir le vrai
 --   corps et la faux, jusqu'à la dissipation (Server.FlashlightService).

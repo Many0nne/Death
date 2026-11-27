@@ -71,9 +71,12 @@ def checks():
 
 def measures():
     """Cette méthode permet de rendre les mesures écrites dans death.measured.json en plus des pièces : place des os
-    du corps (repère Roblox de la racine), relue par le remontage pour caler le rig R15."""
+    du corps (repère Roblox de la racine, relue par le remontage pour caler le rig R15), sommets attendus de la robe."""
     body = BUILT.get("body_rig") or bpy.data.objects.get("BodyRig")
-    return {"bodyBones": rig.joints(body)} if body else {}
+    out = {"cloakGridVertices": veil.expected_cloak_vertices()}
+    if body:
+        out["bodyBones"] = rig.joints(body)
+    return out
 
 
 def bake_strokes(name, low):

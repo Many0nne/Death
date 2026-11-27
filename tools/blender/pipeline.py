@@ -20,7 +20,9 @@ import hashlib
 import importlib.util
 import json
 import os
+import shutil
 import sys
+import tempfile
 import time
 
 import bpy
@@ -74,8 +76,8 @@ def load_model(m):
 
 def bake_part(m, model, name, spec, out_dir):
     """Cette méthode permet de cuire une pièce : version détaillée (sculpt le long de la grille si la pièce en a
-    une, traits propres au modèle), matériau CC0 ou procédural, cuisson vers la pièce jouable ; renvoie {carte:
-    chemin relatif}."""
+    une, traits propres au modèle), matériau CC0 ou procédural, cuisson vers la pièce jouable dans `out_dir` ;
+    renvoie {carte: chemin}."""
     low = next(o for o in bpy.data.objects if o.type == "MESH" and o.data.name == name and not o.name.endswith("_hi"))
     cfg = spec["bake"]
     seed = cfg.get("seed", 0)
@@ -122,7 +124,7 @@ def bake_part(m, model, name, spec, out_dir):
         print(f"BAKE {name} {kind}: {st}")
         if kind == "normal":
             BAKE_SPIKES[name] = st["spikesPct"]
-    return {k: os.path.relpath(v, ROOT).replace("\\", "/") for k, v in maps.items() if k != "ao"}
+    return maps
 
 
 def export_glb(m, path):
@@ -192,25 +194,45 @@ def main():
                 errors.append(f"drapé non déterministe : empreinte {extra['drape']['fingerprint']} au lieu de "
                               f"{before.get('fingerprint')} avec les mêmes sources")
     out_dir = os.path.join(ROOT, "assets", "textures", opts["model"])
+    # cuisson dans un dossier temporaire : les textures versionnées ne sont remplacées que si la cuisson est acceptée
+    bake_dir = tempfile.mkdtemp(prefix=f"bake_{opts['model']}_")
+    fresh = {}
     baked = {}
     for name, spec in m["parts"].items():
         if not spec.get("bake"):
             continue
         if opts["bake"] and not errors:
-            baked[name] = bake_part(m, model, name, spec, out_dir)
+            fresh[name] = bake_part(m, model, name, spec, bake_dir)
         else:
             kinds = ("color", "normal", "roughness") if spec["bake"].get("normal", True) else ("color", "roughness")
             maps = {k: f"assets/textures/{opts['model']}/{name}_{k}.png" for k in kinds}
             if all(os.path.isfile(os.path.join(ROOT, p)) for p in maps.values()):
                 baked[name] = maps
-    if baked:
-        extra["textures"] = baked
     if BAKE_SPIKES:
         extra["bakeSpikesPct"] = dict(BAKE_SPIKES)
         for name, pct in BAKE_SPIKES.items():
             limit = m["parts"][name]["bake"].get("spikesMax", SPIKES_MAX_PCT)
             if pct > limit:
                 errors.append(f"carte de normales de {name} : {pct} % de pixels très inclinés (> {limit})")
+    if fresh and not errors:
+        os.makedirs(out_dir, exist_ok=True)
+        for name, maps in fresh.items():
+            baked[name] = {}
+            for kind, path in maps.items():
+                dest = os.path.join(out_dir, os.path.basename(path))
+                shutil.move(path, dest)
+                if kind != "ao":
+                    baked[name][kind] = os.path.relpath(dest, ROOT).replace("\\", "/")
+    elif fresh:
+        print(f"textures cuites refusées, laissées dans {bake_dir} (assets/textures inchangé)")
+    elif os.path.isfile(measured_path):
+        # sans cuisson, les mesures de la dernière cuisson acceptée restent
+        with open(measured_path, encoding="utf-8") as f:
+            kept = json.load(f).get("bakeSpikesPct")
+        if kept:
+            extra["bakeSpikesPct"] = kept
+    if baked:
+        extra["textures"] = baked
     if hasattr(model, "measures"):
         extra.update(model.measures())
     for name, p in measured["parts"].items():

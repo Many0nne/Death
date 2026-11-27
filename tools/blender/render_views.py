@@ -1,4 +1,4 @@
-"""Rendus de contrôle d'un modèle : 7 vues fixes en PNG (face, 3/4, profil, dos, gros plans capuche, main, lame), à
+"""Rendus de contrôle d'un modèle : 8 vues fixes en PNG (face, 3/4, profil, dos, gros plans tête, deux mains, lame), à
 comparer avant et après chaque changement (#79 ; base reprise de worktrees/.render/render_views.py).
 
   blender -b --factory-startup --python tools/blender/render_views.py -- <dossier> [options]   (racine du dépôt)
@@ -177,7 +177,7 @@ def shot(sc, cam, out, name, pos, target, lens):
 
 
 def main():
-    """Cette méthode permet de construire le modèle puis de rendre les 7 vues."""
+    """Cette méthode permet de construire le modèle puis de rendre les vues demandées."""
     opts = args()
     if opts["textured"] and opts["script"]:
         raise SystemExit("--textured ne s'applique qu'au modèle du manifeste (pas à --script)")

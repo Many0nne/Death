@@ -360,44 +360,8 @@
     "frames": 70,
     "vertices": 2422,
     "fingerprint": "995cbf268752",
-    "sources": "c276ef22ea2c",
+    "sources": "ee5330084089",
     "blender": "5.2.3 LTS"
-  },
-  "textures": {
-    "Cloak": {
-      "normal": "assets/textures/death/Cloak_normal.png",
-      "roughness": "assets/textures/death/Cloak_roughness.png",
-      "color": "assets/textures/death/Cloak_color.png"
-    },
-    "Shroud": {
-      "normal": "assets/textures/death/Shroud_normal.png",
-      "roughness": "assets/textures/death/Shroud_roughness.png",
-      "color": "assets/textures/death/Shroud_color.png"
-    },
-    "Tatters": {
-      "roughness": "assets/textures/death/Tatters_roughness.png",
-      "color": "assets/textures/death/Tatters_color.png"
-    },
-    "Sleeves": {
-      "normal": "assets/textures/death/Sleeves_normal.png",
-      "roughness": "assets/textures/death/Sleeves_roughness.png",
-      "color": "assets/textures/death/Sleeves_color.png"
-    },
-    "Hands": {
-      "normal": "assets/textures/death/Hands_normal.png",
-      "roughness": "assets/textures/death/Hands_roughness.png",
-      "color": "assets/textures/death/Hands_color.png"
-    },
-    "Torso": {
-      "normal": "assets/textures/death/Torso_normal.png",
-      "roughness": "assets/textures/death/Torso_roughness.png",
-      "color": "assets/textures/death/Torso_color.png"
-    },
-    "Shaft": {
-      "normal": "assets/textures/death/Shaft_normal.png",
-      "roughness": "assets/textures/death/Shaft_roughness.png",
-      "color": "assets/textures/death/Shaft_color.png"
-    }
   },
   "bakeSpikesPct": {
     "Cloak": 0.072,
@@ -407,6 +371,43 @@
     "Torso": 0.0,
     "Shaft": 0.0
   },
+  "textures": {
+    "Cloak": {
+      "color": "assets/textures/death/Cloak_color.png",
+      "normal": "assets/textures/death/Cloak_normal.png",
+      "roughness": "assets/textures/death/Cloak_roughness.png"
+    },
+    "Shroud": {
+      "color": "assets/textures/death/Shroud_color.png",
+      "normal": "assets/textures/death/Shroud_normal.png",
+      "roughness": "assets/textures/death/Shroud_roughness.png"
+    },
+    "Tatters": {
+      "color": "assets/textures/death/Tatters_color.png",
+      "roughness": "assets/textures/death/Tatters_roughness.png"
+    },
+    "Sleeves": {
+      "color": "assets/textures/death/Sleeves_color.png",
+      "normal": "assets/textures/death/Sleeves_normal.png",
+      "roughness": "assets/textures/death/Sleeves_roughness.png"
+    },
+    "Hands": {
+      "color": "assets/textures/death/Hands_color.png",
+      "normal": "assets/textures/death/Hands_normal.png",
+      "roughness": "assets/textures/death/Hands_roughness.png"
+    },
+    "Torso": {
+      "color": "assets/textures/death/Torso_color.png",
+      "normal": "assets/textures/death/Torso_normal.png",
+      "roughness": "assets/textures/death/Torso_roughness.png"
+    },
+    "Shaft": {
+      "color": "assets/textures/death/Shaft_color.png",
+      "normal": "assets/textures/death/Shaft_normal.png",
+      "roughness": "assets/textures/death/Shaft_roughness.png"
+    }
+  },
+  "cloakGridVertices": 2422,
   "bodyBones": {
     "Spine": {
       "head": [

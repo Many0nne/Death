@@ -115,10 +115,17 @@ return function(T, Loader)
 			)
 		end)
 
-		T.it("la cape est mesurée après son drapé", function()
-			T.expect(measured.drape and measured.drape.frames > 0, "cape mesurée sans drapé")
-			T.expect(measured.drape.vertices > 0, "cape drapée sans sommet")
-		end)
+		T.it(
+			"le drapé de la cape garde la grille (sommets attendus d'après la grille trouée, poids recalculés)",
+			function()
+				T.expect(measured.drape and measured.drape.frames > 0, "cape mesurée sans drapé")
+				T.expect(
+					measured.cloakGridVertices and measured.cloakGridVertices > 0,
+					"grille de la cape non mesurée"
+				)
+				T.expectEqual(measured.drape.vertices, measured.cloakGridVertices)
+			end
+		)
 	end)
 
 	T.describe("Manifeste de la Mort : bras skinnés sur le rig R15 (#81)", function()

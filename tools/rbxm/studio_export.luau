@@ -25,7 +25,10 @@ end
 local function checkChildren(container: Instance, className: string)
 	local seen = {}
 	for _, child in container:GetChildren() do
-		assert(child:IsA(className), child:GetFullName() .. " n'est pas un " .. className .. " : il serait supprimé par Rojo")
+		assert(
+			child:IsA(className),
+			child:GetFullName() .. " n'est pas un " .. className .. " : il serait supprimé par Rojo"
+		)
 		assert(string.match(child.Name, "^[%w_%-]+$"), "nom non exportable : " .. child:GetFullName())
 		local key = string.lower(child.Name)
 		assert(not seen[key], "nom en double (casse comprise) : " .. child:GetFullName())
@@ -38,7 +41,11 @@ end
 local function export(instance: Instance, folder: string): string
 	local bytes = SerializationService:SerializeInstancesAsync({ instance })
 	local path = "assets/rbx/" .. folder .. "/" .. instance.Name .. ".rbxm"
-	HttpService:PostAsync(BASE .. "/rbxm?path=" .. HttpService:UrlEncode(path), toHex(bytes), Enum.HttpContentType.TextPlain)
+	HttpService:PostAsync(
+		BASE .. "/rbxm?path=" .. HttpService:UrlEncode(path),
+		toHex(bytes),
+		Enum.HttpContentType.TextPlain
+	)
 	return path
 end
 

@@ -174,6 +174,7 @@ def snap_to_hole(i, j):
     dj = j - jc
 
     def inside(s):
+        """Cette méthode permet de savoir si le point à la part s du centre du trou au sommet est dans le trou."""
         return _grid_hole(ic + di * s, jc + dj * s) == k
 
     if not inside(0):
@@ -196,6 +197,17 @@ def robe_keep(i, j):
     th = 2 * math.pi * (i + 0.5) / COLS
     _x, _y, z = robe_shape(i + 0.5, j + 0.5)
     return not hole_at(th, z)
+
+
+def expected_cloak_vertices():
+    """Cette méthode permet de compter les sommets que la grille de la robe doit garder (ceux d'au moins une case non
+    trouée) lorsqu'on vérifie que le drapé n'en a ni ajouté ni retiré (poids d'os recalculés d'après la grille)."""
+    used = set()
+    for j in range(ROWS - 1):
+        for i in range(COLS):
+            if robe_keep(i, j):
+                used.update({(i, j), ((i + 1) % COLS, j), (i, j + 1), ((i + 1) % COLS, j + 1)})
+    return len(used)
 
 
 def chain_t(b):
@@ -416,6 +428,7 @@ def sleeve_start(side):
     ph = PH[8] if side > 0 else PH[9]
 
     def fn(i, j):
+        """Cette méthode permet de placer le sommet (i autour, j le long) de la manche."""
         p, t, n, b = frames[j]
         a = 2 * math.pi * i / SLC
         s = j / (SLR - 1)

@@ -55,9 +55,10 @@ def subdivide(ob, levels):
 def sculpt_strokes(ob, strokes, smooth=2):
     """Cette méthode permet de sculpter par script : chaque trait (points, rayon, profondeur) creuse un sillon (> 0)
     ou lève un bourrelet (< 0) le long des normales, chute douce ; renvoie le nombre de sommets touchés.
-    Deux traits qui se croisent s'additionnent (borné en douceur à la plus forte profondeur) puis le champ est lissé :
-    un sillon qui croise un bourrelet ne crée plus de marche d'un sommet à l'autre (taches de la carte de normales,
-    #85)."""
+    Deux traits qui se croisent s'additionnent, le total est borné en douceur (tanh) à la plus forte profondeur, puis
+    le champ est lissé : un sillon qui croise un bourrelet ne crée plus de marche d'un sommet à l'autre (taches de la
+    carte de normales, #85). La borne vaut pour tout le champ : un trait seul à pleine profondeur sort à 0,76 fois
+    `dmax` (sillons d'environ un quart moins profonds qu'avant #85, voulu)."""
     me = ob.data
     n = len(me.vertices)
     kd = kdtree.KDTree(n)

@@ -224,7 +224,9 @@ local function fitJoint(motorName: string, boneName: string)
 			att.CFrame = pair[2]
 		end
 	end
-	report.joints[motorName] = { math.round(head.X * 100) / 100, math.round(head.Y * 100) / 100 }
+	local rel = root.CFrame:PointToObjectSpace(head)
+	report.joints[motorName] =
+		{ math.round(rel.X * 100) / 100, math.round(rel.Y * 100) / 100, math.round(rel.Z * 100) / 100 }
 end
 
 -- Cette méthode permet de ranger les os du corps de l'import sous les pièces du rig R15 (bones.body.attach), à leur
@@ -323,6 +325,7 @@ if MANIFEST.bones.body then
 end
 
 local toTarget = nil
+local replacedSet = {}
 for name, spec in MANIFEST.parts do
 	local measured = MEASURED.parts[name]
 	local old = findPart(model, name)
@@ -358,6 +361,7 @@ for name, spec in MANIFEST.parts do
 			old:Destroy()
 		end
 		part = placed
+		replacedSet[name] = true
 		table.insert(report.replaced, name)
 	else
 		if fresh then
@@ -397,10 +401,34 @@ for name, spec in MANIFEST.parts do
 	end
 end
 
--- os : la robe sous la racine, le corps sous les pièces du rig R15
+-- os : la robe sous la racine, le corps sous les pièces du rig R15 ; un jeu d'os n'est remplacé que si les pièces
+-- skinnées sur lui le sont toutes (une pièce gardée resterait liée aux anciens os)
+-- Cette méthode permet de savoir si toutes les pièces skinnées sur un jeu d'os ont été remplacées (true), aucune
+-- (false), ou une partie seulement (nil, avertissement : os gardés).
+local function allReplaced(names: { string }, label: string): boolean?
+	local some, all = false, true
+	for _, n in names do
+		some = some or replacedSet[n] == true
+		all = all and replacedSet[n] == true
+	end
+	if some and not all then
+		table.insert(report.warnings, "os " .. label .. " gardés : pièces skinnées remplacées en partie seulement")
+		return nil
+	end
+	return all
+end
 if import and toTarget then
-	moveCloakBones(toTarget)
-	if MANIFEST.bones.body then
+	local cloakParts = {}
+	for name, spec in MANIFEST.parts do
+		local isBody = MANIFEST.bones.body and table.find(MANIFEST.bones.body.skinned, name)
+		if spec.skinned and not isBody then
+			table.insert(cloakParts, name)
+		end
+	end
+	if allReplaced(cloakParts, MANIFEST.bones.root) then
+		moveCloakBones(toTarget)
+	end
+	if MANIFEST.bones.body and allReplaced(MANIFEST.bones.body.skinned, MANIFEST.bones.body.root) then
 		attachBodyBones(toTarget)
 	end
 end

@@ -103,6 +103,7 @@ def flesh_material(name, seed=0):
     links.new(coord.outputs["Object"], shift.inputs[0])
 
     def noise(scale, detail=6.0, rough=0.6):
+        """Cette méthode permet d'ajouter un bruit (coordonnées objet décalées par la graine) au réseau."""
         n = nodes.new("ShaderNodeTexNoise")
         n.inputs["Scale"].default_value = scale
         n.inputs["Detail"].default_value = detail
@@ -111,6 +112,7 @@ def flesh_material(name, seed=0):
         return n
 
     def mix(a, b, fac, clamp=True):
+        """Cette méthode permet de mélanger deux couleurs (valeur ou sortie de nœud) selon un facteur."""
         m = nodes.new("ShaderNodeMix")
         m.data_type = "RGBA"
         m.clamp_factor = clamp
@@ -126,6 +128,7 @@ def flesh_material(name, seed=0):
         return m.outputs["Result"]
 
     def ramp(src, lo, hi):
+        """Cette méthode permet de ramener une sortie de [lo, hi] à [0, 1] lorsqu'on règle un contraste."""
         r = nodes.new("ShaderNodeMapRange")
         r.inputs["From Min"].default_value = lo
         r.inputs["From Max"].default_value = hi

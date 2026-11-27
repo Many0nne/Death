@@ -151,8 +151,9 @@ def grid_object(name, cols, rows, fn, keep=None, weights=None, wrap=True, uv_shi
 
 
 def cap_row(ob, j=0, inward=0.0):
-    """Cette méthode permet de fermer d'un éventail de triangles le bord d'une grille à la rangée j (sommet d'un
-    suaire, pôle d'une calotte) ; le sommet central porte grid_i = 0, grid_j = j - 1 (hors grille), UV au bord."""
+    """Cette méthode permet de fermer d'un éventail de triangles le bord d'une grille à la rangée j, la première ou la
+    dernière (sommet d'un suaire, pôle d'une calotte) ; le sommet central porte grid_i = 0 et une rangée hors grille
+    (j - 1 ou j + 1), UV au bord."""
     bm = bmesh.new()
     bm.from_mesh(ob.data)
     gi = bm.verts.layers.int.get("grid_i")
@@ -161,14 +162,16 @@ def cap_row(ob, j=0, inward=0.0):
     ring = sorted((v for v in bm.verts if v[gj] == j), key=lambda v: v[gi])
     c = sum((v.co for v in ring), Vector()) / len(ring)
     # le centre suit la courbure : un peu au-delà du plan de l'anneau, du côté opposé à la rangée suivante
-    nxt = [v for v in bm.verts if v[gj] == j + 1]
+    first = j == min(v[gj] for v in bm.verts)
+    inner = j + 1 if first else j - 1  # rangée voisine, côté intérieur de la grille
+    nxt = [v for v in bm.verts if v[gj] == inner]
     if nxt:
         c2 = sum((v.co for v in nxt), Vector()) / len(nxt)
         c += (c - c2).normalized() * inward
     center = bm.verts.new(c)
     center[gi] = 0
-    center[gj] = j - 1
-    vv = 0.0 if j == 0 else 1.0
+    center[gj] = j - 1 if first else j + 1
+    vv = 0.0 if first else 1.0
     for k in range(len(ring)):
         a, b = ring[k], ring[(k + 1) % len(ring)]
         f = bm.faces.new((b, a, center))
