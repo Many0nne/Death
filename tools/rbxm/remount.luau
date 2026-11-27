@@ -197,8 +197,16 @@ for name, spec in MANIFEST.parts do
 		end
 		part = placed
 		table.insert(report.replaced, name)
-	elseif part then
-		table.insert(report.kept, name)
+	else
+		if fresh then
+			table.insert(
+				report.warnings,
+				name .. " : dans l'import mais pas dans les mesures (pipeline.py en échec ?)"
+			)
+		end
+		if part then
+			table.insert(report.kept, name)
+		end
 	end
 	if not part then
 		table.insert(report.missing, name)
@@ -249,13 +257,22 @@ for name, spec in MANIFEST.studio.emitters do
 		table.insert(report.warnings, "fumée " .. name .. " : pièce " .. spec.parent .. " absente")
 		continue
 	end
-	local emitter = parent:FindFirstChild(name)
+	-- une seule fumée de ce nom dans le modèle : celle qui serait restée ailleurs est déplacée, les doublons retirés
+	local emitter = nil
+	for _, d in model:GetDescendants() do
+		if d:IsA("ParticleEmitter") and d.Name == name then
+			if emitter then
+				d:Destroy()
+			else
+				emitter = d
+			end
+		end
+	end
 	if not emitter then
-		-- la fumée a pu rester sur une ancienne pièce (remplacée) ou ailleurs : on la recrée sur la bonne
 		emitter = Instance.new("ParticleEmitter")
 		emitter.Name = name
-		emitter.Parent = parent
 	end
+	emitter.Parent = parent
 	for prop, value in spec.props do
 		(emitter :: any)[prop] = decode(value)
 	end

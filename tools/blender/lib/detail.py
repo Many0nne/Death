@@ -32,9 +32,8 @@ def subdivide(ob, levels):
 
 
 def sculpt_strokes(ob, strokes):
-    """Cette méthode permet de sculpter par script : chaque trait (points, rayon, profondeur) creuse un sillon
-    (profondeur > 0) ou lève un bourrelet (< 0) le long des normales, avec une chute douce ; renvoie le nombre de
-    sommets touchés."""
+    """Cette méthode permet de sculpter par script : chaque trait (points, rayon, profondeur) creuse un sillon (> 0)
+    ou lève un bourrelet (< 0) le long des normales, chute douce ; renvoie le nombre de sommets touchés."""
     me = ob.data
     n = len(me.vertices)
     kd = kdtree.KDTree(n)
@@ -66,9 +65,8 @@ def sculpt_strokes(ob, strokes):
 
 def grid_strokes(ob, count, rows, cols, seed, radius=(0.06, 0.13), depth=(0.012, 0.03), length=(5, 12), drift=0.6,
                  j_min=0):
-    """Cette méthode permet de tirer des traits de sculpt qui descendent une grille (plis de tissu qui tombent) : chaque
-    trait suit la surface d'une rangée à l'autre, en dérivant un peu de colonne ; points pris sur `ob` (grille avec
-    attributs grid_i/grid_j, avant subdivision)."""
+    """Cette méthode permet de tirer des traits de sculpt qui descendent une grille (plis qui tombent), d'une rangée à
+    l'autre en dérivant de colonne, sur `ob` avant subdivision (attributs grid_i/grid_j)."""
     rnd = random.Random(seed)
     index = mesh.grid_index(ob)
     co = ob.data.vertices

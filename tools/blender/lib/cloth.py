@@ -34,9 +34,8 @@ def ground(z, size=20.0):
 
 def drape(ob, pin_group, frames=60, quality=8, mass=0.3, stiffness=15.0, self_collision=True, self_distance=0.03,
           shrink=0.0):
-    """Cette méthode permet de laisser tomber le tissu `ob` pendant `frames` images (épinglé par `pin_group`), puis
-    de figer le résultat dans son maillage ; renvoie le nombre de sommets (inchangé). Déterministe : même entrée,
-    mêmes images, même résultat (vérifié par empreinte, cf. fingerprint)."""
+    """Cette méthode permet de laisser tomber le tissu `ob` (épinglé par `pin_group`) pendant `frames` images, puis de
+    figer le résultat dans son maillage ; renvoie le nombre de sommets, inchangé (déterminisme : cf. fingerprint)."""
     scene = bpy.context.scene
     n_before = len(ob.data.vertices)
     mod = ob.modifiers.new("Cloth", "CLOTH")

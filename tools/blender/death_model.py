@@ -6,8 +6,8 @@ Noms des pièces, budgets et cuisson : tools/models/death.manifest.json. Chaîne
 
 Usage :
 - chaîne complète (recommandé) : blender -b --factory-startup --python tools/blender/pipeline.py -- --glb <sortie.glb>
-- seul, sans interface : blender -b --factory-startup --python tools/blender/death_model.py -- <sortie.glb>
-- interface (MCP) : exec(open(chemin).read(), {"__name__": "__main__", "__file__": chemin})
+- interface (MCP), construction seule : exec(open(chemin).read(), {"__name__": "__main__", "__file__": chemin})
+L'export GLB passe par pipeline.py (pièces du manifeste seulement, après contrôles).
 """
 
 import math
@@ -576,15 +576,16 @@ def build_all(drape=True):
 
 # ---------------------------------------------------------------- contrôles propres au modèle (pipeline.py)
 def grip_contact():
-    """Cette méthode permet de mesurer l'écart entre les phalanges et le cuir de la poignée (studs) : négatif = le
-    doigt s'enfonce, positif = il flotte ; renvoie (pire écart, écart moyen)."""
-    g, ax, _palm, _side = hand_frame()
+    """Cette méthode permet de mesurer l'écart entre les phalanges et le maillage réel de la poignée (studs, point le
+    plus proche) : négatif = le doigt s'enfonce, positif = il flotte ; renvoie (pire écart, écart moyen)."""
+    deps = bpy.context.evaluated_depsgraph_get()
+    grip = bpy.data.objects["Grip"].evaluated_get(deps)
+    tree = BVHTree.FromObject(grip, deps)
     gaps = []
     for pts, rs in FINGER_PATHS:
         for p, rf in zip(pts, rs):
-            d = p - g
-            radial = (d - ax * d.dot(ax)).length
-            gaps.append(radial - rf - GRIP_R)
+            nearest = tree.find_nearest(p)[0]
+            gaps.append((p - nearest).length - rf)
     return max(gaps), sum(gaps) / len(gaps)
 
 
@@ -631,6 +632,3 @@ def checks():
 
 if __name__ == "__main__":
     build_all()
-    if "--" in sys.argv:
-        out = sys.argv[sys.argv.index("--") + 1]
-        bpy.ops.export_scene.gltf(filepath=out, export_format="GLB", export_apply=True, export_yup=True)

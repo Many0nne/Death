@@ -90,10 +90,6 @@ def check(m):
             if unweighted:
                 errors.append(f"{skin} : os sans poids {unweighted}")
             measured["bones"] = have
-    exported = {o.data.name for o in bpy.data.objects if o.type == "MESH" and not o.hide_render}
-    stray = sorted(exported - set(m["parts"]))
-    if stray:
-        errors.append(f"maillages hors manifeste (seraient exportés) : {stray}")
     return measured, errors
 
 

@@ -32,11 +32,17 @@ return function(T, Loader)
 		return names
 	end
 
-	-- Cette méthode permet de relever les noms cherchés par un script (FindFirstChild / WaitForChild avec un littéral).
+	-- Cette méthode permet de relever les noms cherchés par un script (FindFirstChild / WaitForChild avec un littéral
+	-- entre guillemets simples ou doubles, second argument éventuel).
 	local function lookedUp(path: string): { string }
 		local out = {}
-		for name in string.gmatch(fs.readFile(path), ':FindFirstChild%("([^"]+)"%)') do
-			table.insert(out, name)
+		local source = fs.readFile(path)
+		for _, method in { "FindFirstChild", "WaitForChild" } do
+			for _, quote in { '"', "'" } do
+				for name in string.gmatch(source, ":" .. method .. "%(" .. quote .. "([^" .. quote .. "]+)" .. quote) do
+					table.insert(out, name)
+				end
+			end
 		end
 		return out
 	end
@@ -46,7 +52,9 @@ return function(T, Loader)
 			local known = knownNames()
 			for _, path in { "src/client/CloakAnimator.luau", "src/server/DeathBody.luau", "src/client/DeathView.luau" } do
 				for _, name in lookedUp(path) do
-					T.expect(known[name], path .. " cherche « " .. name .. " », absent du manifeste")
+					-- les modules partagés (ReplicatedStorage.Shared.X) ne désignent pas le modèle
+					local isModule = name == "Shared" or fs.isFile("src/shared/" .. name .. ".luau")
+					T.expect(isModule or known[name], path .. " cherche « " .. name .. " », absent du manifeste")
 				end
 			end
 		end)

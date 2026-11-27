@@ -5,16 +5,19 @@
 Options :
   --model death     manifeste tools/models/<modèle>.manifest.json (défaut : death)
   --bake            cuit les pièces qui ont une entrée "bake" (version détaillée -> textures PNG dans
-                    assets/textures/<modèle>/) ; sans cette option, les textures déjà cuites restent
+                    assets/textures/<modèle>/), seulement si les contrôles passent ; sinon les textures restent
   --glb <chemin>    exporte la version jouable (pièces du manifeste et armature) en GLB
   --blend <chemin>  enregistre la scène (contrôle à l'œil, jamais versionnée)
   --no-drape        robe sans simulation de tissu (forme dessinée, plus rapide)
   --no-write        n'écrit pas <modèle>.measured.json
 
-Sortie : rapport (triangles par pièce, contrôles propres au modèle, empreinte du drapé), code 1 si un contrôle échoue.
+Sortie : rapport (triangles par pièce, contrôles propres au modèle, empreinte du drapé), code 1 si un contrôle échoue
+(dont un drapé différent avec les mêmes sources) ; dans ce cas ni cuisson, ni mesures, ni GLB.
 """
 
+import hashlib
 import importlib.util
+import json
 import os
 import sys
 import time
@@ -115,9 +118,24 @@ def export_glb(m, path):
     print(f"GLB {path} ({os.path.getsize(path)} octets)")
 
 
+def sources_hash(m):
+    """Cette méthode permet de résumer le script du modèle et la bibliothèque en une empreinte lorsqu'on vérifie que
+    le drapé n'a changé que parce que ses sources ont changé."""
+    h = hashlib.sha1()
+    paths = [os.path.join(ROOT, m["script"])]
+    lib = os.path.join(HERE, "lib")
+    paths += sorted(os.path.join(lib, f) for f in os.listdir(lib) if f.endswith(".py"))
+    for p in paths:
+        with open(p, "rb") as f:
+            h.update(f.read().replace(b"\r\n", b"\n"))
+    return h.hexdigest()[:12]
+
+
 def main():
     """Cette méthode permet d'enchaîner construction, contrôles, cuisson, mesures et export."""
     opts = args()
+    if opts["bake"] and not opts["drape"]:
+        raise SystemExit("--bake sans drapé cuirait une cape qui n'est pas celle du jeu")
     mpath = os.path.join(ROOT, "tools", "models", f"{opts['model']}.manifest.json")
     m = manifest.load(mpath)
     model = load_model(m)
@@ -134,17 +152,26 @@ def main():
             print(f"CHECK {k}: {v}")
     skin = m["bones"]["skin"]
     skin_ob = manifest.part_objects(m).get(skin, [None])[0]
+    measured_path = os.path.join(ROOT, "tools", "models", f"{opts['model']}.measured.json")
     if skin_ob is not None:
         extra["drape"] = {"frames": getattr(model, "DRAPE_FRAMES", 0) if opts["drape"] else 0,
                           "vertices": len(skin_ob.data.vertices),
-                          "fingerprint": cloth.fingerprint(skin_ob)}
+                          "fingerprint": cloth.fingerprint(skin_ob),
+                          "sources": sources_hash(m)}
         print(f"DRAPE {extra['drape']}")
+        # mêmes sources, autre drapé : la simulation n'est plus déterministe (version de Blender, threads)
+        if opts["drape"] and os.path.isfile(measured_path):
+            with open(measured_path, encoding="utf-8") as f:
+                before = json.load(f).get("drape", {})
+            if before.get("sources") == extra["drape"]["sources"] and before.get("fingerprint") != extra["drape"]["fingerprint"]:
+                errors.append(f"drapé non déterministe : empreinte {extra['drape']['fingerprint']} au lieu de "
+                              f"{before.get('fingerprint')} avec les mêmes sources")
     out_dir = os.path.join(ROOT, "assets", "textures", opts["model"])
     baked = {}
     for name, spec in m["parts"].items():
         if not spec.get("bake"):
             continue
-        if opts["bake"]:
+        if opts["bake"] and not errors:
             baked[name] = bake_part(m, name, spec, out_dir)
         else:
             maps = {k: f"assets/textures/{opts['model']}/{name}_{k}.png" for k in ("color", "normal", "roughness")}
@@ -157,12 +184,13 @@ def main():
     print(f"TRIS TOTAL: {measured['totalTris']} (budget {m['budget']['totalTris']})")
     if opts["write"] and not errors:
         if opts["drape"]:
-            manifest.write_measured(os.path.join(ROOT, "tools", "models", f"{opts['model']}.measured.json"), m,
-                                    measured, extra)
+            manifest.write_measured(measured_path, m, measured, extra)
         else:
             print("mesures non écrites : sans drapé, la cape n'est pas celle du jeu")
-    if opts["glb"]:
+    if opts["glb"] and not errors:
         export_glb(m, opts["glb"])
+    elif opts["glb"]:
+        print("GLB non exporté : contrôles en échec")
     if opts["blend"]:
         bpy.ops.wm.save_as_mainfile(filepath=opts["blend"])
     for e in errors:

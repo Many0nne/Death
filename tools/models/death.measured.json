@@ -272,21 +272,22 @@
     "C15_3"
   ],
   "checks": {
-    "grip_gap_max": -0.0051,
-    "grip_gap_mean": -0.007,
+    "grip_gap_max": -0.0044,
+    "grip_gap_mean": -0.0091,
     "void_leaks": 0,
     "void_vertices": 816
   },
   "drape": {
     "frames": 70,
     "vertices": 1920,
-    "fingerprint": "243e88916182"
+    "fingerprint": "243e88916182",
+    "sources": "6bc4d2f8a6e4"
   },
   "textures": {
     "Cloak": {
+      "color": "assets/textures/death/Cloak_color.png",
       "normal": "assets/textures/death/Cloak_normal.png",
-      "roughness": "assets/textures/death/Cloak_roughness.png",
-      "color": "assets/textures/death/Cloak_color.png"
+      "roughness": "assets/textures/death/Cloak_roughness.png"
     }
   }
 }

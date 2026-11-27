@@ -25,7 +25,7 @@ local function compact(path: string): string
 end
 
 local template = fs.readFile("tools/rbxm/remount.luau")
--- remplacements littéraux (gsub interpréterait les % du JSON)
+-- Cette méthode permet de remplacer un marqueur littéral du modèle de script (gsub interpréterait les % du JSON).
 local function replace(text: string, marker: string, value: string): string
 	local a, b = string.find(text, marker, 1, true)
 	assert(a, "marqueur absent : " .. marker)

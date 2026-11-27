@@ -32,12 +32,25 @@ def get_json(url):
 
 
 def download(url, path):
-    """Cette méthode permet d'écrire un fichier distant sur le disque lorsqu'il manque."""
+    """Cette méthode permet d'écrire un fichier distant lorsqu'il manque : fichier temporaire renommé une fois complet
+    (taille annoncée vérifiée), donc jamais de fichier tronqué pris pour bon."""
     with urllib.request.urlopen(urllib.request.Request(url, headers=HEADERS), timeout=60) as r:
+        expected = int(r.headers.get("Content-Length") or 0)
         data = r.read()
-    with open(path, "wb") as f:
+    if expected and len(data) != expected:
+        raise IOError(f"{url} : {len(data)} octets reçus sur {expected}")
+    with open(path + ".part", "wb") as f:
         f.write(data)
+    os.replace(path + ".part", path)
     return len(data)
+
+
+def present(path):
+    """Cette méthode permet de savoir si une carte est déjà là et lisible (pas un pointeur Git LFS ni un JPEG vide)."""
+    if not os.path.isfile(path) or os.path.getsize(path) < 1024:
+        return False
+    with open(path, "rb") as f:
+        return f.read(2) == b"\xff\xd8"
 
 
 def main():
@@ -58,7 +71,7 @@ def main():
                 continue
             name = f"{asset}_{suffix}_{RES}.jpg"
             path = os.path.join(folder, name)
-            if force or not os.path.isfile(path):
+            if force or not present(path):
                 size = download(entry["url"], path)
                 print(f"{path} ({size} octets)")
             maps[suffix] = name
