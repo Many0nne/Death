@@ -1,0 +1,65 @@
+{
+  "rough_linen": {
+    "name": "Rough Linen",
+    "usage": "tissu (cape, capuche, manche)",
+    "authors": [
+      "Rico Cilliers",
+      "colormass"
+    ],
+    "license": "CC0 1.0",
+    "url": "https://polyhaven.com/a/rough_linen",
+    "maps": {
+      "diff": "rough_linen_diff_1k.jpg",
+      "nor_gl": "rough_linen_nor_gl_1k.jpg",
+      "rough": "rough_linen_rough_1k.jpg",
+      "disp": "rough_linen_disp_1k.jpg"
+    }
+  },
+  "brown_leather": {
+    "name": "Brown Leather",
+    "usage": "cuir (poignée)",
+    "authors": [
+      "Rob Tuytel"
+    ],
+    "license": "CC0 1.0",
+    "url": "https://polyhaven.com/a/brown_leather",
+    "maps": {
+      "diff": "brown_leather_diff_1k.jpg",
+      "nor_gl": "brown_leather_nor_gl_1k.jpg",
+      "rough": "brown_leather_rough_1k.jpg",
+      "disp": "brown_leather_disp_1k.jpg"
+    }
+  },
+  "rusty_metal_02": {
+    "name": "Rusty Metal 02",
+    "usage": "métal (lame, tête, bagues)",
+    "authors": [
+      "Rob Tuytel"
+    ],
+    "license": "CC0 1.0",
+    "url": "https://polyhaven.com/a/rusty_metal_02",
+    "maps": {
+      "diff": "rusty_metal_02_diff_1k.jpg",
+      "nor_gl": "rusty_metal_02_nor_gl_1k.jpg",
+      "rough": "rusty_metal_02_rough_1k.jpg",
+      "disp": "rusty_metal_02_disp_1k.jpg"
+    }
+  },
+  "dark_wood": {
+    "name": "Dark Wood",
+    "usage": "bois (manche)",
+    "authors": [
+      "Dario Barresi",
+      "Dimitrios Savva",
+      "Rico Cilliers"
+    ],
+    "license": "CC0 1.0",
+    "url": "https://polyhaven.com/a/dark_wood",
+    "maps": {
+      "diff": "dark_wood_diff_1k.jpg",
+      "nor_gl": "dark_wood_nor_gl_1k.jpg",
+      "rough": "dark_wood_rough_1k.jpg",
+      "disp": "dark_wood_disp_1k.jpg"
+    }
+  }
+}

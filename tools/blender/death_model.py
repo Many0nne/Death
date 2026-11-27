@@ -1,116 +1,39 @@
-"""Modèle de la Mort (#76) : cape à os animable, capuche vide, bras squelette, faux en zones de skin.
+"""Modèle de la Mort (#76, outillage #79) : cape à os drapée, capuche vide, bras squelette, faux en zones de skin.
 
 Unités : 1 unité Blender = 1 stud. Origine = HumanoidRootPart du rig R15 ; sol à GROUND.
 Face avant vers +Y (le glTF exporte (x, y, z) -> (x, z, -y), donc +Y Blender = -Z Roblox = l'avant).
+Noms des pièces, budgets et cuisson : tools/models/death.manifest.json. Chaîne complète : tools/blender/pipeline.py.
 
 Usage :
-- interface (MCP) : exec(open(chemin).read(), {"__name__": "__main__"})
-- sans interface : blender -b --factory-startup --python tools/blender/death_model.py -- <sortie.glb>
+- chaîne complète (recommandé) : blender -b --factory-startup --python tools/blender/pipeline.py -- --glb <sortie.glb>
+- seul, sans interface : blender -b --factory-startup --python tools/blender/death_model.py -- <sortie.glb>
+- interface (MCP) : exec(open(chemin).read(), {"__name__": "__main__", "__file__": chemin})
 """
 
 import math
+import os
 import random
 import sys
 
-import bmesh
 import bpy
 from mathutils import Vector
+from mathutils.bvhtree import BVHTree
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from lib import cloth, mesh  # noqa: E402
+from lib.mesh import Builder, grid_object, interp, lerp, material, smoothstep, solidify  # noqa: E402
 
 GROUND = -3.65
-random.seed(76)
-
-
-def clear_scene():
-    """Cette méthode permet de repartir d'une scène vide lorsqu'on reconstruit le modèle."""
-    for o in list(bpy.data.objects):
-        bpy.data.objects.remove(o, do_unlink=True)
-    for coll in (bpy.data.meshes, bpy.data.armatures, bpy.data.materials):
-        for d in list(coll):
-            coll.remove(d)
-
-
-def interp(keys, t):
-    """Cette méthode permet d'interpoler en douceur un profil (t, valeurs...) lorsqu'on échantillonne une forme."""
-    if t <= keys[0][0]:
-        return list(keys[0][1:])
-    for a, b in zip(keys, keys[1:]):
-        if a[0] <= t <= b[0]:
-            k = (t - a[0]) / (b[0] - a[0])
-            k = k * k * (3 - 2 * k)
-            return [a[i] + (b[i] - a[i]) * k for i in range(1, len(a))]
-    return list(keys[-1][1:])
-
-
-def material(name, rgb, metallic=0.0, roughness=0.8):
-    """Cette méthode permet de créer un matériau nommé (une zone de skin) lorsqu'une pièce en a besoin."""
-    mat = bpy.data.materials.get(name) or bpy.data.materials.new(name)
-    mat.use_nodes = True
-    bsdf = next(n for n in mat.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
-    bsdf.inputs["Base Color"].default_value = (*rgb, 1)
-    bsdf.inputs["Metallic"].default_value = metallic
-    bsdf.inputs["Roughness"].default_value = roughness
-    mat.diffuse_color = (*rgb, 1)
-    return mat
-
-
-def grid_object(name, cols, rows, fn, keep=None, weights=None, wrap=True):
-    """Cette méthode permet de construire une surface en grille (colonnes x rangées) lorsqu'une forme est paramétrique ;
-    weights(i, j) renvoie {groupe: poids} pour le skinning."""
-    bm = bmesh.new()
-    verts = [[bm.verts.new(fn(i, j)) for i in range(cols)] for j in range(rows)]
-    last = cols if wrap else cols - 1
-    for j in range(rows - 1):
-        for i in range(last):
-            if keep is None or keep(i, j):
-                i2 = (i + 1) % cols
-                bm.faces.new((verts[j][i], verts[j][i2], verts[j + 1][i2], verts[j + 1][i]))
-    bm.verts.index_update()
-    index = {verts[j][i].index: (i, j) for j in range(rows) for i in range(cols)}
-    loose = [v for v in bm.verts if not v.link_faces]
-    me = bpy.data.meshes.new(name)
-    bm.to_mesh(me)
-    bm.free()
-    ob = bpy.data.objects.new(name, me)
-    bpy.context.collection.objects.link(ob)
-    if weights:
-        groups = {}
-        for v in me.vertices:
-            for g, w in weights(*index[v.index]).items():
-                if w <= 0:
-                    continue
-                if g not in groups:
-                    groups[g] = ob.vertex_groups.new(name=g)
-                groups[g].add([v.index], w, "REPLACE")
-    # sommets isolés (faces retirées) : supprimés après le skinning pour garder les index
-    if loose:
-        bm = bmesh.new()
-        bm.from_mesh(me)
-        bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context="VERTS")
-        bm.to_mesh(me)
-        bm.free()
-    bm = bmesh.new()
-    bm.from_mesh(me)
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    bm.to_mesh(me)
-    bm.free()
-    for p in me.polygons:
-        p.use_smooth = True
-    return ob
-
-
-def solidify(ob, thickness):
-    """Cette méthode permet de donner une épaisseur à une surface lorsqu'elle doit être étanche pour Roblox."""
-    s = ob.modifiers.new("Epaisseur", "SOLIDIFY")
-    s.thickness = thickness
-    s.offset = 0
-    s.use_even_offset = False  # l'épaisseur régulière fait exploser les angles vifs (poche de la capuche)
-    s.use_quality_normals = True
+SEED = 76
+random.seed(SEED)
+# nombre d'images du drapé : fixe, le résultat en dépend
+DRAPE_FRAMES = 70
 
 
 # ---------------------------------------------------------------- cape
 COLS, ROWS = 64, 30
 CHAINS, CHAIN_BONES = 16, 4
-T_SKIN = 0.22  # au-dessus : rigide (os racine), en dessous : chaînes de lambeaux
+T_SKIN = 0.22  # au-dessus : rigide (os racine, épinglé pendant le drapé), en dessous : chaînes de lambeaux
 ROBE = [
     (0.0, 1.50, 0.38, 0.36),
     (0.05, 1.32, 0.72, 0.52),
@@ -131,25 +54,52 @@ for _i in range(COLS):
 PH = [random.uniform(0, 6.28) for _ in range(4)]
 
 
-def robe_pt(i, j):
-    """Cette méthode permet de placer un sommet de la robe (colonne i, rangée j) lorsqu'on construit la cape."""
+def robe_shape(i, j, ample=0.0, folds=1.0, teeth=True):
+    """Cette méthode permet de placer un sommet de la robe (colonne i, rangée j) : `ample` élargit le bas (tissu en
+    trop qui plissera au drapé), `folds` dose les plis dessinés, `teeth` ajoute les lambeaux."""
     th = 2 * math.pi * (i % COLS) / COLS
     t = j / (ROWS - 1)
     z, rx, ry = interp(ROBE, t)
-    if t > 0.85:
+    if teeth and t > 0.85:
         k = (t - 0.85) / 0.15
         z -= TEETH[i % COLS] * k * k
-    fa = 0.17 * max(0, t - 0.15) ** 0.8
+    fa = 0.17 * folds * max(0, t - 0.15) ** 0.8
     r = 1 + fa * (
         math.sin(8 * th + PH[0] + 2.5 * t) + 0.45 * math.sin(15 * th + PH[1] - t) + 0.25 * math.sin(23 * th + PH[2])
     )
+    r *= 1 + ample * smoothstep(T_SKIN, 0.55, t)
     x, y = rx * r * math.sin(th), ry * r * math.cos(th)
     back = max(0, -math.cos(th))
-    w = max(0, t - 0.2) ** 2 * (1 + 0.8 * back) + 0.8 * TEETH[i % COLS] * max(0, t - 0.85) / 0.15
+    tooth = TEETH[i % COLS] if teeth else 0
+    w = max(0, t - 0.2) ** 2 * (1 + 0.8 * back) + 0.8 * tooth * max(0, t - 0.85) / 0.15
     x -= 0.45 * w
     y -= 0.6 * w
     z += 0.25 * w * back
     return (x, y, max(z, GROUND + 0.12))
+
+
+def robe_pt(i, j):
+    """Cette méthode permet de placer un sommet de la robe dessinée, sans drapé (ancienne forme, plis en sinusoïdes)."""
+    return robe_shape(i, j)
+
+
+def robe_start(i, j):
+    """Cette méthode permet de placer un sommet de la robe avant le drapé : trop ample, plis dessinés atténués (ils
+    ne servent qu'à briser la symétrie) ; la simulation fait le reste."""
+    return robe_shape(i, j, ample=0.22, folds=0.25)
+
+
+PROXY_COLS, PROXY_ROWS = 32, 22
+
+
+def proxy_pt(i, j):
+    """Cette méthode permet de placer un sommet du corps de substitution : la silhouette de la robe un peu rentrée,
+    sans plis ni lambeaux, fermée en haut et en bas (le tissu s'y pose)."""
+    s = j / (PROXY_ROWS - 1)
+    t = 0.04 + 0.86 * s
+    x, y, z = robe_shape(i * COLS / PROXY_COLS, t * (ROWS - 1), folds=0, teeth=False)
+    k = 0.9 * (smoothstep(0, 0.08, s) * smoothstep(1, 0.93, s)) ** 0.5  # se referme aux deux bouts
+    return (x * k, y * k, z)
 
 
 def chain_t(b):
@@ -184,24 +134,26 @@ def robe_weights(i, j):
     return {k: v / total for k, v in out.items()}
 
 
-def build_armature():
-    """Cette méthode permet de créer l'armature de la cape (racine + chaînes de lambeaux) lorsqu'on la skinne."""
+def build_armature(cloak):
+    """Cette méthode permet de créer l'armature de la cape (racine + chaînes de lambeaux), chaque os posé sur la robe
+    telle qu'elle est (drapée ou non), d'après les indices de grille gardés sur ses sommets."""
+    index = mesh.grid_index(cloak)
+    co = cloak.data.vertices
     arm = bpy.data.armatures.new("CloakRig")
-    ob = bpy.data.objects.new("CloakRig", arm)
-    bpy.context.collection.objects.link(ob)
+    ob = mesh.link(bpy.data.objects.new("CloakRig", arm))
     bpy.context.view_layer.objects.active = ob
     bpy.ops.object.mode_set(mode="EDIT")
     root = arm.edit_bones.new("Root")
     root.head, root.tail = (0, 0, 0.8), (0, 0, 1.4)
     for c in range(CHAINS):
-        col = c * COLS / CHAINS
+        col = int(c * COLS / CHAINS)
         parent = root
         for b in range(CHAIN_BONES):
             eb = arm.edit_bones.new(f"C{c:02d}_{b}")
             j0 = round(chain_t(b) * (ROWS - 1))
             j1 = round(chain_t(b + 1) * (ROWS - 1))
-            eb.head = robe_pt(int(col), j0)
-            eb.tail = robe_pt(int(col), j1)
+            eb.head = co[index[(col, j0)]].co
+            eb.tail = co[index[(col, j1)]].co
             eb.parent = parent
             eb.use_connect = b > 0
             parent = eb
@@ -209,10 +161,20 @@ def build_armature():
     return ob
 
 
-def build_cloak():
-    """Cette méthode permet de construire la robe en lambeaux, skinnée sur l'armature de la cape."""
-    rig = build_armature()
-    cloak = grid_object("Cloak", COLS, ROWS, robe_pt, weights=robe_weights)
+def build_cloak(drape=True):
+    """Cette méthode permet de construire la robe en lambeaux : drapée par simulation de tissu sur un corps de
+    substitution (puis figée), puis skinnée sur l'armature de la cape (poids recalculés d'après la grille)."""
+    cloak = grid_object("Cloak", COLS, ROWS, robe_start if drape else robe_pt, uv_shift=COLS // 2)
+    if drape:
+        body = cloth.proxy_body("ClothBody", PROXY_COLS, PROXY_ROWS, proxy_pt)
+        floor = cloth.ground(GROUND + 0.04)
+        mesh.set_group(cloak, "Pin", lambda i, j: 1.0 if j / (ROWS - 1) <= T_SKIN + 1e-6 else 0.0)
+        cloth.drape(cloak, "Pin", frames=DRAPE_FRAMES)
+        cloak.vertex_groups.remove(cloak.vertex_groups["Pin"])
+        for o in (body, floor):
+            bpy.data.objects.remove(o, do_unlink=True)
+    rig = build_armature(cloak)
+    mesh.set_weights(cloak, robe_weights)
     solidify(cloak, 0.05)
     mod = cloak.modifiers.new("Rig", "ARMATURE")
     mod.object = rig
@@ -232,33 +194,52 @@ HOOD = [
     (0.82, 2.55, 0.58, 0.66, -0.02),
     (1.0, 2.95, 0.05, 0.06, -0.30),
 ]
-HC, HR = 64, 34
+HC, HR = 64, 40
 HOOD_TEETH = [random.uniform(0.0, 0.12) + (random.uniform(0.15, 0.4) if k % 2 else 0) for k in range(HC)]
 OPEN_V = (0.40, 0.80)  # bande de l'ouverture (du menton au sommet du visage absent)
+# colonnes et rangées resserrées autour de l'ouverture : son bord reste lisse (plus de marches d'escalier)
+HOOD_U = mesh.warp_samples(HC, lambda u: 1 + 2.2 * math.exp(-((min(u, 1 - u) / 0.11) ** 2)), closed=True)
+HOOD_V = mesh.warp_samples(HR, lambda v: 1 + 1.6 * math.exp(-(((v - 0.6) / 0.22) ** 2)))
+VOID_GAP = 0.045  # écart du vide au tissu de la poche (le tissu fait ±0,025)
 
 
-def hood_hollow(th, v):
-    """Cette méthode permet de mesurer (0 à 1) combien un point de la capuche est creusé vers l'intérieur : 1 au centre
-    de l'ouverture en ogive, 0 hors d'elle ; la surface reste continue, donc le bord est lisse."""
-    d = min(th, 2 * math.pi - th)
+def opening_width(v):
+    """Cette méthode permet de donner la demi-largeur angulaire (radians) de l'ouverture à la hauteur v (0 hors de
+    la bande de l'ouverture) : une ogive, étroite au menton, pointue en haut."""
     lo, hi = OPEN_V
     if v <= lo or v >= hi:
         return 0.0
     k = (v - lo) / (hi - lo)
-    w = 0.62 * math.sin(math.pi * min(1.0, k * 1.1)) ** 0.5 * (1 - k) ** 0.35
+    return 0.62 * math.sin(math.pi * min(1.0, k * 1.1)) ** 0.5 * (1 - k) ** 0.35
+
+
+def hood_hollow(th, v):
+    """Cette méthode permet de mesurer (0 à 1) combien un point de la capuche est creusé vers l'intérieur : 1 au centre
+    de l'ouverture en ogive, 0 hors d'elle ; transition douce, donc le bord de l'ouverture est lisse."""
+    d = min(th, 2 * math.pi - th)
+    w = opening_width(v)
     if d >= w:
         return 0.0
-    s = 1 - d / w
-    return min(1.0, s * 2.2) ** 0.8
+    return smoothstep(0.0, 0.75, 1 - d / w)
 
 
-def hood_pt(i, j):
-    """Cette méthode permet de placer un sommet de la capuche, bord avant avancé et tombant devant l'ouverture."""
-    th = 2 * math.pi * i / HC
-    v = j / (HR - 1)
+def pocket_depth(v):
+    """Cette méthode permet de donner la profondeur de la poche à la hauteur v : pleine au milieu, réduite là où
+    l'ouverture se resserre (sinon la paroi se replie sur elle-même au menton et à la pointe de l'ogive)."""
+    return 1.05 * smoothstep(0.0, 0.32, opening_width(v))
+
+
+def hood_param(i, j):
+    """Cette méthode permet de donner l'angle et la hauteur relative (v) de la case (i, j) de la capuche."""
+    return 2 * math.pi * HOOD_U[i % HC], HOOD_V[min(max(j, 0), HR - 1)]
+
+
+def hood_at(th, v, i):
+    """Cette méthode permet de placer un point de la capuche (angle, hauteur relative), bord avant avancé et tombant
+    devant l'ouverture ; i choisit la dent de la pèlerine."""
     z, rx, ry, yc = interp(HOOD, v)
     if v < 0.12:  # bord de la pèlerine en lambeaux
-        z -= HOOD_TEETH[i] * (1 - v / 0.12) ** 2
+        z -= HOOD_TEETH[i % HC] * (1 - v / 0.12) ** 2
     d = min(th, 2 * math.pi - th)
     fold = 1 + (0.06 if v < 0.35 else 0.03) * math.sin(9 * th + 4 * v + PH[3])
     x, y = rx * fold * math.sin(th), ry * fold * math.cos(th) + yc
@@ -270,126 +251,64 @@ def hood_pt(i, j):
     h = hood_hollow(th, v)
     if h > 0:  # poche : la face avant rentre profondément dans la capuche
         x *= 1 - 0.25 * h
-        y -= 1.05 * h
+        y -= pocket_depth(v) * h
     back = max(0, -math.cos(th))
     if v < 0.2:  # la pèlerine flotte un peu derrière
         y -= 0.25 * back * (1 - v / 0.2)
-    return (x, y, z)
+    return Vector((x, y, z))
+
+
+def hood_pt(i, j):
+    """Cette méthode permet de placer le sommet (i, j) de la capuche."""
+    th, v = hood_param(i, j)
+    return hood_at(th, v, i)
+
+
+VOID_COLS, VOID_ROWS = 17, 24
+VOID_SPAN = 0.8  # le vide couvre la poche jusqu'à 80 % de la demi-largeur de l'ouverture : bord caché dans la paroi
+VOID_MIN_DEPTH = 0.35  # et seulement là où la poche est assez creuse (pas à la pointe de l'ogive ni au menton)
+
+
+def void_band():
+    """Cette méthode permet de trouver la bande de hauteurs (v) où la poche est assez profonde pour cacher le vide."""
+    lo, hi = OPEN_V
+    vs = [lo + (hi - lo) * k / 400 for k in range(401)]
+    deep = [v for v in vs if pocket_depth(v) >= VOID_MIN_DEPTH]
+    return deep[0], deep[-1]
+
+
+def void_param(i, j):
+    """Cette méthode permet de donner l'angle et la hauteur d'un sommet du vide : rangées dans la bande assez creuse
+    de l'ouverture, colonnes réparties sur sa largeur (le contour suit l'ogive, donc il est lisse)."""
+    lo, hi = void_band()
+    v = lo + (hi - lo) * j / (VOID_ROWS - 1)
+    s = 2 * i / (VOID_COLS - 1) - 1
+    return (s * VOID_SPAN * opening_width(v)) % (2 * math.pi), v
+
+
+def void_pt(i, j):
+    """Cette méthode permet de placer un sommet du vide noir : sur le tissu de la poche, décalé vers l'ouverture le
+    long de la normale (jamais au-delà du tissu : il ne peut plus percer la capuche)."""
+    th, v = void_param(i, j)
+    p = hood_at(th, v, 0)
+    e = 1e-3
+    du = hood_at(th + e, v, 0) - hood_at(th - e, v, 0)
+    dv = hood_at(th, v + e, 0) - hood_at(th, v - e, 0)
+    n = du.cross(dv).normalized()
+    if n.y < 0:
+        n = -n
+    return p + n * VOID_GAP
 
 
 def build_hood():
-    """Cette méthode permet de construire la capuche et le vide noir qu'elle contient (aucune tête)."""
+    """Cette méthode permet de construire la capuche et le vide noir qui tapisse sa poche (aucune tête)."""
     hood = grid_object("Hood", HC, HR, hood_pt)
     solidify(hood, 0.05)
     hood.data.materials.append(material("HoodCloth", (0.012, 0.012, 0.016), 0, 0.95))
-    bpy.ops.mesh.primitive_uv_sphere_add(segments=20, ring_count=12, location=(0, 0.12, 1.95))
-    void = bpy.context.active_object
-    void.name = "Void"
-    void.data.name = "Void"  # le glTF nomme la MeshPart d'après le maillage (sinon « Sphere »)
-    void.scale = (0.66, 0.62, 0.78)
+    void = grid_object("Void", VOID_COLS, VOID_ROWS, void_pt, wrap=False)
+    solidify(void, 0.02)
     void.data.materials.append(material("Void", (0, 0, 0), 0, 1))
     return hood, void
-
-
-# ---------------------------------------------------------------- outils de maillage (tubes, sphères, UV)
-class Builder:
-    """Accumule de la géométrie (tubes, sphères, grilles) dans un bmesh avec UV, puis crée l'objet."""
-
-    def __init__(self, name):
-        self.name = name
-        self.bm = bmesh.new()
-        self.uv = self.bm.loops.layers.uv.new("UVMap")
-
-    def _face(self, vs, uvs):
-        """Cette méthode permet d'ajouter une face avec ses UV lorsqu'on tisse une grille."""
-        f = self.bm.faces.new(vs)
-        for loop, uv in zip(f.loops, uvs):
-            loop[self.uv].uv = uv
-        return f
-
-    def grid(self, rows, closed_u=True, cap_start=False, cap_end=False):
-        """Cette méthode permet de tisser une grille de sommets (rows[j][i]) en quads, UV u = i, v = j normalisés,
-        avec des bouchons éventuels aux extrémités."""
-        bm = self.bm
-        vs = [[bm.verts.new(p) for p in row] for row in rows]
-        n = len(rows[0])
-        last = n if closed_u else n - 1
-        for j in range(len(rows) - 1):
-            for i in range(last):
-                i2 = (i + 1) % n
-                u0, u1 = i / n if closed_u else i / (n - 1), (i + 1) / n if closed_u else (i + 1) / (n - 1)
-                v0, v1 = j / (len(rows) - 1), (j + 1) / (len(rows) - 1)
-                self._face(
-                    (vs[j][i], vs[j][i2], vs[j + 1][i2], vs[j + 1][i]), ((u0, v0), (u1, v0), (u1, v1), (u0, v1))
-                )
-        for flag, row in ((cap_start, vs[0]), (cap_end, vs[-1])):
-            if flag:
-                c = bm.verts.new(sum((v.co for v in row), Vector()) / len(row))
-                for i in range(len(row)):
-                    self._face((row[i], row[(i + 1) % len(row)], c), ((0.5, 0.5), (0.5, 0.5), (0.5, 0.5)))
-        return vs
-
-    def tube(self, pts, radii, segs=10, cap=True, radial=None):
-        """Cette méthode permet de balayer un cercle le long d'une polyligne (repère transporté) lorsqu'on modélise
-        un manche, un os ou une bague ; radial(u, v) module le rayon (filetage, nœuds)."""
-        pts = [Vector(p) for p in pts]
-        rows = []
-        prev_n = None
-        for k, p in enumerate(pts):
-            t = (pts[min(k + 1, len(pts) - 1)] - pts[max(k - 1, 0)]).normalized()
-            if prev_n is None:
-                ref = Vector((0, 0, 1)) if abs(t.z) < 0.9 else Vector((1, 0, 0))
-                n = t.cross(ref).normalized()
-            else:
-                n = (prev_n - t * prev_n.dot(t)).normalized()
-            prev_n = n
-            b = t.cross(n)
-            row = []
-            for i in range(segs):
-                a = 2 * math.pi * i / segs
-                r = radii[k] * (radial(i / segs, k / (len(pts) - 1)) if radial else 1)
-                row.append(p + (n * math.cos(a) + b * math.sin(a)) * r)
-            rows.append(row)
-        return self.grid(rows, cap_start=cap, cap_end=cap)
-
-    def sphere(self, center, radius, segs=10, rings=6, scale=(1, 1, 1)):
-        """Cette méthode permet d'ajouter une sphère (articulation, gemme) lorsqu'une pièce en a besoin."""
-        c = Vector(center)
-        rows = []
-        for j in range(1, rings):
-            ph = math.pi * j / rings
-            rows.append(
-                [
-                    c
-                    + Vector(
-                        (
-                            radius * scale[0] * math.sin(ph) * math.cos(2 * math.pi * i / segs),
-                            radius * scale[1] * math.sin(ph) * math.sin(2 * math.pi * i / segs),
-                            radius * scale[2] * math.cos(ph),
-                        )
-                    )
-                    for i in range(segs)
-                ]
-            )
-        return self.grid(rows, cap_start=True, cap_end=True)
-
-    def finish(self, mat, smooth=True):
-        """Cette méthode permet de créer l'objet Blender à partir de la géométrie accumulée."""
-        bmesh.ops.recalc_face_normals(self.bm, faces=self.bm.faces)
-        me = bpy.data.meshes.new(self.name)
-        self.bm.to_mesh(me)
-        self.bm.free()
-        ob = bpy.data.objects.new(self.name, me)
-        bpy.context.collection.objects.link(ob)
-        for p in me.polygons:
-            p.use_smooth = smooth
-        ob.data.materials.append(mat)
-        return ob
-
-
-def lerp(a, b, t):
-    """Cette méthode permet d'interpoler deux points."""
-    return Vector(a).lerp(Vector(b), t)
 
 
 # ---------------------------------------------------------------- faux
@@ -397,6 +316,7 @@ SHAFT_BOTTOM = Vector((1.48, 1.18, -3.25))
 SHAFT_TOP = Vector((1.22, 1.02, 3.45))
 GRIP_T = 0.56  # position de la main le long du manche (0 = embout, 1 = tête)
 SHAFT_R = 0.085
+GRIP_R = SHAFT_R * 1.18  # rayon de la poignée (cuir), hors bourrelets
 
 
 def shaft_point(t):
@@ -473,6 +393,11 @@ def build_blade():
     g.finish(material("Engraving", (0.2, 0.2, 0.22), 1.0, 0.5))
 
 
+def grip_radius(u, v):
+    """Cette méthode permet de donner le rayon relatif de la poignée (cuir enroulé en hélice) ; u autour, v le long."""
+    return 1 + 0.07 * math.sin(2 * math.pi * (u * 1 - v * 9)) ** 2
+
+
 def build_scythe():
     """Cette méthode permet de construire la faux : manche, poignée, bagues, embout, tête, gemme et lame."""
     wood = material("ShaftWood", (0.09, 0.06, 0.045), 0.0, 0.7)
@@ -491,40 +416,52 @@ def build_scythe():
     # poignée : cuir enroulé en hélice autour de la main
     g = Builder("Grip")
     gt = [GRIP_T - 0.06 + 0.12 * k / 30 for k in range(31)]
-    g.tube(
-        [shaft_point(t) for t in gt],
-        [SHAFT_R * 1.18] * len(gt),
-        segs=14,
-        radial=lambda u, v: 1 + 0.07 * math.sin(2 * math.pi * (u * 1 - v * 9)) ** 2,
-    )
+    g.tube([shaft_point(t) for t in gt], [GRIP_R] * len(gt), segs=14, radial=grip_radius)
     g.finish(material("GripLeather", (0.11, 0.05, 0.04), 0.0, 0.85))
     # bagues de métal
     r = Builder("Rings")
     for t in (0.06, GRIP_T - 0.075, GRIP_T + 0.075, 0.93):
         a = shaft_axis(t)
         p = shaft_point(t)
-        r.tube([p - a * 0.035, p - a * 0.02, p + a * 0.02, p + a * 0.035], [SHAFT_R * 1.15, SHAFT_R * 1.32,
-               SHAFT_R * 1.32, SHAFT_R * 1.15], segs=14)
+        r.tube(
+            [p - a * 0.035, p - a * 0.02, p + a * 0.02, p + a * 0.035],
+            [SHAFT_R * 1.15, SHAFT_R * 1.32, SHAFT_R * 1.32, SHAFT_R * 1.15],
+            segs=14,
+        )
     r.finish(material("RingMetal", (0.5, 0.45, 0.36), 1.0, 0.3))
     # embout : collerette puis pointe
     p0 = shaft_point(0.0)
     a = shaft_axis(0.0)
     pm = Builder("Pommel")
-    pm.tube([p0 + a * 0.12, p0 + a * 0.02, p0 - a * 0.06, p0 - a * 0.2, p0 - a * 0.42],
-            [SHAFT_R * 1.1, SHAFT_R * 1.5, SHAFT_R * 1.25, SHAFT_R * 0.7, 0.005], segs=10)
+    pm.tube(
+        [p0 + a * 0.12, p0 + a * 0.02, p0 - a * 0.06, p0 - a * 0.2, p0 - a * 0.42],
+        [SHAFT_R * 1.1, SHAFT_R * 1.5, SHAFT_R * 1.25, SHAFT_R * 0.7, 0.005],
+        segs=10,
+    )
     pm.finish(metal)
     # tête : douille autour du haut du manche, éperon arrière, sertissure de la gemme
     top = shaft_point(1.0)
     a = shaft_axis(1.0)
     h = Builder("ScytheHead")  # pas « Head » : le rig R15 a déjà une pièce Head
-    h.tube([top - a * 0.42, top - a * 0.36, top - a * 0.1, top + a * 0.08, top + a * 0.16],
-           [SHAFT_R * 1.2, SHAFT_R * 1.55, SHAFT_R * 1.45, SHAFT_R * 1.7, SHAFT_R * 0.6], segs=8)
-    spur = [top + Vector((0.08, 0, -0.05)), top + Vector((0.3, 0, 0.02)), top + Vector((0.5, 0, 0.18)),
-            top + Vector((0.6, 0, 0.4))]
+    h.tube(
+        [top - a * 0.42, top - a * 0.36, top - a * 0.1, top + a * 0.08, top + a * 0.16],
+        [SHAFT_R * 1.2, SHAFT_R * 1.55, SHAFT_R * 1.45, SHAFT_R * 1.7, SHAFT_R * 0.6],
+        segs=8,
+    )
+    spur = [
+        top + Vector((0.08, 0, -0.05)),
+        top + Vector((0.3, 0, 0.02)),
+        top + Vector((0.5, 0, 0.18)),
+        top + Vector((0.6, 0, 0.4)),
+    ]
     h.tube(spur, [0.07, 0.055, 0.035, 0.004], segs=8)
     gem_c = top + Vector((0, 0, -0.22))
-    h.tube([gem_c + Vector((0, -0.13, 0)), gem_c + Vector((0, -0.1, 0)), gem_c + Vector((0, 0.1, 0)),
-            gem_c + Vector((0, 0.13, 0))], [0.1, 0.16, 0.16, 0.1], segs=16)
+    h.tube(
+        [gem_c + Vector((0, -0.13, 0)), gem_c + Vector((0, -0.1, 0)), gem_c + Vector((0, 0.1, 0)),
+         gem_c + Vector((0, 0.13, 0))],
+        [0.1, 0.16, 0.16, 0.1],
+        segs=16,
+    )
     h.finish(metal)
     gem = Builder("Gem")
     for side in (1, -1):
@@ -534,14 +471,40 @@ def build_scythe():
 
 
 # ---------------------------------------------------------------- bras squelette et manche de la cape
-def build_arm():
-    """Cette méthode permet de construire la manche (tissu) et l'avant-bras squelette dont la main serre la faux ;
-    l'autre bras reste caché sous la cape."""
+# contact des doigts : le centre d'un doigt passe à GRIP_R + FINGER_SINK x son rayon de l'axe (il s'enfonce un peu
+# dans le cuir) ; mesuré par grip_contact()
+FINGER_SINK = 0.7
+FINGER_PATHS = []  # (points, rayons) des phalanges qui serrent la poignée, pour la mesure du contact
+
+
+def hand_frame():
+    """Cette méthode permet de donner le repère de la main sur la poignée : centre, axe du manche, côté paume, côté."""
     g = shaft_point(GRIP_T)
     ax = shaft_axis(GRIP_T)
     palm = Vector((-0.85, -0.55, 0)).normalized()  # la paume est côté corps
     palm = (palm - ax * palm.dot(ax)).normalized()
-    side = ax.cross(palm)
+    return g, ax, palm, ax.cross(palm)
+
+
+def wrap_path(g, ax, palm, side, h, a0, a1, r0, r1, step=12):
+    """Cette méthode permet de suivre la poignée en arc de cercle (angles a0 -> a1 en degrés, rayons de doigt r0 ->
+    r1) à la hauteur h le long du manche : chaque point est posé contre le cuir."""
+    n = max(2, int(abs(a1 - a0) / step) + 1)
+    pts, radii = [], []
+    for k in range(n):
+        s = k / (n - 1)
+        a = math.radians(a0 + (a1 - a0) * s)
+        rf = r0 + (r1 - r0) * s
+        rr = GRIP_R + rf * FINGER_SINK
+        pts.append(g + ax * (h - 0.012 * s) + (palm * math.cos(a) + side * math.sin(a)) * rr)
+        radii.append(rf)
+    return pts, radii
+
+
+def build_arm():
+    """Cette méthode permet de construire la manche (tissu) et l'avant-bras squelette dont la main serre la faux :
+    phalanges courbées contre la poignée, griffes plantées dans le cuir ; l'autre bras reste caché sous la cape."""
+    g, ax, palm, side = hand_frame()
     wrist = g + palm * 0.36 - ax * 0.12
     cuff = wrist + Vector((-0.12, -0.32, -0.18))
     shoulder = Vector((1.0, 0.25, 0.75))
@@ -555,7 +518,9 @@ def build_arm():
         [0.24 + 0.16 * (k / 12) ** 1.5 for k in range(13)],
         segs=24,
         cap=False,
-        radial=lambda u, v: 1 + 0.06 * math.sin(u * 2 * math.pi * 4) + (0.12 * math.sin(u * 2 * math.pi * 7) if v > 0.75 else 0),
+        radial=lambda u, v: 1
+        + 0.06 * math.sin(u * 2 * math.pi * 4)
+        + (0.12 * math.sin(u * 2 * math.pi * 7) if v > 0.75 else 0),
     )
     sleeve = sl.finish(material("CloakCloth", (0.012, 0.012, 0.016), 0, 0.95))
     solidify(sleeve, 0.04)
@@ -566,41 +531,102 @@ def build_arm():
     for off in (side * 0.05, -side * 0.05):
         hb.tube([elbow + off, lerp(elbow, wrist, 0.5) + off * 0.8, wrist + off * 0.6], [0.045, 0.035, 0.04], segs=8)
     hb.sphere(wrist, 0.075, scale=(1.1, 1.1, 0.8))
-    rr = SHAFT_R * 1.18 + 0.04  # les doigts passent par-dessus la poignée
+    FINGER_PATHS.clear()
     for f in range(4):
-        h = (0.105 - f * 0.07) * 1.0
-        knuckle = g + palm * 0.17 + ax * h
-        hb.tube([wrist + side * (0.04 - f * 0.027) + ax * h * 0.4, knuckle], [0.028, 0.032], segs=7)
-        prev = knuckle
-        hb.sphere(knuckle, 0.035)
-        for k, ang in enumerate((60, 125, 190)):
-            a = math.radians(ang)
-            p = g + ax * (h - 0.01 * k) + (palm * math.cos(a) + side * math.sin(a)) * rr
-            hb.tube([prev, p], [0.028 - k * 0.004, 0.024 - k * 0.004], segs=7)
-            hb.sphere(p, 0.026 - k * 0.004)
-            prev = p
-        # griffe au bout
-        a = math.radians(222)
-        tip = g + ax * (h - 0.025) + (palm * math.cos(a) + side * math.sin(a)) * (SHAFT_R * 1.18 + 0.005)
-        hb.tube([prev, tip], [0.016, 0.003], segs=6)
+        h = 0.105 - f * 0.07
+        # métacarpe : du poignet à la jointure, posée contre la poignée côté paume
+        knuckle = g + ax * h + (palm * math.cos(math.radians(18)) + side * math.sin(math.radians(18))) * (
+            GRIP_R + 0.03 * FINGER_SINK + 0.012
+        )
+        hb.tube([wrist + side * (0.04 - f * 0.027) + ax * h * 0.4, knuckle], [0.026, 0.03], segs=7)
+        hb.sphere(knuckle, 0.034)
+        # trois phalanges en arc contre le cuir, articulations marquées, puis la griffe qui s'y plante
+        joints = (18, 92, 165, 225)
+        radii = (0.029, 0.025, 0.021, 0.017)
+        for k in range(3):
+            pts, rs = wrap_path(g, ax, palm, side, h - 0.004 * k, joints[k], joints[k + 1], radii[k], radii[k + 1])
+            hb.tube(pts, rs, segs=7)
+            hb.sphere(pts[-1], rs[-1] * 1.12)
+            FINGER_PATHS.append((pts, rs))
+        tip_pts, tip_rs = wrap_path(g, ax, palm, side, h - 0.016, 225, 262, 0.016, 0.003, step=8)
+        # la pointe de la griffe s'enfonce jusqu'au cuir
+        tip_pts[-1] = g + ax * (h - 0.03) + (
+            palm * math.cos(math.radians(264)) + side * math.sin(math.radians(264))
+        ) * (GRIP_R * 0.97)
+        hb.tube(tip_pts, tip_rs, segs=6)
     # pouce : de l'autre côté, autour du manche vers le haut
-    prev = wrist - side * 0.06
-    for k, ang in enumerate((-40, -95, -150)):
-        a = math.radians(ang)
-        p = g + ax * (0.16 + 0.02 * k) + (palm * math.cos(a) + side * math.sin(a)) * rr
-        hb.tube([prev, p], [0.03 - k * 0.005, 0.026 - k * 0.005], segs=7)
-        hb.sphere(p, 0.028 - k * 0.005)
-        prev = p
+    thumb_root = wrist - side * 0.06
+    pts, rs = wrap_path(g, ax, palm, side, 0.17, -30, -150, 0.03, 0.02)
+    hb.tube([thumb_root] + pts[:1], [0.032, rs[0]], segs=7)
+    hb.tube(pts, rs, segs=7)
+    hb.sphere(pts[len(pts) // 2], rs[len(pts) // 2] * 1.12)
+    FINGER_PATHS.append((pts, rs))
     hb.finish(bone)
 
 
-def build_all():
+def build_all(drape=True):
     """Cette méthode permet de reconstruire tout le modèle de la Mort lorsqu'on lance le script."""
-    clear_scene()
-    build_cloak()
+    mesh.clear_scene()
+    random.seed(SEED)
+    build_cloak(drape)
     build_hood()
     build_scythe()
     build_arm()
+
+
+# ---------------------------------------------------------------- contrôles propres au modèle (pipeline.py)
+def grip_contact():
+    """Cette méthode permet de mesurer l'écart entre les phalanges et le cuir de la poignée (studs) : négatif = le
+    doigt s'enfonce, positif = il flotte ; renvoie (pire écart, écart moyen)."""
+    g, ax, _palm, _side = hand_frame()
+    gaps = []
+    for pts, rs in FINGER_PATHS:
+        for p, rf in zip(pts, rs):
+            d = p - g
+            radial = (d - ax * d.dot(ax)).length
+            gaps.append(radial - rf - GRIP_R)
+    return max(gaps), sum(gaps) / len(gaps)
+
+
+def void_leaks():
+    """Cette méthode permet de compter les sommets du vide noir visibles de derrière, du dessus ou des côtés (il ne
+    doit se voir que par l'ouverture) : rayons depuis des points de vue autour de la capuche."""
+    deps = bpy.context.evaluated_depsgraph_get()
+    hood = bpy.data.objects["Hood"].evaluated_get(deps)
+    tree = BVHTree.FromObject(hood, deps)
+    void = bpy.data.objects["Void"].evaluated_get(deps)
+    me = void.to_mesh()
+    pts = [void.matrix_world @ v.co for v in me.vertices]
+    void.to_mesh_clear()
+    eyes = [Vector(e) for e in ((0, 0, 9), (0, -9, 2), (-9, 0, 2), (9, 0, 2), (-6, -6, 6), (6, -6, 6), (0, -6, 7))]
+    leaks = 0
+    for p in pts:
+        for eye in eyes:
+            d = p - eye
+            hit = tree.ray_cast(eye, d.normalized(), d.length - 1e-3)
+            if hit[0] is None:
+                leaks += 1
+                break
+    return leaks, len(pts)
+
+
+def checks():
+    """Cette méthode permet de rendre les mesures propres à la Mort (contact des doigts, fuites du vide) pour le
+    rapport de pipeline.py ; erreurs si un défaut connu revient."""
+    worst, mean = grip_contact()
+    leaks, total = void_leaks()
+    report = {
+        "grip_gap_max": round(worst, 4),
+        "grip_gap_mean": round(mean, 4),
+        "void_leaks": leaks,
+        "void_vertices": total,
+    }
+    errors = []
+    if worst > 0.005:
+        errors.append(f"doigts décollés de la poignée : écart maximal {worst:.3f} stud")
+    if leaks:
+        errors.append(f"le vide noir se voit hors de l'ouverture : {leaks} sommet(s) sur {total}")
+    return report, errors
 
 
 if __name__ == "__main__":
