@@ -138,7 +138,9 @@ table de remontage (couleurs, matériaux, `SurfaceAppearance`, pièces et fumée
 versionnées (`death.measured.json`) tiennent dans les budgets.
 
 **Budgets** (triangles, mesurés après épaisseur) : au plus **12 000 par pièce** (limite Roblox d'environ 20 000), total
-de la Mort ≤ 70 000 (spectre de #81 : 59 000 environ, détail dans `death.measured.json`). Textures : 1024 pour les grandes pièces, 512 pour les petites ; une pièce texturée coûte trois
+de la Mort ≤ 70 000 (spectre de #81 : 59 000 environ, détail dans `death.measured.json`). Textures : 1024 pour les grandes pièces, 512 pour les petites (spectre : 1024 pour `Cloak`, `Shroud` et `Hands`,
+ce qu'on voit le plus ; 512 pour `Torso`, visible seulement par les trous de la robe, `Tatters`, rubans fins et
+à demi effacés dans l'ombre, `Sleeves` et `Shaft`) ; une pièce texturée coûte trois
 images (couleur, normales, rugosité).
 
 **Rendus de contrôle** : `blender -b --factory-startup --python tools/blender/render_views.py -- <dossier>` (8 vues :
