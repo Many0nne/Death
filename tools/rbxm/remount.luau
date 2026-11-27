@@ -18,7 +18,7 @@ local MANIFEST = HttpService:JSONDecode([==[@MANIFEST@]==])
 local MEASURED = HttpService:JSONDecode([==[@MEASURED@]==])
 local IMPORT_NAME = "@IMPORT@"
 
-local report = { replaced = {}, kept = {}, missing = {}, surfaces = {}, warnings = {} }
+local report = { replaced = {}, kept = {}, missing = {}, surfaces = {}, moved = {}, warnings = {} }
 
 local characters = ReplicatedStorage:FindFirstChild("Characters")
 local model = characters and characters:FindFirstChild(MANIFEST.model)
@@ -143,7 +143,16 @@ local function moveBones(fresh: BasePart, placed: BasePart)
 		end
 	end
 	if not importRoot then
-		table.insert(report.warnings, "import sans os « " .. rootName .. " » : os gardés")
+		-- jamais deux jeux d'os du même nom : la peau se lierait au hasard
+		for _, d in placed:GetDescendants() do
+			if d:IsA("Bone") then
+				d:Destroy()
+			end
+		end
+		table.insert(
+			report.warnings,
+			"import sans os « " .. rootName .. " » : anciens os gardés, peau peut-être faussée"
+		)
 		return
 	end
 	local toTarget = placed.CFrame * fresh.CFrame:Inverse()
@@ -193,6 +202,21 @@ for name, spec in MANIFEST.parts do
 			moveBones(fresh, placed)
 		end
 		if old then
+			-- ce qu'on avait ajouté à l'ancienne pièce (fumée, lumière...) suit la nouvelle ; soudure et apparence
+			-- sont reposées d'après le manifeste
+			for _, c in old:GetChildren() do
+				if
+					not (
+						c:IsA("Bone")
+						or c:IsA("JointInstance")
+						or c:IsA("WeldConstraint")
+						or c:IsA("SurfaceAppearance")
+					)
+				then
+					c.Parent = placed
+					table.insert(report.moved, name .. "." .. c.Name)
+				end
+			end
 			old:Destroy()
 		end
 		part = placed
@@ -278,8 +302,14 @@ for name, spec in MANIFEST.studio.emitters do
 	end
 end
 
+-- l'échelle automatique d'abord : active, elle recalculerait la hauteur des hanches
+if MANIFEST.studio.humanoid.AutomaticScalingEnabled ~= nil then
+	humanoid.AutomaticScalingEnabled = MANIFEST.studio.humanoid.AutomaticScalingEnabled
+end
 for prop, value in MANIFEST.studio.humanoid do
-	(humanoid :: any)[prop] = value
+	if prop ~= "AutomaticScalingEnabled" then
+		(humanoid :: any)[prop] = value
+	end
 end
 
 -- contrôle : une pièce par nom, os de la cape sous la racine
@@ -304,7 +334,21 @@ for name in MANIFEST.parts do
 	end
 end
 report.duplicates = duplicates
+local expectedBones = 1 + MANIFEST.bones.chains * MANIFEST.bones.perChain
+local failures = {}
+if report.originDrift > 0.01 then
+	table.insert(failures, "centres incohérents avec l'import (écart " .. report.originDrift .. " stud)")
+end
+if next(duplicates) then
+	table.insert(failures, "pièces absentes ou en double : " .. HttpService:JSONEncode(duplicates))
+end
+if bones ~= expectedBones then
+	table.insert(failures, string.format("%d os sous la racine, %d attendus", bones, expectedBones))
+end
 if import then
 	import:Destroy()
 end
 print("REMOUNT " .. HttpService:JSONEncode(report))
+if #failures > 0 then
+	error("remontage incomplet : " .. table.concat(failures, " ; "))
+end

@@ -8,7 +8,7 @@ Options :
                     assets/textures/<modèle>/), seulement si les contrôles passent ; sinon les textures restent
   --glb <chemin>    exporte la version jouable (pièces du manifeste et armature) en GLB
   --blend <chemin>  enregistre la scène (contrôle à l'œil, jamais versionnée)
-  --no-drape        robe sans simulation de tissu (forme dessinée, plus rapide)
+  --no-drape        robe sans simulation de tissu (forme dessinée, plus rapide ; ni --bake ni --glb)
   --no-write        n'écrit pas <modèle>.measured.json
 
 Sortie : rapport (triangles par pièce, contrôles propres au modèle, empreinte du drapé), code 1 si un contrôle échoue
@@ -134,8 +134,8 @@ def sources_hash(m):
 def main():
     """Cette méthode permet d'enchaîner construction, contrôles, cuisson, mesures et export."""
     opts = args()
-    if opts["bake"] and not opts["drape"]:
-        raise SystemExit("--bake sans drapé cuirait une cape qui n'est pas celle du jeu")
+    if (opts["bake"] or opts["glb"]) and not opts["drape"]:
+        raise SystemExit("--bake et --glb exigent le drapé : sans lui, la cape n'est pas celle du jeu (ni des mesures)")
     mpath = os.path.join(ROOT, "tools", "models", f"{opts['model']}.manifest.json")
     m = manifest.load(mpath)
     model = load_model(m)

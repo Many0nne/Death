@@ -104,7 +104,7 @@ def setup_form(sc):
             mat.diffuse_color = (0.02, 0.02, 0.02, 1)
 
 
-def setup_textured(sc, m):
+def setup_textured(sc, model):
     """Cette méthode permet de régler EEVEE avec une lumière de nuit froide et une lampe chaude, et de poser les
     textures cuites (mesures du manifeste) sur leurs pièces."""
     for engine in ("BLENDER_EEVEE", "BLENDER_EEVEE_NEXT"):
@@ -128,7 +128,7 @@ def setup_textured(sc, m):
         light.data.color = color
         light.rotation_euler = rot
         mesh.link(light)
-    measured = os.path.join(ROOT, "tools", "models", f"{m['model'].lower()}.measured.json")
+    measured = os.path.join(ROOT, "tools", "models", f"{model}.measured.json")
     maps = {}
     if os.path.isfile(measured):
         with open(measured, encoding="utf-8") as f:
@@ -153,12 +153,14 @@ def shot(sc, cam, out, name, pos, target, lens):
 def main():
     """Cette méthode permet de construire le modèle puis de rendre les 7 vues."""
     opts = args()
-    m = build(opts)
+    if opts["textured"] and opts["script"]:
+        raise SystemExit("--textured ne s'applique qu'au modèle du manifeste (pas à --script)")
+    build(opts)
     count_tris()
     sc = bpy.context.scene
     sc.render.resolution_x, sc.render.resolution_y = 800, 1000
-    if opts["textured"] and m:
-        setup_textured(sc, m)
+    if opts["textured"]:
+        setup_textured(sc, opts["model"])
     else:
         setup_form(sc)
     cam = mesh.link(bpy.data.objects.new("Cam", bpy.data.cameras.new("Cam")))

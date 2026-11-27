@@ -68,7 +68,7 @@ def main():
         for key, suffix in MAPS.items():
             entry = files.get(key, {}).get(RES, {}).get("jpg")
             if not entry:
-                continue
+                sys.exit(f"{asset} : carte {key} absente de l'API Poly Haven en {RES} JPG (MAPS à revoir)")
             name = f"{asset}_{suffix}_{RES}.jpg"
             path = os.path.join(folder, name)
             if force or not present(path):

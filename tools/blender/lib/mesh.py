@@ -207,6 +207,7 @@ class Builder:
     """Accumule de la géométrie (tubes, sphères, grilles) dans un bmesh avec UV, puis crée l'objet."""
 
     def __init__(self, name):
+        """Cette méthode permet de démarrer un bmesh vide avec sa couche d'UV lorsqu'on assemble une pièce."""
         self.name = name
         self.bm = bmesh.new()
         self.uv = self.bm.loops.layers.uv.new("UVMap")
