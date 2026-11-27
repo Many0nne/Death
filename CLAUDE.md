@@ -37,6 +37,7 @@ toujours avec lui.
 | Maquettes de principe (disposition, pas le rendu) | `docs/maquettes.html` |
 | Plan de la carte sans Studio (généré : `lune run tools/house-map`) | `docs/plan/plan.svg`, `docs/plan/maison-3d.html` |
 | Captures de la carte dans Studio, versionnées (procédure de reprise) | `docs/captures/README.md` |
+| Modèles 3D (`assets/rbx`), production par l'IA de Studio, export `.rbxm` | `docs/assets.md` |
 
 ## Rojo et Studio
 - Mapping : `src/shared` → `ReplicatedStorage/Shared`, `src/server` → `ServerScriptService/Server`,

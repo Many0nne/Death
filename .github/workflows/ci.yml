@@ -9,7 +9,10 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
+      # LFS : les modèles synchronisés par Rojo (assets/rbx/**/*.rbxm) sont lus par rojo sourcemap et rojo build
       - uses: actions/checkout@v4
+        with:
+          lfs: true
 
       - uses: CompeyDev/setup-rokit@v0.2.1
         with:

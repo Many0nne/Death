@@ -100,4 +100,19 @@ function DeathRules.updateExposure(state: Exposure, lit: boolean, dt: number): b
 	return state.exposed
 end
 
+-- Changement de corps à faire sur un personnage (#73) : revêtir le modèle de la Mort ou rendre l'avatar du joueur
+DeathRules.BodyChange = table.freeze({ Dress = "Dress", Undress = "Undress" })
+
+-- Cette méthode permet de décider du corps d'un personnage lorsque son rôle de lumière ou le personnage change : le
+-- joueur Mort porte le modèle de la Mort, tout autre joueur son avatar ; nil s'il n'y a rien à changer.
+function DeathRules.bodyChange(role: string?, wearsDeathBody: boolean): string?
+	local isDeath = role == DeathRules.Role.Death
+	if isDeath and not wearsDeathBody then
+		return DeathRules.BodyChange.Dress
+	elseif not isDeath and wearsDeathBody then
+		return DeathRules.BodyChange.Undress
+	end
+	return nil
+end
+
 return DeathRules
