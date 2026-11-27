@@ -37,8 +37,10 @@ montée dans Studio sur le rig R15 de #73 :
 traîne à l'opposé du mouvement : mesuré en jeu, à 14,7 studs/s, l'os du bas arrière s'incline de 24° de plus
 qu'immobile (40° → 65°), celui de devant de 7°.
 
-Pour un mortel, la Mort exposée reste une **silhouette noire pleine** (`Highlight` opaque, `Client.DeathView`) : ce qui
-compte chez elle est la forme (capuche, lambeaux, faux), pas le détail des textures.
+Pour un mortel, la Mort exposée hors faisceau est une **ombre pleine** sans faux (`Client.DeathView`, #80 : un
+`Highlight` sombre par morceau visible du corps, fumées créées par le client) : la forme du voile (capuche, lambeaux)
+passe avant le détail des textures, qui ne se voit que dans le faisceau d'une lampe. Le rendu ne dépend que du nom
+`Scythe` (la faux, cachée hors faisceau) : un nouveau modèle garde ce nom.
 
 **Refaire le modèle** : modifier `tools/blender/death_model.py`, l'exécuter dans Blender (MCP :
 `exec(open(chemin).read(), {"__name__": "__main__"})`), exporter en GLB dans `worktrees/.export`, envoyer, insérer,
