@@ -194,21 +194,22 @@ local function moveCloakBones(toTarget: CFrame)
 	bones.Parent = root
 end
 
--- Cette méthode permet de caler une articulation du rig R15 (Motor6D) sur un os du corps mesuré : la pièce portée
--- (Part1) est centrée sur l'os, tournée comme la racine ; C0, C1 et les RigAttachment des deux pièces suivent.
--- L'articulation est détachée le temps du déplacement (sinon toute la chaîne suivrait).
-local function fitJoint(motorName: string, boneName: string)
+-- Cette méthode permet de vérifier, avant toute modification, qu'une articulation du rig et son os mesuré existent ;
+-- renvoie le Motor6D (Part0 et Part1 posés) et l'os, ou une erreur.
+local function jointOf(motorName: string, boneName: string): (Motor6D, any)
 	local motor = model:FindFirstChild(motorName, true)
 	local bone = MEASURED.bodyBones and MEASURED.bodyBones[boneName]
-	if not motor or not motor:IsA("Motor6D") or not bone then
-		table.insert(report.warnings, "articulation " .. motorName .. " : Motor6D ou os " .. boneName .. " absent")
-		return
-	end
-	local part0, part1 = motor.Part0, motor.Part1
-	if not part0 or not part1 then
-		table.insert(report.warnings, "articulation " .. motorName .. " : Part0 ou Part1 absent")
-		return
-	end
+	assert(motor and motor:IsA("Motor6D"), "articulation " .. motorName .. " introuvable : rien n'est modifié")
+	assert(bone, "os mesuré " .. boneName .. " absent : rien n'est modifié")
+	assert(motor.Part0 and motor.Part1, "articulation " .. motorName .. " sans Part0 ou Part1 : rien n'est modifié")
+	return motor :: Motor6D, bone
+end
+
+-- Cette méthode permet de caler une articulation du rig sur son os : Part1 centrée sur l'os, C0, C1 et RigAttachment
+-- suivent ; l'articulation est détachée le temps du déplacement (sinon toute la chaîne suivrait).
+local function fitJoint(motorName: string, boneName: string)
+	local motor, bone = jointOf(motorName, boneName)
+	local part0, part1 = motor.Part0 :: BasePart, motor.Part1 :: BasePart
 	local rot = root.CFrame.Rotation
 	local head = root.CFrame:PointToWorldSpace(Vector3.new(bone.head[1], bone.head[2], bone.head[3]))
 	local tail = root.CFrame:PointToWorldSpace(Vector3.new(bone.tail[1], bone.tail[2], bone.tail[3]))
@@ -300,6 +301,46 @@ if import then
 	if originDrift > 0.01 then
 		error("centres incohérents avec l'import (écart " .. report.originDrift .. " stud) : rien n'est modifié")
 	end
+end
+
+-- Cette méthode permet de lister les pièces skinnées de chaque jeu d'os (robe, corps) lorsqu'on décide de remplacer
+-- leurs os.
+local function skinnedSets(): { [string]: { string } }
+	local body = MANIFEST.bones.body
+	local sets = { [MANIFEST.bones.root] = {} }
+	if body then
+		sets[body.root] = body.skinned
+	end
+	for name, spec in MANIFEST.parts do
+		if spec.skinned and not (body and table.find(body.skinned, name)) then
+			table.insert(sets[MANIFEST.bones.root], name)
+		end
+	end
+	return sets
+end
+
+-- avant toute modification : un jeu d'os se remplace avec toutes ses pièces (une pièce gardée resterait liée aux
+-- anciens os), les articulations et pièces porteuses existent
+if import then
+	for rootName, names in skinnedSets() do
+		local present = 0
+		for _, n in names do
+			if findPart(import, n) and MEASURED.parts[n] then
+				present += 1
+			end
+		end
+		if present > 0 and present < #names then
+			error("import partiel des pièces skinnées sur « " .. rootName .. " » : rien n'est modifié")
+		end
+	end
+end
+if MANIFEST.bones.body then
+	for _, j in MANIFEST.bones.body.joints do
+		jointOf(j[1], j[2])
+	end
+end
+for groupName in MANIFEST.studio.groupWeld or {} do
+	weldTarget(groupName)
 end
 
 -- pièces d'un ancien modèle (et leurs fumées) : retirées
@@ -398,34 +439,14 @@ for name, spec in MANIFEST.parts do
 	end
 end
 
--- os : la robe sous la racine, le corps sous les pièces du rig R15 ; un jeu d'os n'est remplacé que si les pièces
--- skinnées sur lui le sont toutes (une pièce gardée resterait liée aux anciens os)
--- Cette méthode permet de savoir si toutes les pièces skinnées sur un jeu d'os ont été remplacées (true), aucune
--- (false), ou une partie seulement (nil, avertissement : os gardés).
-local function allReplaced(names: { string }, label: string): boolean?
-	local some, all = false, true
-	for _, n in names do
-		some = some or replacedSet[n] == true
-		all = all and replacedSet[n] == true
-	end
-	if some and not all then
-		table.insert(report.warnings, "os " .. label .. " gardés : pièces skinnées remplacées en partie seulement")
-		return nil
-	end
-	return all
-end
+-- os : la robe sous la racine, le corps sous les pièces du rig R15 (import partiel refusé plus haut)
 if import and toTarget then
-	local cloakParts = {}
-	for name, spec in MANIFEST.parts do
-		local isBody = MANIFEST.bones.body and table.find(MANIFEST.bones.body.skinned, name)
-		if spec.skinned and not isBody then
-			table.insert(cloakParts, name)
-		end
-	end
-	if allReplaced(cloakParts, MANIFEST.bones.root) then
+	local sets = skinnedSets()
+	if replacedSet[sets[MANIFEST.bones.root][1]] then
 		moveCloakBones(toTarget)
 	end
-	if MANIFEST.bones.body and allReplaced(MANIFEST.bones.body.skinned, MANIFEST.bones.body.root) then
+	local body = MANIFEST.bones.body
+	if body and replacedSet[body.skinned[1]] then
 		attachBodyBones(toTarget)
 	end
 end

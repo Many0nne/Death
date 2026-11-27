@@ -52,28 +52,28 @@
       "group": "Arm",
       "tris": 5376,
       "center": [
-        0.155,
-        0.9389,
-        -0.8138
+        0.1435,
+        0.8171,
+        -0.8377
       ],
       "size": [
-        2.7583,
-        2.8529,
-        2.8424
+        2.7355,
+        3.0965,
+        2.7946
       ]
     },
     "Hands": {
       "group": "Arm",
       "tris": 6428,
       "center": [
-        0.3326,
-        0.8952,
-        -1.5473
+        0.3333,
+        0.808,
+        -1.5615
       ],
       "size": [
-        2.5263,
-        0.6994,
-        2.6982
+        2.5277,
+        0.8739,
+        2.6698
       ]
     },
     "Torso": {
@@ -95,7 +95,7 @@
       "tris": 2628,
       "center": [
         -0.4085,
-        2.9786,
+        2.4897,
         -1.0638
       ],
       "size": [
@@ -109,7 +109,7 @@
       "tris": 2628,
       "center": [
         -0.4479,
-        2.7482,
+        2.2593,
         -1.0638
       ],
       "size": [
@@ -123,7 +123,7 @@
       "tris": 448,
       "center": [
         -0.3381,
-        3.4513,
+        2.9624,
         -1.0638
       ],
       "size": [
@@ -136,14 +136,14 @@
       "group": "Scythe",
       "tris": 516,
       "center": [
-        1.3634,
-        4.0372,
-        -1.0644
+        1.3633,
+        3.537,
+        -1.0658
       ],
       "size": [
-        0.5295,
-        0.7666,
-        0.295
+        0.5297,
+        0.7671,
+        0.2986
       ]
     },
     "Gem": {
@@ -151,7 +151,7 @@
       "tris": 240,
       "center": [
         1.2258,
-        3.86,
+        3.36,
         -1.0554
       ],
       "size": [
@@ -165,12 +165,12 @@
       "tris": 448,
       "center": [
         1.4537,
-        0.2958,
-        -1.1892
+        0.1716,
+        -1.189
       ],
       "size": [
-        0.6161,
-        6.7639,
+        0.6163,
+        6.1102,
         0.3983
       ]
     },
@@ -179,12 +179,12 @@
       "tris": 1368,
       "center": [
         1.4402,
-        0.3507,
+        0.2208,
         -1.1782
       ],
       "size": [
         0.5781,
-        7.551,
+        6.8122,
         0.3941
       ]
     },
@@ -192,14 +192,14 @@
       "group": "Scythe",
       "tris": 1040,
       "center": [
-        1.5774,
-        0.6253,
-        -1.223
+        1.5786,
+        0.4551,
+        -1.2237
       ],
       "size": [
-        0.6228,
-        1.9522,
-        0.3127
+        0.6251,
+        1.79,
+        0.3141
       ]
     },
     "Pommel": {
@@ -207,13 +207,13 @@
       "tris": 100,
       "center": [
         1.6279,
-        -3.5375,
-        -1.2793
+        -3.2972,
+        -1.2792
       ],
       "size": [
-        0.226,
-        0.4446,
-        0.2377
+        0.2259,
+        0.445,
+        0.2376
       ]
     }
   },
@@ -325,7 +325,7 @@
     "L_Thumb3"
   ],
   "checks": {
-    "grip_gap_max": -0.0061,
+    "grip_gap_max": -0.0058,
     "grip_gap_mean": -0.0128,
     "grip_samples": 120,
     "skin_Hands": {
@@ -349,10 +349,10 @@
       "over4": 0
     },
     "silhouette": {
-      "top": 3.54,
-      "bottom": -3.443,
-      "height": 7.19,
+      "top": 3.921,
+      "height": 7.571,
       "clearance": 0.207,
+      "scytheClearance": 0.13,
       "trailBack": 2.013
     }
   },
@@ -366,45 +366,45 @@
   "bakeSpikesPct": {
     "Cloak": 0.072,
     "Shroud": 0.001,
-    "Sleeves": 0.13,
-    "Hands": 1.073,
+    "Sleeves": 0.12,
+    "Hands": 0.941,
     "Torso": 0.0,
     "Shaft": 0.0
   },
   "textures": {
     "Cloak": {
-      "color": "assets/textures/death/Cloak_color.png",
       "normal": "assets/textures/death/Cloak_normal.png",
-      "roughness": "assets/textures/death/Cloak_roughness.png"
+      "roughness": "assets/textures/death/Cloak_roughness.png",
+      "color": "assets/textures/death/Cloak_color.png"
     },
     "Shroud": {
-      "color": "assets/textures/death/Shroud_color.png",
       "normal": "assets/textures/death/Shroud_normal.png",
-      "roughness": "assets/textures/death/Shroud_roughness.png"
+      "roughness": "assets/textures/death/Shroud_roughness.png",
+      "color": "assets/textures/death/Shroud_color.png"
     },
     "Tatters": {
-      "color": "assets/textures/death/Tatters_color.png",
-      "roughness": "assets/textures/death/Tatters_roughness.png"
+      "roughness": "assets/textures/death/Tatters_roughness.png",
+      "color": "assets/textures/death/Tatters_color.png"
     },
     "Sleeves": {
-      "color": "assets/textures/death/Sleeves_color.png",
       "normal": "assets/textures/death/Sleeves_normal.png",
-      "roughness": "assets/textures/death/Sleeves_roughness.png"
+      "roughness": "assets/textures/death/Sleeves_roughness.png",
+      "color": "assets/textures/death/Sleeves_color.png"
     },
     "Hands": {
-      "color": "assets/textures/death/Hands_color.png",
       "normal": "assets/textures/death/Hands_normal.png",
-      "roughness": "assets/textures/death/Hands_roughness.png"
+      "roughness": "assets/textures/death/Hands_roughness.png",
+      "color": "assets/textures/death/Hands_color.png"
     },
     "Torso": {
-      "color": "assets/textures/death/Torso_color.png",
       "normal": "assets/textures/death/Torso_normal.png",
-      "roughness": "assets/textures/death/Torso_roughness.png"
+      "roughness": "assets/textures/death/Torso_roughness.png",
+      "color": "assets/textures/death/Torso_color.png"
     },
     "Shaft": {
-      "color": "assets/textures/death/Shaft_color.png",
       "normal": "assets/textures/death/Shaft_normal.png",
-      "roughness": "assets/textures/death/Shaft_roughness.png"
+      "roughness": "assets/textures/death/Shaft_roughness.png",
+      "color": "assets/textures/death/Shaft_color.png"
     }
   },
   "cloakGridVertices": 2422,
@@ -428,213 +428,213 @@
         -0.06
       ],
       "tail": [
-        1.2578,
-        1.0293,
-        0.3766
+        1.2278,
+        0.9968,
+        0.3169
       ]
     },
     "R_Forearm": {
       "head": [
-        1.2578,
-        1.0293,
-        0.3766
+        1.2278,
+        0.9968,
+        0.3169
       ],
       "tail": [
-        1.1396,
-        0.5774,
-        -0.8793
+        1.1424,
+        0.4008,
+        -0.8802
       ]
     },
     "R_Hand": {
       "head": [
-        1.1396,
-        0.5774,
-        -0.8793
+        1.1424,
+        0.4008,
+        -0.8802
       ],
       "tail": [
-        1.4032,
-        0.7639,
+        1.4033,
+        0.5918,
         -1.0588
       ]
     },
     "R_Index1": {
       "head": [
-        1.4063,
-        0.8847,
-        -1.0452
+        1.4047,
+        0.7126,
+        -1.0445
       ],
       "tail": [
-        1.5535,
-        0.903,
-        -1.1701
+        1.5516,
+        0.7335,
+        -1.1694
       ]
     },
     "R_Index2": {
       "head": [
-        1.5535,
-        0.903,
-        -1.1701
+        1.5516,
+        0.7335,
+        -1.1694
       ],
       "tail": [
-        1.4848,
-        0.8932,
-        -1.296
+        1.483,
+        0.7235,
+        -1.2954
       ]
     },
     "R_Index3": {
       "head": [
-        1.4848,
-        0.8932,
-        -1.296
+        1.483,
+        0.7235,
+        -1.2954
       ],
       "tail": [
-        1.3825,
-        0.8725,
-        -1.2886
+        1.381,
+        0.7013,
+        -1.288
       ]
     },
     "R_Middle1": {
       "head": [
-        1.4014,
-        0.8016,
-        -1.051
+        1.401,
+        0.6295,
+        -1.0508
       ],
       "tail": [
-        1.5652,
-        0.8219,
-        -1.1749
+        1.5644,
+        0.6527,
+        -1.1746
       ]
     },
     "R_Middle2": {
       "head": [
-        1.5652,
-        0.8219,
-        -1.1749
+        1.5644,
+        0.6527,
+        -1.1746
       ],
       "tail": [
-        1.485,
-        0.8109,
-        -1.3053
+        1.4844,
+        0.6412,
+        -1.305
       ]
     },
     "R_Middle3": {
       "head": [
-        1.485,
-        0.8109,
-        -1.3053
+        1.4844,
+        0.6412,
+        -1.305
       ],
       "tail": [
-        1.3775,
-        0.7887,
-        -1.283
+        1.3771,
+        0.6175,
+        -1.2829
       ]
     },
     "R_Ring1": {
       "head": [
-        1.4009,
-        0.7214,
-        -1.0627
+        1.4015,
+        0.5493,
+        -1.0629
       ],
       "tail": [
-        1.5665,
-        0.7402,
-        -1.1523
+        1.5669,
+        0.5709,
+        -1.1524
       ]
     },
     "R_Ring2": {
       "head": [
-        1.5665,
-        0.7402,
-        -1.1523
+        1.5669,
+        0.5709,
+        -1.1524
       ],
       "tail": [
-        1.5298,
-        0.7351,
-        -1.2878
+        1.5302,
+        0.5659,
+        -1.2879
       ]
     },
     "R_Ring3": {
       "head": [
-        1.5298,
-        0.7351,
-        -1.2878
+        1.5302,
+        0.5659,
+        -1.2879
       ],
       "tail": [
-        1.4312,
-        0.7161,
-        -1.3068
+        1.4319,
+        0.5457,
+        -1.3071
       ]
     },
     "R_Pinky1": {
       "head": [
-        1.4041,
-        0.6477,
-        -1.0765
+        1.4058,
+        0.4758,
+        -1.0771
       ],
       "tail": [
-        1.551,
-        0.662,
-        -1.1219
+        1.5524,
+        0.4923,
+        -1.1225
       ]
     },
     "R_Pinky2": {
       "head": [
-        1.551,
-        0.662,
-        -1.1219
+        1.5524,
+        0.4923,
+        -1.1225
       ],
       "tail": [
-        1.5741,
-        0.6634,
-        -1.2338
+        1.5755,
+        0.4947,
+        -1.2344
       ]
     },
     "R_Pinky3": {
       "head": [
-        1.5741,
-        0.6634,
-        -1.2338
+        1.5755,
+        0.4947,
+        -1.2344
       ],
       "tail": [
-        1.5211,
-        0.6526,
-        -1.2963
+        1.5226,
+        0.4834,
+        -1.2969
       ]
     },
     "R_Thumb1": {
       "head": [
-        1.1735,
-        0.718,
-        -0.9663
+        1.1743,
+        0.5422,
+        -0.9664
       ],
       "tail": [
-        1.2981,
-        0.9181,
-        -1.1266
+        1.296,
+        0.7449,
+        -1.1257
       ]
     },
     "R_Thumb2": {
       "head": [
-        1.2981,
-        0.9181,
-        -1.1266
+        1.296,
+        0.7449,
+        -1.1257
       ],
       "tail": [
-        1.3479,
-        0.9366,
-        -1.2676
+        1.3455,
+        0.7648,
+        -1.2667
       ]
     },
     "R_Thumb3": {
       "head": [
-        1.3479,
-        0.9366,
-        -1.2676
+        1.3455,
+        0.7648,
+        -1.2667
       ],
       "tail": [
-        1.4481,
-        0.953,
-        -1.2946
+        1.4455,
+        0.7827,
+        -1.2936
       ]
     },
     "L_UpperArm": {

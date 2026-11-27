@@ -10,6 +10,8 @@ from . import anatomy, posture
 
 # écart maximal toléré entre une phalange et le cuir (stud) : au-delà, le doigt flotte
 GRIP_TOLERANCE = 0.005
+# hauteur maximale du modèle, faux comprise (portes de 8 studs, HouseLayout.DOOR_HEIGHT)
+DOOR_CLEARANCE = 7.9
 # Roblox lit au plus 4 os par sommet
 MAX_INFLUENCES = 4
 
@@ -56,19 +58,27 @@ def skin_report(name):
     return {"bones": len(used), "unweighted": unweighted, "over4": over}, errors
 
 
+CLOTH = ("Shroud", "Cloak", "Tatters", "Sleeves")
+SCYTHE = ("Blade", "Edge", "Engraving", "ScytheHead", "Gem", "Rings", "Shaft", "Grip", "Pommel")
+
+
 def silhouette():
-    """Cette méthode permet de mesurer la silhouette : sommet, bas du tissu le plus bas, recul des lanières derrière la
-    racine (studs, repère Blender)."""
-    top, bottom, back = -1e9, 1e9, 0.0
+    """Cette méthode permet de mesurer la silhouette (studs, repère Blender) : sommet de tout le modèle (faux comprise),
+    bas du tissu et bas de la faux au-dessus du sol, recul des lanières derrière la racine."""
+    top, cloth_bottom, scythe_bottom, back = -1e9, 1e9, 1e9, 0.0
     for o in bpy.data.objects:
-        if o.type != "MESH" or o.hide_render or o.data.name not in ("Shroud", "Cloak", "Tatters", "Sleeves"):
+        if o.type != "MESH" or o.hide_render or o.data.name not in CLOTH + SCYTHE:
             continue
         lo, hi = mesh.bounds(o)
         top = max(top, hi.z)
-        bottom = min(bottom, lo.z)
-        back = min(back, lo.y)
-    return {"top": round(top, 3), "bottom": round(bottom, 3), "height": round(top - posture.GROUND, 3),
-            "clearance": round(bottom - posture.GROUND, 3), "trailBack": round(-back, 3)}
+        if o.data.name in CLOTH:
+            cloth_bottom = min(cloth_bottom, lo.z)
+            back = min(back, lo.y)
+        else:
+            scythe_bottom = min(scythe_bottom, lo.z)
+    g = posture.GROUND
+    return {"top": round(top, 3), "height": round(top - g, 3), "clearance": round(cloth_bottom - g, 3),
+            "scytheClearance": round(scythe_bottom - g, 3), "trailBack": round(-back, 3)}
 
 
 def run():
@@ -86,6 +96,8 @@ def run():
     report["silhouette"] = sil
     if sil["clearance"] < 0.05:
         errors.append(f"le tissu touche le sol (marge {sil['clearance']} stud) : le spectre doit flotter")
-    if sil["top"] - posture.GROUND > 7.9:
-        errors.append(f"trop grand pour passer les portes de 8 studs ({sil['height']})")
+    if sil["scytheClearance"] < 0.05:
+        errors.append(f"la faux traverse le sol (marge {sil['scytheClearance']} stud)")
+    if sil["height"] > DOOR_CLEARANCE:
+        errors.append(f"trop grand pour passer les portes de 8 studs, faux comprise ({sil['height']})")
     return report, errors

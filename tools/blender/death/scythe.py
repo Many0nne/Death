@@ -11,8 +11,8 @@ from mathutils import Vector
 from lib.mesh import Builder, lerp, material
 
 # manche : de l'embout (t = 0) à la tête (t = 1), tenu à droite devant le corps, presque droit
-SHAFT_BOTTOM = Vector((1.62, 1.28, -3.42))
-SHAFT_TOP = Vector((1.30, 1.06, 4.12))
+SHAFT_BOTTOM = Vector((1.62, 1.28, -3.18))  # embout au-dessus du sol
+SHAFT_TOP = Vector((1.30, 1.06, 3.62))  # tête et lame sous les portes de 8 studs
 SHAFT_R = 0.082
 GRIP_T = 0.555  # la main droite serre le manche ici
 GRIP_LEN = 0.11  # demi-longueur de la poignée de cuir (en t)

@@ -227,6 +227,8 @@ def main():
         shutil.rmtree(bake_dir, ignore_errors=True)
     elif fresh:
         print(f"textures cuites refusées, laissées dans {bake_dir} (assets/textures inchangé)")
+    elif bake_dir:
+        shutil.rmtree(bake_dir, ignore_errors=True)  # rien de cuit (aucune pièce à cuire)
     elif os.path.isfile(measured_path):
         # sans cuisson, les mesures de la dernière cuisson acceptée restent
         with open(measured_path, encoding="utf-8") as f:

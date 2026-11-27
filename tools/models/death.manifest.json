@@ -75,9 +75,9 @@
         "subdiv": 2, "noise": [2.0, 0.02], "fine": [0.1, 0.008], "cage": [0.03, 0.06]
       },
       "surface": {
-        "ColorMap": "rbxassetid://116319604297154",
-        "NormalMap": "rbxassetid://123563917320022",
-        "RoughnessMap": "rbxassetid://76854417978568"
+        "ColorMap": "rbxassetid://81043526222554",
+        "NormalMap": "rbxassetid://137521411565285",
+        "RoughnessMap": "rbxassetid://70985289127732"
       }
     },
     "Hands": {
@@ -89,9 +89,9 @@
         "spikesMax": 2.0, "_spikes": "griffes gardées vives et attaches des doigts : grandes corrections de normales voulues (vérifiées au rendu texturé), pas des taches"
       },
       "surface": {
-        "ColorMap": "rbxassetid://116742935093757",
-        "NormalMap": "rbxassetid://102736452962191",
-        "RoughnessMap": "rbxassetid://85373280097461"
+        "ColorMap": "rbxassetid://104000349263549",
+        "NormalMap": "rbxassetid://89645423226313",
+        "RoughnessMap": "rbxassetid://124605680335503"
       }
     },
     "Torso": {
@@ -121,9 +121,9 @@
         "subdiv": 2, "noise": [10.0, 0.004], "fine": [0.04, 0.002]
       },
       "surface": {
-        "ColorMap": "rbxassetid://112631831423650",
-        "NormalMap": "rbxassetid://94719983322197",
-        "RoughnessMap": "rbxassetid://95201371956919"
+        "ColorMap": "rbxassetid://137714343604827",
+        "NormalMap": "rbxassetid://84141451533184",
+        "RoughnessMap": "rbxassetid://79054799062317"
       }
     },
     "Grip": { "group": "Scythe", "maxTris": 1500, "material": "Leather", "color": [44, 26, 18], "castShadow": true },

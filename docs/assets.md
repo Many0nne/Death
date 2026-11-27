@@ -12,8 +12,8 @@ Studio : une modification non réexportée est perdue. La CI fait un checkout LF
 | La Mort (#73, #76, #81) | `assets/rbx/Characters/Death.rbxm` | `Server.DeathBody` : le joueur Mort le revêt, il retrouve son avatar ensuite ; `Client.CloakAnimator` anime le voile |
 
 **La Mort** (#81, après #76 jugé « trop simpliste, un assemblage de formes basiques » ; outillage #79) : un spectre
-décharné de l'archétype « détraqueur » (l'archétype, pas un personnage existant), très grand (7,2 studs, sous les
-portes de 8), sans pieds, qui flotte à 0,2 stud du sol. Suaire tendu sur un crâne sculpté (orbites, arcade, pommettes
+décharné de l'archétype « détraqueur » (l'archétype, pas un personnage existant), très grand (7,2 studs sans la faux, 7,57
+avec, sous les portes de 8), sans pieds, qui flotte à 0,2 stud du sol. Suaire tendu sur un crâne sculpté (orbites, arcade, pommettes
 et cavité nasale se devinent), tête penchée, dos voûté, épaules osseuses ; robe lourde trouée sur des côtes
 saillantes ; manches très larges d'où sortent des bras maigres et des mains griffues (la droite serre la faux, la
 gauche se tend) ; le bas se défait en 44 lanières de longueurs très différentes qui traînent vers l'arrière. Avant /
@@ -62,10 +62,11 @@ rig R15 de #73 :
   reste une silhouette noire pleine, sans artefact. La texture ne compte donc que pour la Mort elle-même et pour la
   lumière d'une lampe avant exposition.
 
-**Spectre (#81)**, mesuré dans Studio : modèle asset 136242008686173, 20 images (identifiants dans la table `surface`
-du manifeste) ; mémoire des textures **+10,3 Mo** pour sept pièces texturées (102,45 → 112,79 Mo : trois pièces en
+**Spectre (#81)**, mesuré dans Studio : modèle asset 118631689439173 (faux raccourcie ; premier envoi 136242008686173),
+20 images (identifiants dans la table `surface` du manifeste) ; mémoire des textures **+10,3 Mo** pour sept pièces texturées (102,45 → 112,79 Mo : trois pièces en
 1024, quatre en 512) ; remontage : 15 pièces remplacées, 4 retirées, 65 os de robe, 37 os du corps rangés sur le rig,
-écart d'origine 0.
+écart d'origine 0 ; relancé sur le modèle déjà remonté (second envoi), même résultat, sans avertissement. En jeu :
+sommet à 7,57 studs (faux comprise), bas de l'embout à 0,13 stud du sol.
 
 **Cape vivante** : `Shared.CloakMotion` (règles pures, testées) et `Client.CloakAnimator`, qui écrit `Bone.Transform` en
 `PreSimulation`, car l'Animator du Humanoid remet ces valeurs à zéro à chaque étape d'animation. Ondulation au repos,
