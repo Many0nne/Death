@@ -52,6 +52,12 @@ Ajouter au brief, section regles :
 - Jamais de demande de test ou d'avis en jeu a l'utilisateur : trancher (choix signale en une ligne), merger CI verte, et
   decrire le changement dans la section « Pour la sprint review » du compte rendu. Une vraie decision de design peut se
   poser dans le thread, sans garder Studio pendant l'attente.
+- **Exception, modele 3D ou asset juge a l'oeil** : le delegue ne merge pas. Le brief le dit explicitement, liste les
+  references (images copiees dans `worktrees/.briefs/`, avec ce qu'il faut retenir de chacune) et les criteres de
+  reussite visibles. Le delegue ouvre la PR et rend des captures avant/apres sous les memes angles (Blender et en jeu),
+  statut `A VALIDER`. L'orchestrateur compare point par point (silhouette, formes secondaires, details, rendu en jeu),
+  renvoie des retours precis au delegue et itere ; il merge quand ca colle, puis montre a l'utilisateur les captures et
+  son avis franc.
 - `-WaitStudio` expire (code 2) : ne pas renvoyer la verification a l'utilisateur par defaut ; noter dans le compte rendu
   ce qui reste a verifier en jeu et le scenario exact, statut `BLOQUE`.
 
