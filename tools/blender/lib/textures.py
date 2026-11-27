@@ -88,9 +88,8 @@ def cc0_material(name, asset, dark, light, rough=(0.7, 1.0), scale=(6.0, 4.0), n
 
 
 def flesh_material(name, seed=0):
-    """Cette méthode permet de créer la matière procédurale de la chair desséchée (pas de peau CC0 convenable chez
-    Poly Haven) : gris cendré sale, marbré de taches brunâtres et de veines sombres, rides fines en relief ; les faces
-    d'attribut `zone` = 1 (griffes) prennent une corne jaunie, striée et plus brillante."""
+    """Cette méthode permet de créer la matière procédurale de la chair desséchée (cendre marbrée, veines, rides)
+    lorsqu'aucune peau CC0 ne convient ; les faces de `zone` 1 (griffes) prennent une corne jaunie."""
     mat = bpy.data.materials.new(name)
     mat.use_nodes = True
     nt = mat.node_tree

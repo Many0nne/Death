@@ -49,10 +49,8 @@ def _bump(th, v, th0, v0, sth, sv):
 
 
 def skull_relief(th, v):
-    """Cette méthode permet de donner le relief du crâne (multiplicateur du rayon) à l'angle th (0 devant) et à la
-    hauteur v (0 sommet, 1 sous la mâchoire) : orbites creuses, arcade sourcilière, pommettes saillantes, joues
-    creusées sous elles, tempes rentrées, maxillaire et dents en avant, occiput ; c'est ce que le suaire laisse
-    deviner."""
+    """Cette méthode permet de donner le relief du crâne (multiplicateur du rayon) à l'angle th et à la hauteur v
+    lorsque le suaire doit le laisser deviner : orbites, arcade, pommettes, joues, tempes, maxillaire, occiput."""
     r = 1.0
     for s in (-1, 1):
         r -= 0.27 * _bump(th, v, s * 0.44, 0.55, 0.2, 0.075)  # orbites

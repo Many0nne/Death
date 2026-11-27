@@ -36,9 +36,8 @@ def interp(keys, t):
 
 
 def interp_cr(keys, t):
-    """Cette méthode permet d'interpoler un profil (t, valeurs...) par Catmull-Rom (pente continue, jamais nulle aux
-    clés) : à préférer à interp pour placer les rangées d'une grille, sinon elles s'entassent à chaque clé et le tissu
-    garde un pli horizontal à cette hauteur."""
+    """Cette méthode permet d'interpoler un profil (t, valeurs...) par Catmull-Rom lorsqu'on place les rangées d'une
+    grille (avec interp, les rangées s'entassent aux clés et le tissu garde un pli horizontal)."""
     n = len(keys)
     if t <= keys[0][0]:
         return list(keys[0][1:])
@@ -151,9 +150,8 @@ def grid_object(name, cols, rows, fn, keep=None, weights=None, wrap=True, uv_shi
 
 
 def cap_row(ob, j=0, inward=0.0):
-    """Cette méthode permet de fermer d'un éventail de triangles le bord d'une grille à la rangée j, la première ou la
-    dernière (sommet d'un suaire, pôle d'une calotte) ; le sommet central porte grid_i = 0 et une rangée hors grille
-    (j - 1 ou j + 1), UV au bord."""
+    """Cette méthode permet de fermer d'un éventail de triangles la première ou la dernière rangée d'une grille
+    (sommet d'un suaire) ; le sommet central prend une rangée hors grille (j - 1 ou j + 1)."""
     bm = bmesh.new()
     bm.from_mesh(ob.data)
     gi = bm.verts.layers.int.get("grid_i")

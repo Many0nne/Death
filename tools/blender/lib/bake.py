@@ -55,11 +55,11 @@ def _save(img, path):
 
 def bake_maps(high, low, out_dir, prefix, size=1024, samples=32, extrusion=0.05, max_ray=0.1, ao_floor=0.35,
               normal=True):
-    """Cette méthode permet de cuire `high` sur `low` et d'écrire `<prefix>_color|normal|roughness.png` dans out_dir
-    (plus `<prefix>_ao.png`, intermédiaire) ; renvoie {carte: chemin}. Rayons courts (#85 : mesuré sur la cape de
-    #79, 553 -> 232 pixels de taches) : des rayons longs touchent l'autre couche d'un pli serré ; le détail ne
-    s'écarte pas de plus de ~0,04 stud de la surface. `normal` à False : pas de carte de normales (lanières fines qui
-    se croisent : les rayons touchent la voisine, #81)."""
+    """Cette méthode permet de cuire `high` sur `low` en `<prefix>_color|normal|roughness.png` (et `_ao`) dans
+    out_dir lorsqu'une pièce a une version détaillée ; `normal` à False : pas de carte de normales."""
+    # rayons courts (#85, mesuré sur la cape de #79 : 553 -> 232 pixels de taches) : un rayon long touche l'autre
+    # couche d'un pli serré ; le détail ne s'écarte pas de plus de ~0,04 stud de la surface. Sans carte de
+    # normales : lanières fines qui se croisent, les rayons touchaient la voisine (#81).
     scene = bpy.context.scene
     _setup(scene, samples)
     os.makedirs(out_dir, exist_ok=True)

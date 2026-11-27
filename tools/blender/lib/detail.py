@@ -23,9 +23,9 @@ def copy_geometry(ob, name):
 
 
 def crease_boundary(ob):
-    """Cette méthode permet de marquer dures (pli 1) les arêtes de bord d'une surface ouverte avant subdivision : le
-    bord de la version détaillée reste celui de la pièce jouable, sinon Catmull-Clark l'arrondit (dents de l'ourlet)
-    et les rayons de cuisson ratent la surface sur le bord (taches de la carte de normales, #85)."""
+    """Cette méthode permet de garder vives les arêtes de bord d'une surface ouverte lorsqu'on la subdivise pour
+    la cuisson (sinon le bord arrondi fait rater les rayons, #85)."""
+    # bord de la version détaillée = bord de la pièce jouable : Catmull-Clark arrondirait les dents de l'ourlet
     me = ob.data
     count = {}
     for p in me.polygons:
@@ -53,12 +53,11 @@ def subdivide(ob, levels):
 
 
 def sculpt_strokes(ob, strokes, smooth=2):
-    """Cette méthode permet de sculpter par script : chaque trait (points, rayon, profondeur) creuse un sillon (> 0)
-    ou lève un bourrelet (< 0) le long des normales, chute douce ; renvoie le nombre de sommets touchés.
-    Deux traits qui se croisent s'additionnent, le total est borné en douceur (tanh) à la plus forte profondeur, puis
-    le champ est lissé : un sillon qui croise un bourrelet ne crée plus de marche d'un sommet à l'autre (taches de la
-    carte de normales, #85). La borne vaut pour tout le champ : un trait seul à pleine profondeur sort à 0,76 fois
-    `dmax` (sillons d'environ un quart moins profonds qu'avant #85, voulu)."""
+    """Cette méthode permet de creuser des sillons (> 0) ou lever des bourrelets (< 0) le long de traits lorsqu'on
+    sculpte par script ; traits additionnés, bornés en douceur, puis lissés (#85) ; renvoie les sommets touchés."""
+    # #85 : deux traits croisés dans un pli serré faisaient une marche d'un sommet à l'autre. Ils s'additionnent,
+    # le total est borné (tanh) à la plus forte profondeur puis lissé. La borne vaut pour tout le champ : un trait
+    # seul à pleine profondeur sort à 0,76 fois dmax (sillons d'un quart moins profonds qu'avant #85, voulu).
     me = ob.data
     n = len(me.vertices)
     kd = kdtree.KDTree(n)
@@ -100,9 +99,8 @@ def sculpt_strokes(ob, strokes, smooth=2):
 
 
 def relax_flips(ob, base_co, base_normals, threshold=0.3, passes=8):
-    """Cette méthode permet de ramener vers la surface de départ (subdivisée, sans détail) les sommets des faces que le
-    détail a retournées ou trop inclinées (normale à moins de `threshold` de celle d'origine) : dans un pli serré, un
-    sillon ou une bosse retourne la peau et la cuisson en tire une tache (#85) ; renvoie le nombre de faces reprises."""
+    """Cette méthode permet de ramener vers la surface de départ les faces que le détail a retournées lorsqu'un
+    sillon ou une bosse plie la peau dans un pli serré (taches de cuisson, #85) ; renvoie les faces reprises."""
     me = ob.data
     fixed = set()
     for _ in range(passes):

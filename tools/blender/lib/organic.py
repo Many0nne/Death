@@ -83,9 +83,8 @@ def point_segment(p, a, b):
 
 
 def skeleton_weights(ob, nodes, blend=0.6, limit=4):
-    """Cette méthode permet de skinner un maillage organique d'après son squelette : chaque sommet suit l'os de ses
-    segments les plus proches, avec un fondu (part `blend` du rayon) près des articulations ; au plus `limit` os par
-    sommet (Roblox en lit 4), poids normalisés."""
+    """Cette méthode permet de skinner un maillage organique d'après son squelette (os des segments les plus
+    proches, fondu aux articulations) lorsqu'on l'anime ; au plus `limit` os par sommet, poids normalisés."""
     segs = [s for s in segments(nodes) if s[2]]
     radius = {n.bone: max(n.radius) for n in nodes if n.bone}
     groups = {}

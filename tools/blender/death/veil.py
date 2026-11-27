@@ -340,9 +340,8 @@ def support_radius(th, z):
 
 
 def shroud_shape(i, j):
-    """Cette méthode permet de placer un sommet du suaire : calotte tendue sur le crâne (le relief du visage se lit)
-    jusqu'aux pommettes, puis rideau qui tombe droit du visage et se pose sur le cou et les épaules, longs plis
-    verticaux qui se creusent en descendant, bord effiloché."""
+    """Cette méthode permet de placer un sommet du suaire : calotte tendue sur le crâne jusqu'aux pommettes, puis
+    rideau qui tombe du visage et se pose sur le cou et les épaules, plis verticaux, bord effiloché."""
     u = (i % SC) / SC
     th = 2 * math.pi * u
     v = j / (SR - 1)
@@ -381,9 +380,8 @@ def _skull_normal(u, v):
 
 
 def build_shroud():
-    """Cette méthode permet de construire le suaire, forme dessinée (calotte sur le crâne sculpté, rideau posé sur le
-    corps, plis verticaux) : un drapé simulé, essayé (complet puis 12 images de détente), le froissait en écharpe au
-    cou, illisible en ombre pleine."""
+    """Cette méthode permet de construire le suaire, forme dessinée (calotte sur le crâne sculpté, rideau posé sur
+    le corps) ; un drapé simulé le froissait en écharpe au cou, illisible en ombre pleine."""
     ob = grid_object("Shroud", SC, SR, shroud_shape)
     mesh.cap_row(ob, 0, inward=0.01)
     solidify(ob, 0.04)

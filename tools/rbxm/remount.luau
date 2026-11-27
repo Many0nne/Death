@@ -238,21 +238,18 @@ local function attachBodyBones(toTarget: CFrame)
 		table.insert(report.warnings, "import sans os « " .. body.root .. " » : os du corps non rangés")
 		return
 	end
-	-- place monde de chaque os de l'import, avant tout déplacement
-	local world = {}
-	local clone = importRoot:Clone()
-	local originals = { importRoot }
+	-- place monde de chaque os de l'import, avant tout déplacement (os du corps : noms uniques, appariés par nom)
+	local worldByName = {}
 	for _, d in importRoot:GetDescendants() do
-		table.insert(originals, d)
+		if d:IsA("Bone") then
+			worldByName[d.Name] = toTarget * d.WorldCFrame
+		end
 	end
+	worldByName[importRoot.Name] = toTarget * importRoot.WorldCFrame
+	local clone = importRoot:Clone()
 	local copies = { clone }
 	for _, d in clone:GetDescendants() do
 		table.insert(copies, d)
-	end
-	for k, original in originals do
-		if original:IsA("Bone") then
-			world[copies[k]] = toTarget * original.WorldCFrame
-		end
 	end
 	-- anciens os du corps (exécution précédente) retirés
 	local names = {}
@@ -274,7 +271,7 @@ local function attachBodyBones(toTarget: CFrame)
 				continue
 			end
 			b.Parent = part
-			b.CFrame = part.CFrame:ToObjectSpace(world[b])
+			b.CFrame = part.CFrame:ToObjectSpace(worldByName[b.Name])
 		end
 	end
 	if clone.Parent == nil then

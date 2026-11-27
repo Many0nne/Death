@@ -79,9 +79,8 @@ def _arc(name, parent, bone, pts, radii):
 
 
 def grip_hand():
-    """Cette méthode permet de décrire la main droite qui serre la poignée : paume contre le cuir côté corps, quatre
-    doigts enroulés (index en haut), griffes plantées dans le cuir, pouce par-dessus ; renvoie (nœuds, os, griffes).
-    Os : liste (nom, tête, queue, parent) ; griffes : (point d'attache, direction, phalange) par doigt."""
+    """Cette méthode permet de décrire la main droite qui serre la poignée (paume côté corps, doigts enroulés,
+    griffes dans le cuir, pouce par-dessus) ; renvoie (nœuds, os (nom, tête, queue, parent), griffes)."""
     g, ax, palm, side = scythe.hand_frame()
     gr = scythe.GRIP_R
     wrist = scythe.hand_wrist()

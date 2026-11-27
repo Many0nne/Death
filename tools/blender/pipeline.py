@@ -75,9 +75,8 @@ def load_model(m):
 
 
 def bake_part(m, model, name, spec, out_dir):
-    """Cette méthode permet de cuire une pièce : version détaillée (sculpt le long de la grille si la pièce en a
-    une, traits propres au modèle), matériau CC0 ou procédural, cuisson vers la pièce jouable dans `out_dir` ;
-    renvoie {carte: chemin}."""
+    """Cette méthode permet de cuire une pièce (version détaillée, sculpt, matériau CC0 ou procédural) dans
+    `out_dir` lorsque --bake est demandé ; renvoie {carte: chemin}."""
     low = next(o for o in bpy.data.objects if o.type == "MESH" and o.data.name == name and not o.name.endswith("_hi"))
     cfg = spec["bake"]
     seed = cfg.get("seed", 0)
@@ -159,6 +158,8 @@ def sources_hash(m):
 def main():
     """Cette méthode permet d'enchaîner construction, contrôles, cuisson, mesures et export."""
     opts = args()
+    if opts["bake"] and not opts["write"]:
+        raise SystemExit("--bake exige l'écriture des mesures : sans elles, les textures ne correspondraient plus")
     if (opts["bake"] or opts["glb"]) and not opts["drape"]:
         raise SystemExit("--bake et --glb exigent le drapé : sans lui, la cape n'est pas celle du jeu (ni des mesures)")
     mpath = os.path.join(ROOT, "tools", "models", f"{opts['model']}.manifest.json")
@@ -195,7 +196,7 @@ def main():
                               f"{before.get('fingerprint')} avec les mêmes sources")
     out_dir = os.path.join(ROOT, "assets", "textures", opts["model"])
     # cuisson dans un dossier temporaire : les textures versionnées ne sont remplacées que si la cuisson est acceptée
-    bake_dir = tempfile.mkdtemp(prefix=f"bake_{opts['model']}_")
+    bake_dir = tempfile.mkdtemp(prefix=f"bake_{opts['model']}_") if opts["bake"] and not errors else None
     fresh = {}
     baked = {}
     for name, spec in m["parts"].items():
@@ -223,6 +224,7 @@ def main():
                 shutil.move(path, dest)
                 if kind != "ao":
                     baked[name][kind] = os.path.relpath(dest, ROOT).replace("\\", "/")
+        shutil.rmtree(bake_dir, ignore_errors=True)
     elif fresh:
         print(f"textures cuites refusées, laissées dans {bake_dir} (assets/textures inchangé)")
     elif os.path.isfile(measured_path):
