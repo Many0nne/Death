@@ -13,6 +13,8 @@ import bpy
 import numpy as np
 
 MAPS = ("normal", "ao", "color", "roughness")
+# portée de l'occlusion cuite (studs)
+AO_DISTANCE = 0.3
 
 
 def _setup(scene, samples):
@@ -27,6 +29,10 @@ def _setup(scene, samples):
     scene.cycles.use_denoising = False
     scene.render.bake.margin = 8
     scene.render.bake.use_selected_to_active = True
+    # occlusion locale (plis, creux de la chair) : sans borne, une pièce cachée sous la robe (torse) cuisait noire
+    if scene.world is None:
+        scene.world = bpy.data.worlds.new("Bake")
+    scene.world.light_settings.distance = AO_DISTANCE
 
 
 def _image(name, size, data):
@@ -47,9 +53,13 @@ def _save(img, path):
     img.save()
 
 
-def bake_maps(high, low, out_dir, prefix, size=1024, samples=32, extrusion=0.08, max_ray=0.25, ao_floor=0.35):
+def bake_maps(high, low, out_dir, prefix, size=1024, samples=32, extrusion=0.05, max_ray=0.1, ao_floor=0.35,
+              normal=True):
     """Cette méthode permet de cuire `high` sur `low` et d'écrire `<prefix>_color|normal|roughness.png` dans out_dir
-    (plus `<prefix>_ao.png`, intermédiaire) ; renvoie {carte: chemin}."""
+    (plus `<prefix>_ao.png`, intermédiaire) ; renvoie {carte: chemin}. Rayons courts (#85 : mesuré sur la cape de
+    #79, 553 -> 232 pixels de taches) : des rayons longs touchent l'autre couche d'un pli serré ; le détail ne
+    s'écarte pas de plus de ~0,04 stud de la surface. `normal` à False : pas de carte de normales (lanières fines qui
+    se croisent : les rayons touchent la voisine, #81)."""
     scene = bpy.context.scene
     _setup(scene, samples)
     os.makedirs(out_dir, exist_ok=True)
@@ -58,6 +68,10 @@ def bake_maps(high, low, out_dir, prefix, size=1024, samples=32, extrusion=0.08,
                                                "visible_transmission", "visible_volume_scatter")}
     for k in saved_vis:
         setattr(low, k, False)
+    # les autres pièces ne comptent pas : l'occlusion et les rayons ne voient que cette pièce
+    saved_hidden = {o: o.hide_render for o in bpy.context.scene.objects if o not in (high, low)}
+    for o in saved_hidden:
+        o.hide_render = True
     saved_mods = [(m, m.show_render, m.show_viewport) for m in low.modifiers]
     for m, _r, _v in saved_mods:
         m.show_render = False
@@ -77,6 +91,8 @@ def bake_maps(high, low, out_dir, prefix, size=1024, samples=32, extrusion=0.08,
     pixels = {}
     try:
         for kind in MAPS:
+            if kind == "normal" and not normal:
+                continue
             img = _image(f"{prefix}_{kind}", size, kind != "color")
             node.image = img
             with bpy.context.temp_override(active_object=low, object=low, selected_objects=[high, low]):
@@ -115,16 +131,25 @@ def bake_maps(high, low, out_dir, prefix, size=1024, samples=32, extrusion=0.08,
         for m, r, v in saved_mods:
             m.show_render = r
             m.show_viewport = v
+        for o, hidden in saved_hidden.items():
+            o.hide_render = hidden
     return out
 
 
-def stats(path):
-    """Cette méthode permet de résumer une carte cuite (moyenne et écart par canal) pour le compte rendu."""
+def stats(path, normal=False):
+    """Cette méthode permet de résumer une carte cuite (moyenne et écart par canal) pour le compte rendu ; pour une
+    carte de normales, part des pixels très inclinés (n.z < 0,5, les « taches » de #85) hors fond noir."""
     img = bpy.data.images.load(path, check_existing=False)
     w, h = img.size
     arr = np.empty(w * h * 4, dtype=np.float32)
     img.pixels.foreach_get(arr)
     arr = arr.reshape(-1, 4)[:, :3]
     bpy.data.images.remove(img)
-    return {"size": [w, h], "mean": [round(float(x), 3) for x in arr.mean(0)],
-            "std": [round(float(x), 3) for x in arr.std(0)]}
+    out = {"size": [w, h], "mean": [round(float(x), 3) for x in arr.mean(0)],
+           "std": [round(float(x), 3) for x in arr.std(0)]}
+    if normal:
+        inside = arr.sum(1) > 0.02
+        spikes = inside & (arr[:, 2] * 2 - 1 < 0.5)
+        out["spikes"] = int(spikes.sum())
+        out["spikesPct"] = round(100 * float(spikes.sum()) / max(1, int(inside.sum())), 3)
+    return out

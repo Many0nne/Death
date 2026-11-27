@@ -22,18 +22,42 @@ def copy_geometry(ob, name):
     return hi
 
 
+def crease_boundary(ob):
+    """Cette méthode permet de marquer dures (pli 1) les arêtes de bord d'une surface ouverte avant subdivision : le
+    bord de la version détaillée reste celui de la pièce jouable, sinon Catmull-Clark l'arrondit (dents de l'ourlet)
+    et les rayons de cuisson ratent la surface sur le bord (taches de la carte de normales, #85)."""
+    me = ob.data
+    count = {}
+    for p in me.polygons:
+        for key in p.edge_keys:
+            count[key] = count.get(key, 0) + 1
+    attr = me.attributes.get("crease_edge") or me.attributes.new("crease_edge", "FLOAT", "EDGE")
+    n = 0
+    # les plis déjà posés par le modèle (griffes gardées vives) restent
+    for e in me.edges:
+        if count.get(tuple(sorted(e.vertices)), 0) == 1:
+            attr.data[e.index].value = 1.0
+            n += 1
+    return n
+
+
 def subdivide(ob, levels):
-    """Cette méthode permet de subdiviser (Catmull-Clark, UV lissées) et d'appliquer."""
+    """Cette méthode permet de subdiviser (Catmull-Clark, UV lissées, bords gardés) et d'appliquer."""
+    crease_boundary(ob)
     m = ob.modifiers.new("Subdiv", "SUBSURF")
+    m.use_creases = True
     m.levels = levels
     m.render_levels = levels
     m.uv_smooth = "PRESERVE_CORNERS"
     mesh.apply_modifier(ob, m.name)
 
 
-def sculpt_strokes(ob, strokes):
+def sculpt_strokes(ob, strokes, smooth=2):
     """Cette méthode permet de sculpter par script : chaque trait (points, rayon, profondeur) creuse un sillon (> 0)
-    ou lève un bourrelet (< 0) le long des normales, chute douce ; renvoie le nombre de sommets touchés."""
+    ou lève un bourrelet (< 0) le long des normales, chute douce ; renvoie le nombre de sommets touchés.
+    Deux traits qui se croisent s'additionnent (borné en douceur à la plus forte profondeur) puis le champ est lissé :
+    un sillon qui croise un bourrelet ne crée plus de marche d'un sommet à l'autre (taches de la carte de normales,
+    #85)."""
     me = ob.data
     n = len(me.vertices)
     kd = kdtree.KDTree(n)
@@ -41,6 +65,7 @@ def sculpt_strokes(ob, strokes):
         kd.insert(v.co, v.index)
     kd.balance()
     offset = {}
+    dmax = max((abs(s[2]) for s in strokes), default=0.0)
     for pts, radius, depth in strokes:
         pts = [Vector(p) for p in pts]
         samples = []
@@ -48,19 +73,49 @@ def sculpt_strokes(ob, strokes):
             steps = max(1, int((b - a).length / (radius * 0.35)))
             samples += [a.lerp(b, k / steps) for k in range(steps)]
         samples.append(pts[-1])
-        # la profondeur s'annule aux deux bouts du trait
+        # la profondeur s'annule aux deux bouts du trait ; le long d'un même trait on garde le plus fort, d'un trait à
+        # l'autre on additionne
+        mine = {}
         for s_i, p in enumerate(samples):
             taper = math.sin(math.pi * (s_i + 0.5) / len(samples))
             for _co, idx, dist in kd.find_range(p, radius):
                 fall = 1 - mesh.smoothstep(0, 1, dist / radius)
                 d = depth * taper * fall
-                if abs(d) > abs(offset.get(idx, 0.0)):
-                    offset[idx] = d
+                if abs(d) > abs(mine.get(idx, 0.0)):
+                    mine[idx] = d
+        for idx, d in mine.items():
+            offset[idx] = offset.get(idx, 0.0) + d
+    if dmax > 0:
+        offset = {k: dmax * math.tanh(d / dmax) for k, d in offset.items()}
+    if smooth:
+        from . import organic
+
+        offset = organic.smooth_field(ob, offset, iterations=smooth, factor=0.5)
     for idx, d in offset.items():
         v = me.vertices[idx]
         v.co -= v.normal * d
     me.update()
     return len(offset)
+
+
+def relax_flips(ob, base_co, base_normals, threshold=0.3, passes=8):
+    """Cette méthode permet de ramener vers la surface de départ (subdivisée, sans détail) les sommets des faces que le
+    détail a retournées ou trop inclinées (normale à moins de `threshold` de celle d'origine) : dans un pli serré, un
+    sillon ou une bosse retourne la peau et la cuisson en tire une tache (#85) ; renvoie le nombre de faces reprises."""
+    me = ob.data
+    fixed = set()
+    for _ in range(passes):
+        me.update()
+        bad = [p for p in me.polygons if p.normal.dot(base_normals[p.index]) < threshold]
+        if not bad:
+            break
+        verts = {k for p in bad for k in p.vertices}
+        fixed.update(p.index for p in bad)
+        for k in verts:
+            v = me.vertices[k]
+            v.co = v.co.lerp(base_co[k], 0.5)
+    me.update()
+    return len(fixed)
 
 
 def grid_strokes(ob, count, rows, cols, seed, radius=(0.06, 0.13), depth=(0.012, 0.03), length=(5, 12), drift=0.6,
@@ -158,12 +213,17 @@ def detailed_copy(ob, seed, levels=3, strokes=None, noise=(1.6, 0.035), fine=(0.
     vues) : subdivision, sculpt par script, bruit Geometry Nodes, déplacement fin ; renvoie l'objet."""
     hi = copy_geometry(ob, f"{ob.name}_hi")
     subdivide(hi, levels)
+    base_co = [v.co.copy() for v in hi.data.vertices]
+    base_normals = [p.normal.copy() for p in hi.data.polygons]
     if strokes:
         sculpt_strokes(hi, strokes)
     if noise:
         gn_noise(hi, noise[0], noise[1], seed)
     if fine:
         displace(hi, fine[0], fine[1], seed)
+    flips = relax_flips(hi, base_co, base_normals)
+    if flips:
+        print(f"DETAIL {ob.name}: {flips} face(s) retournée(s) par le détail, ramenée(s) vers la surface")
     for p in hi.data.polygons:
         p.use_smooth = True
     return hi

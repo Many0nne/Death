@@ -87,6 +87,97 @@ def cc0_material(name, asset, dark, light, rough=(0.7, 1.0), scale=(6.0, 4.0), n
     return mat
 
 
+def flesh_material(name, seed=0):
+    """Cette méthode permet de créer la matière procédurale de la chair desséchée (pas de peau CC0 convenable chez
+    Poly Haven) : gris cendré sale, marbré de taches brunâtres et de veines sombres, rides fines en relief ; les faces
+    d'attribut `zone` = 1 (griffes) prennent une corne jaunie, striée et plus brillante."""
+    mat = bpy.data.materials.new(name)
+    mat.use_nodes = True
+    nt = mat.node_tree
+    nodes, links = nt.nodes, nt.links
+    bsdf = next(n for n in nodes if n.type == "BSDF_PRINCIPLED")
+    coord = nodes.new("ShaderNodeTexCoord")
+    shift = nodes.new("ShaderNodeVectorMath")
+    shift.operation = "ADD"
+    shift.inputs[1].default_value = (seed * 3.1, seed * 1.7, seed * 2.3)
+    links.new(coord.outputs["Object"], shift.inputs[0])
+
+    def noise(scale, detail=6.0, rough=0.6):
+        n = nodes.new("ShaderNodeTexNoise")
+        n.inputs["Scale"].default_value = scale
+        n.inputs["Detail"].default_value = detail
+        n.inputs["Roughness"].default_value = rough
+        links.new(shift.outputs["Vector"], n.inputs["Vector"])
+        return n
+
+    def mix(a, b, fac, clamp=True):
+        m = nodes.new("ShaderNodeMix")
+        m.data_type = "RGBA"
+        m.clamp_factor = clamp
+        for sock, val in (("A", a), ("B", b)):
+            if isinstance(val, tuple):
+                m.inputs[sock].default_value = (*val, 1)
+            else:
+                links.new(val, m.inputs[sock])
+        if isinstance(fac, float):
+            m.inputs["Factor"].default_value = fac
+        else:
+            links.new(fac, m.inputs["Factor"])
+        return m.outputs["Result"]
+
+    def ramp(src, lo, hi):
+        r = nodes.new("ShaderNodeMapRange")
+        r.inputs["From Min"].default_value = lo
+        r.inputs["From Max"].default_value = hi
+        links.new(src, r.inputs["Value"])
+        return r.outputs["Result"]
+
+    # chair : cendre grise, taches brunâtres (marbrure large), veines sombres (bruit étiré en crêtes)
+    mottle = ramp(noise(3.0).outputs["Fac"], 0.42, 0.68)
+    flesh = mix((0.16, 0.155, 0.145), (0.3, 0.29, 0.265), ramp(noise(9.0).outputs["Fac"], 0.3, 0.7))
+    flesh = mix(flesh, (0.2, 0.15, 0.11), mottle)
+    vein_src = noise(5.0, detail=3.0, rough=0.4)
+    vein = nodes.new("ShaderNodeMath")
+    vein.operation = "PINGPONG"
+    vein.inputs[1].default_value = 0.5
+    links.new(vein_src.outputs["Fac"], vein.inputs[0])
+    veins = ramp(vein.outputs["Value"], 0.47, 0.5)
+    inv = nodes.new("ShaderNodeMath")
+    inv.operation = "SUBTRACT"
+    inv.inputs[0].default_value = 1.0
+    links.new(veins, inv.inputs[1])
+    vein_mix = nodes.new("ShaderNodeMath")
+    vein_mix.operation = "MULTIPLY"
+    vein_mix.inputs[1].default_value = 0.45
+    links.new(inv.outputs["Value"], vein_mix.inputs[0])
+    flesh = mix(flesh, (0.07, 0.065, 0.075), vein_mix.outputs["Value"])
+    # griffes : corne jaunie, striée en long
+    claw = mix((0.2, 0.16, 0.09), (0.42, 0.36, 0.22), ramp(noise(40.0, detail=2.0).outputs["Fac"], 0.35, 0.65))
+    zone = nodes.new("ShaderNodeAttribute")
+    zone.attribute_type = "GEOMETRY"
+    zone.attribute_name = "zone"
+    color = mix(flesh, claw, zone.outputs["Fac"])
+    links.new(color, bsdf.inputs["Base Color"])
+    rough = nodes.new("ShaderNodeMix")
+    rough.data_type = "FLOAT"
+    rough_flesh = nodes.new("ShaderNodeMapRange")
+    rough_flesh.inputs["To Min"].default_value = 0.6
+    rough_flesh.inputs["To Max"].default_value = 0.85
+    links.new(noise(20.0).outputs["Fac"], rough_flesh.inputs["Value"])
+    links.new(rough_flesh.outputs["Result"], rough.inputs["A"])
+    rough.inputs["B"].default_value = 0.35
+    links.new(zone.outputs["Fac"], rough.inputs["Factor"])
+    links.new(rough.outputs["Result"], bsdf.inputs["Roughness"])
+    # rides fines : bosses de bruit serré, plus fortes sur la chair que sur la corne
+    bump = nodes.new("ShaderNodeBump")
+    bump.inputs["Strength"].default_value = 0.35
+    bump.inputs["Distance"].default_value = 0.004
+    wr = noise(160.0, detail=4.0, rough=0.7)
+    links.new(wr.outputs["Fac"], bump.inputs["Height"])
+    links.new(bump.outputs["Normal"], bsdf.inputs["Normal"])
+    return mat
+
+
 def textured_material(name, maps, metallic=0.0):
     """Cette méthode permet de poser des textures cuites (chemins PNG color/normal/roughness) sur un matériau, comme
     les recevra la SurfaceAppearance de Roblox (rendus de contrôle)."""

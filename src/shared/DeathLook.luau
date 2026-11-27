@@ -22,6 +22,9 @@ DeathLook.SHADOW_FILL = 0.04
 DeathLook.SHADOW_OUTLINE = 0.7
 -- Voile de la Mort sur son propre corps (transparence du remplissage) : dans l'ombre / à la lumière
 DeathLook.SELF_VEIL = table.freeze({ shadow = 0.6, light = 0.05 })
+-- Lanières du bas (#81, pièces à part du modèle) vues d'un mortel : en pleine ombre, sans remplissage et à demi
+-- transparentes, elles se défont dans la colonne de fumée au lieu d'arrêter l'ombre sur un bord net (transparence)
+DeathLook.TATTER_FADE = 0.55
 -- Déplacement d'une frame à l'autre au-delà duquel la Mort a été téléportée (dissipation, reformation) : elle glisse
 -- à 20 studs/s au plus, soit moins de 4 studs même à 5 images par seconde ; JUMP_SPEED couvre une frame plus longue
 -- (saccade du client)
@@ -80,6 +83,7 @@ export type Layers = {
 	-- touche pas au corps du joueur Mort : la caméra à la première personne s'en charge)
 	body: number,
 	scythe: number,
+	tatters: number, -- transparence locale des lanières du bas (sans remplissage pour un mortel)
 	fill: number, -- transparence du remplissage sombre du corps (1 : aucun)
 	outline: number, -- transparence du contour du corps (1 : aucun)
 	scytheFill: number, -- transparence du remplissage sombre de la faux
@@ -87,16 +91,18 @@ export type Layers = {
 }
 
 -- Cette méthode permet de calculer ce qu'il faut dessiner lorsque visibilité et révélation sont connues : pour un
--- mortel, corps et ombre apparaissent ensemble, puis l'ombre (remplissage, contour, fumée) cède la place à la faux.
+-- mortel, corps et ombre apparaissent ensemble, puis l'ombre (remplissage, contour, fumée) cède la place à la faux ;
+-- les lanières, à demi effacées dans l'ombre, reprennent corps avec la révélation.
 function DeathLook.layers(view: string, visibility: number, reveal: number): Layers
 	if view == DeathLook.View.Self then
 		local veil = DeathLook.SELF_VEIL.shadow + (DeathLook.SELF_VEIL.light - DeathLook.SELF_VEIL.shadow) * visibility
-		return { body = 0, scythe = 0, fill = veil, outline = 1, scytheFill = veil, smoke = 0 }
+		return { body = 0, scythe = 0, tatters = 0, fill = veil, outline = 1, scytheFill = veil, smoke = 0 }
 	end
 	local shadow = visibility * (1 - reveal)
 	return {
 		body = 1 - visibility,
 		scythe = 1 - visibility * reveal,
+		tatters = 1 - visibility * (1 - DeathLook.TATTER_FADE * (1 - reveal)),
 		fill = 1 - shadow * (1 - DeathLook.SHADOW_FILL),
 		outline = 1 - shadow * (1 - DeathLook.SHADOW_OUTLINE),
 		scytheFill = 1,

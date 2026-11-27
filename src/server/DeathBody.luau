@@ -4,7 +4,7 @@
 -- Server.DeathController à chaque changement de rôle ou de personnage.
 --
 -- Revêtir : un clone du modèle remplace le personnage à la même place (Player.Character), avec les scripts du
--- personnage d'origine (Animate, Health) : les modules qui écoutent CharacterAdded le traitent comme une réapparition
+-- personnage d'origine sauf Animate (Health...) : les modules qui écoutent CharacterAdded le traitent comme une réapparition
 -- (Server.MatchSpawner le replace sur son point en manche). Rendre l'avatar : Player:LoadCharacterAsync() (le joueur
 -- réapparaît sur le SpawnLocation de la zone d'attente).
 -- Limite : un faux joueur de debug (Server.DebugBots) garde son mannequin.
@@ -16,6 +16,8 @@ local DeathBody = {}
 DeathBody.ATTRIBUTE = "DeathBody"
 -- Le corps est posé un peu au-dessus de la racine d'origine : il retombe sur ses pieds au lieu de s'enfoncer
 local DROP_HEIGHT = 1
+-- Script d'animation par défaut de Roblox, non repris sur le corps de la Mort
+DeathBody.SKIPPED_SCRIPT = "Animate"
 
 -- Cette méthode permet de savoir si un personnage porte déjà le corps de la Mort lorsque le rôle est réappliqué.
 function DeathBody.isWorn(character: Model?): boolean
@@ -45,9 +47,11 @@ function DeathBody.dress(player: Player): boolean
 	local body = model:Clone()
 	body.Name = player.Name
 	body:SetAttribute(DeathBody.ATTRIBUTE, true)
-	-- Scripts du personnage d'origine (StarterCharacterScripts : Animate, Health), avec leurs valeurs d'animation
+	-- Scripts du personnage d'origine (StarterCharacterScripts : Health...), sauf Animate : les bras du spectre sont
+	-- skinnés sur le rig R15 (#81), la marche et l'attente par défaut les balanceraient (la main lâcherait la pose de
+	-- la faux) ; ses propres animations viendront avec #55
 	for _, child in old:GetChildren() do
-		if child:IsA("BaseScript") then
+		if child:IsA("BaseScript") and child.Name ~= DeathBody.SKIPPED_SCRIPT then
 			child:Clone().Parent = body
 		end
 	end

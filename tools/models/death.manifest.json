@@ -1,47 +1,115 @@
 {
-  "_doc": "Manifeste du modèle de la Mort (#79), source unique : noms attendus par le code et produits par tools/blender/death_model.py, budgets de triangles, cuisson, et table de remontage Studio (tools/rbxm/remount.luau). Mesures : death.measured.json (écrit par tools/blender/pipeline.py). Procédure : docs/assets.md.",
+  "_doc": "Manifeste du modèle de la Mort (#79, spectre #81), source unique : noms attendus par le code et produits par tools/blender/death_model.py, budgets de triangles, cuisson, et table de remontage Studio (tools/rbxm/remount.luau). Mesures : death.measured.json (écrit par tools/blender/pipeline.py). Procédure : docs/assets.md.",
   "model": "Death",
   "script": "tools/blender/death_model.py",
   "glb": "DeathVeil.glb",
-  "budget": { "partTris": 12000, "totalTris": 34000 },
+  "budget": { "partTris": 12000, "totalTris": 70000 },
   "codeNames": ["Characters", "Death", "HumanoidRootPart", "Humanoid"],
-  "bones": { "parent": "HumanoidRootPart", "root": "Root", "chains": 16, "perChain": 4, "skin": "Cloak" },
+  "bones": {
+    "parent": "HumanoidRootPart", "root": "Root", "chains": 16, "perChain": 4, "skin": "Cloak",
+    "body": {
+      "root": "Spine",
+      "skinned": ["Hands", "Sleeves"],
+      "attach": {
+        "Spine": "UpperTorso",
+        "R_UpperArm": "RightUpperArm", "R_Forearm": "RightLowerArm", "R_Hand": "RightHand",
+        "L_UpperArm": "LeftUpperArm", "L_Forearm": "LeftLowerArm", "L_Hand": "LeftHand"
+      },
+      "joints": [
+        ["RightShoulder", "R_UpperArm"], ["RightElbow", "R_Forearm"], ["RightWrist", "R_Hand"],
+        ["LeftShoulder", "L_UpperArm"], ["LeftElbow", "L_Forearm"], ["LeftWrist", "L_Hand"]
+      ]
+    }
+  },
   "parts": {
     "Cloak": {
-      "group": "Veil", "maxTris": 9000, "skinned": true,
+      "group": "Veil", "maxTris": 11000, "skinned": true,
       "material": "Fabric", "color": [12, 12, 15], "castShadow": true,
       "bake": {
-        "size": 1024, "cc0": "rough_linen", "seed": 79,
+        "size": 1024, "cc0": "rough_linen", "seed": 81,
         "dark": [0.004, 0.004, 0.005], "light": [0.05, 0.046, 0.05],
-        "rough": [0.78, 1.0], "scale": [10, 6], "normalStrength": 1.2, "grime": 0.6,
-        "strokes": 90, "subdiv": 3, "noise": [1.6, 0.03], "fine": [0.1, 0.01]
+        "rough": [0.78, 1.0], "scale": [12, 7], "normalStrength": 1.2, "grime": 0.6,
+        "strokes": 110, "subdiv": 2, "noise": [1.6, 0.03], "fine": [0.1, 0.01]
       },
-      "surface": {
-        "ColorMap": "rbxassetid://90768318909720",
-        "NormalMap": "rbxassetid://75803274684492",
-        "RoughnessMap": "rbxassetid://134709665699025"
-      }
+      "surface": {}
     },
-    "Hood": { "group": "Veil", "maxTris": 12000, "material": "Fabric", "color": [12, 12, 15], "castShadow": true },
-    "Void": { "group": "Veil", "maxTris": 3000, "material": "Neon", "color": [0, 0, 0], "castShadow": false },
-    "Sleeve": { "group": "Arm", "maxTris": 4000, "material": "Fabric", "color": [12, 12, 15], "castShadow": true },
-    "BoneArm": { "group": "Arm", "maxTris": 8000, "material": "SmoothPlastic", "color": [196, 186, 160], "castShadow": true },
-    "Blade": { "group": "Scythe", "maxTris": 2500, "material": "Metal", "color": [92, 96, 104], "castShadow": true },
-    "Edge": { "group": "Scythe", "maxTris": 2500, "material": "Foil", "color": [205, 210, 218], "castShadow": true },
-    "Engraving": { "group": "Scythe", "maxTris": 1000, "material": "Metal", "color": [52, 52, 58], "castShadow": true },
-    "ScytheHead": { "group": "Scythe", "maxTris": 1500, "material": "Metal", "color": [46, 46, 52], "castShadow": true },
-    "Gem": { "group": "Scythe", "maxTris": 1000, "material": "Neon", "color": [40, 140, 120], "castShadow": true },
-    "Rings": { "group": "Scythe", "maxTris": 1000, "material": "Metal", "color": [140, 118, 82], "castShadow": true },
-    "Shaft": { "group": "Scythe", "maxTris": 2000, "material": "Wood", "color": [46, 32, 24], "castShadow": true },
-    "Grip": { "group": "Scythe", "maxTris": 1500, "material": "Leather", "color": [54, 26, 20], "castShadow": true },
-    "Pommel": { "group": "Scythe", "maxTris": 500, "material": "Metal", "color": [46, 46, 52], "castShadow": true }
+    "Shroud": {
+      "group": "Veil", "maxTris": 11000, "material": "Fabric", "color": [12, 12, 15], "castShadow": true,
+      "bake": {
+        "size": 1024, "cc0": "rough_linen", "seed": 82,
+        "dark": [0.004, 0.004, 0.005], "light": [0.055, 0.05, 0.055],
+        "rough": [0.78, 1.0], "scale": [8, 8], "normalStrength": 1.2, "grime": 0.7,
+        "strokes": 40, "subdiv": 2, "noise": [2.4, 0.02], "fine": [0.1, 0.008]
+      },
+      "surface": {}
+    },
+    "Tatters": {
+      "group": "Tatters", "maxTris": 11000, "skinned": true, "material": "Fabric", "color": [12, 12, 15],
+      "castShadow": true,
+      "bake": {
+        "size": 512, "cc0": "rough_linen", "seed": 83,
+        "dark": [0.003, 0.003, 0.004], "light": [0.045, 0.042, 0.046],
+        "rough": [0.8, 1.0], "scale": [10, 10], "normalStrength": 1.4, "grime": 0.8,
+        "subdiv": 2, "noise": [3.0, 0.006], "fine": [0.08, 0.003], "cage": [0.012, 0.03], "normal": false
+      },
+      "surface": {}
+    },
+    "Sleeves": {
+      "group": "Arm", "maxTris": 8000, "skinned": true, "material": "Fabric", "color": [12, 12, 15],
+      "castShadow": true,
+      "bake": {
+        "size": 512, "cc0": "rough_linen", "seed": 84,
+        "dark": [0.004, 0.004, 0.005], "light": [0.05, 0.046, 0.05],
+        "rough": [0.78, 1.0], "scale": [8, 8], "normalStrength": 1.2, "grime": 0.6,
+        "subdiv": 2, "noise": [2.0, 0.02], "fine": [0.1, 0.008], "cage": [0.03, 0.06]
+      },
+      "surface": {}
+    },
+    "Hands": {
+      "group": "Arm", "maxTris": 12000, "skinned": true, "material": "SmoothPlastic", "color": [92, 88, 80],
+      "castShadow": true,
+      "bake": {
+        "size": 1024, "shader": "flesh", "seed": 85,
+        "subdiv": 2, "noise": [14.0, 0.004], "fine": [0.03, 0.0025], "cage": [0.006, 0.015],
+        "spikesMax": 2.0, "_spikes": "griffes gardées vives et attaches des doigts : grandes corrections de normales voulues (vérifiées au rendu texturé), pas des taches"
+      },
+      "surface": {}
+    },
+    "Torso": {
+      "group": "Body", "maxTris": 10000, "material": "SmoothPlastic", "color": [82, 78, 72], "castShadow": true,
+      "bake": {
+        "size": 512, "shader": "flesh", "seed": 86,
+        "subdiv": 2, "noise": [6.0, 0.008], "fine": [0.05, 0.004]
+      },
+      "surface": {}
+    },
+    "Blade": { "group": "Scythe", "maxTris": 3000, "material": "Metal", "color": [72, 72, 78], "castShadow": true },
+    "Edge": { "group": "Scythe", "maxTris": 3000, "material": "Foil", "color": [168, 170, 176], "castShadow": true },
+    "Engraving": { "group": "Scythe", "maxTris": 1000, "material": "Metal", "color": [40, 40, 44], "castShadow": true },
+    "ScytheHead": { "group": "Scythe", "maxTris": 1500, "material": "Metal", "color": [36, 34, 34], "castShadow": true },
+    "Gem": { "group": "Scythe", "maxTris": 1000, "material": "Neon", "color": [60, 120, 100], "castShadow": true },
+    "Rings": { "group": "Scythe", "maxTris": 1000, "material": "Metal", "color": [60, 52, 44], "castShadow": true },
+    "Shaft": {
+      "group": "Scythe", "maxTris": 2000, "material": "Wood", "color": [52, 38, 26], "castShadow": true,
+      "bake": {
+        "size": 512, "cc0": "dark_wood", "seed": 88,
+        "dark": [0.025, 0.016, 0.01], "light": [0.12, 0.08, 0.05],
+        "rough": [0.6, 0.9], "scale": [1, 10], "normalStrength": 1.3, "grime": 0.4,
+        "subdiv": 2, "noise": [10.0, 0.004], "fine": [0.04, 0.002]
+      },
+      "surface": {}
+    },
+    "Grip": { "group": "Scythe", "maxTris": 1500, "material": "Leather", "color": [44, 26, 18], "castShadow": true },
+    "Pommel": { "group": "Scythe", "maxTris": 500, "material": "Metal", "color": [36, 34, 34], "castShadow": true }
   },
   "studio": {
     "weldTo": "HumanoidRootPart",
+    "groupWeld": { "Scythe": "RightHand" },
+    "remove": ["Hood", "Void", "Sleeve", "BoneArm", "HoodShadow"],
     "humanoid": { "AutomaticScalingEnabled": false, "HipHeight": 2.65 },
     "extraParts": {
       "HemSmokeArea": {
-        "group": "Veil", "size": [3.2, 0.4, 2.8], "offset": [0, -3.35, 0.351],
+        "group": "Veil", "size": [3.0, 0.4, 2.8], "offset": [0, -3.3, 0.6],
         "transparency": 1, "castShadow": false
       }
     },
@@ -61,23 +129,6 @@
           "Acceleration": { "Vector3": [0, 0.35, 0] },
           "SpreadAngle": { "Vector2": [60, 60] },
           "EmissionDirection": { "Enum": ["NormalId", "Top"] }
-        }
-      },
-      "HoodShadow": {
-        "parent": "Void",
-        "props": {
-          "Texture": "rbxasset://textures/particles/smoke_main.dds",
-          "Rate": 4, "Drag": 1, "LightInfluence": 1, "LightEmission": 0,
-          "Lifetime": { "NumberRange": [1, 1.6] },
-          "Speed": { "NumberRange": [0.1, 0.3] },
-          "Rotation": { "NumberRange": [0, 360] },
-          "RotSpeed": { "NumberRange": [-30, 30] },
-          "Size": { "NumberSequence": [[0, 0.2], [1, 0.7]] },
-          "Transparency": { "NumberSequence": [[0, 1], [0.25, 0.55], [1, 1]] },
-          "Color": { "ColorSequence": [[0, [8, 8, 10]], [1, [8, 8, 10]]] },
-          "Acceleration": { "Vector3": [0, 0.2, 0] },
-          "SpreadAngle": { "Vector2": [60, 60] },
-          "EmissionDirection": { "Enum": ["NormalId", "Bottom"] }
         }
       }
     }

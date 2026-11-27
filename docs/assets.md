@@ -9,32 +9,48 @@ Studio : une modification non réexportée est perdue. La CI fait un checkout LF
 
 | Modèle | Fichier | Utilisé par |
 |---|---|---|
-| La Mort (#73, #76) | `assets/rbx/Characters/Death.rbxm` | `Server.DeathBody` : le joueur Mort le revêt, il retrouve son avatar ensuite ; `Client.CloakAnimator` anime la cape |
+| La Mort (#73, #76, #81) | `assets/rbx/Characters/Death.rbxm` | `Server.DeathBody` : le joueur Mort le revêt, il retrouve son avatar ensuite ; `Client.CloakAnimator` anime le voile |
 
-**La Mort** (#76, retour de l'utilisateur sur #73, jugé trop humanoïde ; outillage #79) : un voile en lambeaux,
-capuche vide, aucun pied ; seuls le bras squelette et la main qui tient la faux dépassent. Écrite par script Blender
-(`tools/blender/death_model.py`, rejouable : la source est le script, pas un `.blend`), produite par
-`tools/blender/pipeline.py` (section « Produire un modèle détaillé sans crédits »), exportée en GLB, envoyée par Open
-Cloud (dossier d'envoi approuvé `worktrees/.export` du checkout principal), puis remontée dans Studio par
-`tools/rbxm/remount.luau` sur le rig R15 de #73 :
+**La Mort** (#81, après #76 jugé « trop simpliste, un assemblage de formes basiques » ; outillage #79) : un spectre
+décharné de l'archétype « détraqueur » (l'archétype, pas un personnage existant), très grand (7,2 studs, sous les
+portes de 8), sans pieds, qui flotte à 0,2 stud du sol. Suaire tendu sur un crâne sculpté (orbites, arcade, pommettes
+et cavité nasale se devinent), tête penchée, dos voûté, épaules osseuses ; robe lourde trouée sur des côtes
+saillantes ; manches très larges d'où sortent des bras maigres et des mains griffues (la droite serre la faux, la
+gauche se tend) ; le bas se défait en 44 lanières de longueurs très différentes qui traînent vers l'arrière. Avant /
+après : `docs/renders/death/v76/` et `docs/renders/death/` (`textured/` : textures cuites ; `silhouette/` : ombre
+pleine, ce que voit un mortel hors faisceau).
+
+Écrite par script Blender (`tools/blender/death_model.py` et ses modules `tools/blender/death/` : `posture`, `veil`,
+`anatomy`, `scythe`, `rig`, `checks` ; rejouable, la source est le script), produite par `tools/blender/pipeline.py`
+(section « Produire un modèle détaillé sans crédits »), exportée en GLB, envoyée par Open Cloud (dossier d'envoi
+approuvé `worktrees/.export` du checkout principal), puis remontée dans Studio par `tools/rbxm/remount.luau` sur le
+rig R15 de #73 :
 - **rig R15 gardé, invisible** (`Transparency = 1` : un `Highlight` ne dessine pas ces pièces, vérifié) : il porte le
   Humanoid et les déplacements. `AutomaticScalingEnabled = false` et `HipHeight = 2,65` : sinon le Humanoid recalcule
-  une hauteur de hanches nulle et reste en chute libre (constaté en jeu) ;
+  une hauteur de hanches nulle et reste en chute libre (constaté en jeu). Ses articulations des bras (épaule, coude,
+  poignet) sont recalées par le remontage sur les os du spectre (`bones.body.joints`) ;
 - **voile** (modèle `Veil`) : `Cloak` (robe drapée par simulation de tissu, à os : 16 chaînes de 4 os `Cxx_y` sous
-  `HumanoidRootPart.Root`, `SurfaceAppearance` cuite), `Hood` (capuche et pèlerine), `Void` (`Neon` noir qui tapisse
-  le fond de la poche de la capuche), `HemSmokeArea` (pièce invisible, fumée `HemSmoke`) ; fumée `HoodShadow` dans
-  `Void` ;
-- **bras** (modèle `Arm`) : `Sleeve` (manche) et `BoneArm` (avant-bras et main squelette, phalanges courbées contre la
-  poignée) ;
-- **faux** (modèle `Scythe`), une MeshPart par zone de skin, chacune avec ses UV (manche, poignée et gravure : u le
-  long de la pièce) : `Blade` (acier, rainure), `Edge` (fil poli), `Engraving` (panneau dans la rainure, des deux
-  côtés, prévu pour une texture gravée), `ScytheHead` (douille et éperon), `Gem` (sertie des deux côtés), `Rings`
-  (bagues), `Shaft` (manche), `Grip` (cuir en hélice), `Pommel` (pointe) ;
-- toutes les pièces ajoutées sont soudées à `HumanoidRootPart` (`WeldConstraint`), sans masse, collision, contact ni
-  requête de rayon : elles ne suivent pas les membres animés, la Mort glisse.
+  `HumanoidRootPart.Root`), `Shroud` (suaire, forme dessinée), `HemSmokeArea` (pièce invisible, fumée `HemSmoke`) ;
+- **lanières** (modèle `Tatters`) : `Tatters`, skinnée sur les mêmes os que la robe ; vue d'un mortel dans l'ombre,
+  `Client.DeathView` ne la remplit pas et l'efface à demi (`Shared.DeathLook.TATTER_FADE`) : le bas de l'ombre se
+  défait dans la fumée au lieu de finir sur un bord net (#80) ;
+- **bras** (modèle `Arm`) : `Hands` (avant-bras et mains d'un seul tenant, griffes comprises) et `Sleeves` (manches
+  drapées), **skinnées sur les os du corps** (`BodyRig`, racine `Spine`, 37 os : bras, main, trois phalanges par
+  doigt), que le remontage range sous les pièces du rig R15 (`bones.body.attach` : `Spine` sous `UpperTorso`,
+  `R_UpperArm` sous `RightUpperArm`, etc.) : animer le rig anime les bras (#55, #74). Le corps de la Mort ne reprend
+  pas le script `Animate` par défaut (`Server.DeathBody`) : la marche de Roblox balancerait les bras ;
+- **corps** (modèle `Body`) : `Torso` (cage thoracique sous la peau, visible par les trous de la robe) ;
+- **faux** (modèle `Scythe`, soudée à `RightHand` : elle suit la main), une MeshPart par zone de skin : `Blade` (fer
+  battu, gouttière, épaisseur irrégulière), `Edge` (fil ébréché en six endroits), `Engraving`, `ScytheHead` (douille,
+  soie rivetée, éperon), `Gem`, `Rings`, `Shaft` (branche à peine redressée, nœuds), `Grip` (lanières de cuir, un bout
+  libre), `Pommel` ;
+- toutes les pièces sont sans masse, collision, contact ni requête de rayon, soudées à `HumanoidRootPart` (sauf la
+  faux) ; les pièces de #76 (`Hood`, `Void`, `Sleeve`, `BoneArm`, fumée `HoodShadow`) sont retirées par le
+  remontage (`studio.remove`).
 - Couleurs et matériaux (l'import GLB les perd) : table `parts` de `tools/models/death.manifest.json`, reposés par le
-  remontage : tissus `Fabric` presque noirs, os ivoire, lame `Metal`, fil `Foil`, bagues laiton, manche `Wood`,
-  poignée `Leather`, gemme `Neon` sarcelle.
+  remontage ; les textures cuites (`SurfaceAppearance`) portent le détail : lin CC0 pour les tissus, chair procédurale
+  (cendre grise marbrée, veines, rides, griffes de corne jaunie) pour `Hands` et `Torso`, bois CC0 pour `Shaft`.
+- Contact de la main : les phalanges pressent le cuir de 0,006 stud au pire (mesuré sur le maillage, 120 points).
 
 **Preuve `SurfaceAppearance` (#79, cape seule)** : modèle envoyé en asset Model 104750013155394 (#76 :
 112747301669865), textures cuites de la cape en assets Image 90768318909720 (couleur), 75803274684492 (normales),
@@ -81,16 +97,25 @@ par script Blender (graine fixe, rejouable), avec la bibliothèque `tools/blende
 | Module | Rôle |
 |---|---|
 | `mesh` | grilles paramétriques (UV et indices `grid_i`/`grid_j` gardés sur les sommets), répartition dense là où il faut (`warp_samples`), tubes, sphères, épaisseur, poids d'os recalculés d'après la grille |
-| `cloth` | drapé par simulation de tissu native : forme trop ample épinglée en haut, tombe pendant un nombre d'images fixe sur un corps de substitution, puis figée ; même nombre de sommets, empreinte (`fingerprint`) pour vérifier le déterminisme |
-| `detail` | version détaillée, jamais exportée : subdivision, sculpt par script (sillons le long de traits), bosses Geometry Nodes appliquées, déplacement procédural fin |
-| `textures` | matières CC0 sur un Principled (motif CC0 entre deux teintes choisies, saleté, rugosité, normales) ; textures cuites posées pour les rendus |
-| `bake` | cuisson Cycles sans interface de la version détaillée vers la version jouable : normales (espace tangent OpenGL, comme Roblox), occlusion, couleur, rugosité ; couleur finale = couleur x occlusion |
-| `manifest` | comparaison au manifeste (pièces, os, poids, UV, budgets) et écriture des mesures |
+| `cloth` | drapé par simulation de tissu native : forme trop ample épinglée en haut, tombe pendant un nombre d'images fixe sur un corps de substitution, puis figée ; même nombre de sommets, empreinte (`fingerprint`) pour vérifier le déterminisme ; raideur à la flexion réglable |
+| `organic` | formes d'un seul tenant tirées d'un squelette de nœuds (modificateur Skin puis subdivision : mains, bras, corps de substitution), poids d'os d'après les segments (4 os au plus par sommet), zones de matière par face (`zone`), réunion de pièces |
+| `detail` | version détaillée, jamais exportée : subdivision (bords et arêtes marquées gardés vifs), sculpt par script (traits additionnés puis lissés), bosses Geometry Nodes appliquées, déplacement procédural fin, faces retournées par le détail ramenées vers la surface |
+| `textures` | matières CC0 sur un Principled (motif CC0 entre deux teintes choisies, saleté, rugosité, normales), chair procédurale (`flesh_material`) ; textures cuites posées pour les rendus |
+| `bake` | cuisson Cycles sans interface de la version détaillée vers la version jouable : normales (espace tangent OpenGL, comme Roblox), occlusion locale (0,3 stud, la pièce seule), couleur, rugosité ; couleur finale = couleur x occlusion ; part des pixels très inclinés mesurée |
+| `manifest` | comparaison au manifeste (pièces, os de la robe et du corps, poids, UV, budgets) et écriture des mesures |
 
 **Chaîne** : `tools/blender/pipeline.py` (construction, contrôles du manifeste et du modèle, cuisson avec `--bake`,
-mesures, export GLB des seules pièces du manifeste). Code 1 si un contrôle échoue. Contrôles propres à la Mort :
-contact des doigts avec la poignée (écart maximal ≤ 0,005 stud), aucun sommet de `Void` visible de derrière, des côtés
-ni du dessus.
+mesures, export GLB des seules pièces du manifeste). Code 1 si un contrôle échoue. Contrôles propres à la Mort
+(`tools/blender/death/checks.py`) : contact des doigts avec la poignée (écart maximal ≤ 0,005 stud), skinning (aucun
+sommet sans os, 4 os au plus), silhouette (le tissu ne touche pas le sol, hauteur sous 8 studs).
+
+**Cuisson propre (#85)** : les taches de la carte de normales de la cape venaient pour l'essentiel des traits de sculpt
+qui se croisaient dans un pli serré (2 006 pixels, 0,19 % : 553 une fois les traits additionnés puis lissés et les faces
+retournées ramenées), le reste des plis de l'ourlet couchés au sol, où un rayon long touche l'autre couche du pli
+(232 avec des rayons courts). Rayons courts par défaut (`cage` du manifeste : extrusion 0,05, portée 0,1) ; la cuisson
+est refusée au-delà de 0,2 % de pixels très inclinés (`spikesMax` par pièce : 2 % pour `Hands`, dont les griffes
+gardées vives demandent de grandes corrections voulues). `Tatters` n'a pas de carte de normales (`"normal": false`) :
+ses rubans fins se croisent, les rayons touchaient le voisin.
 
 **Manifeste** `tools/models/death.manifest.json` : noms des pièces et groupes, os, budgets, réglages de cuisson,
 table de remontage (couleurs, matériaux, `SurfaceAppearance`, pièces et fumées ajoutées dans Studio, Humanoid).
@@ -99,12 +124,13 @@ table de remontage (couleurs, matériaux, `SurfaceAppearance`, pièces et fumée
 versionnées (`death.measured.json`) tiennent dans les budgets.
 
 **Budgets** (triangles, mesurés après épaisseur) : au plus **12 000 par pièce** (limite Roblox d'environ 20 000), total
-de la Mort ≤ 34 000. Textures : 1024 pour les grandes pièces, 512 pour les petites ; une pièce texturée coûte trois
+de la Mort ≤ 70 000 (spectre de #81 : 59 000 environ, détail dans `death.measured.json`). Textures : 1024 pour les grandes pièces, 512 pour les petites ; une pièce texturée coûte trois
 images (couleur, normales, rugosité).
 
-**Rendus de contrôle** : `blender -b --factory-startup --python tools/blender/render_views.py -- <dossier>` (7 vues :
-face, 3/4, profil, dos, capuche, main, lame ; Workbench, tissus éclaircis pour lire la forme), `--textured` (EEVEE,
-textures cuites), `--script <ancien death_model.py>` pour rendre une version antérieure (`git show main:...`).
+**Rendus de contrôle** : `blender -b --factory-startup --python tools/blender/render_views.py -- <dossier>` (8 vues :
+face, 3/4, profil, dos, tête, main sur la faux, main griffue, lame ; Workbench, tissus éclaircis pour lire la forme),
+`--textured` (EEVEE, textures cuites), `--silhouette` (4 vues en noir uni sur blanc : la silhouette doit se lire
+seule), `--script <ancien death_model.py>` pour rendre une version antérieure (`git show main:...`).
 
 **Matières CC0** (`assets/textures/cc0/`, Git LFS, 1k JPG ; `python -I tools/blender/fetch_cc0.py` les télécharge et
 écrit `sources.json`) : toutes de [Poly Haven](https://polyhaven.com/license), licence **CC0 1.0** (domaine public,
@@ -117,7 +143,7 @@ sans attribution obligatoire) :
 | [Rusty Metal 02](https://polyhaven.com/a/rusty_metal_02) | métal (lame, tête, bagues) | Rob Tuytel |
 | [Dark Wood](https://polyhaven.com/a/dark_wood) | bois (manche) | Dario Barresi, Dimitrios Savva, Rico Cilliers |
 
-Pas de matière d'os CC0 convenable chez Poly Haven : l'os se fera en procédural (bruit) dans la version détaillée.
+Pas de matière de peau ni d'os CC0 convenable chez Poly Haven : la chair est procédurale (`textures.flesh_material`).
 Textures cuites : `assets/textures/<modèle>/<Pièce>_color|normal|roughness.png` (et `_ao`, intermédiaire).
 
 ## Base générée dans Studio (rig R15, #73)

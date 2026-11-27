@@ -35,6 +35,31 @@ def interp(keys, t):
     return list(keys[-1][1:])
 
 
+def interp_cr(keys, t):
+    """Cette méthode permet d'interpoler un profil (t, valeurs...) par Catmull-Rom (pente continue, jamais nulle aux
+    clés) : à préférer à interp pour placer les rangées d'une grille, sinon elles s'entassent à chaque clé et le tissu
+    garde un pli horizontal à cette hauteur."""
+    n = len(keys)
+    if t <= keys[0][0]:
+        return list(keys[0][1:])
+    if t >= keys[-1][0]:
+        return list(keys[-1][1:])
+    k = next(i for i in range(n - 1) if keys[i][0] <= t <= keys[i + 1][0])
+    a, b = keys[k], keys[k + 1]
+    p0 = keys[max(k - 1, 0)]
+    p3 = keys[min(k + 2, n - 1)]
+    h = b[0] - a[0]
+    s = (t - a[0]) / h
+    out = []
+    for i in range(1, len(a)):
+        # pentes (par unité de t) estimées sur les clés voisines, ramenées à l'intervalle
+        m0 = (b[i] - p0[i]) / (b[0] - p0[0]) * h
+        m1 = (p3[i] - a[i]) / (p3[0] - a[0]) * h
+        s2, s3 = s * s, s * s * s
+        out.append((2 * s3 - 3 * s2 + 1) * a[i] + (s3 - 2 * s2 + s) * m0 + (-2 * s3 + 3 * s2) * b[i] + (s3 - s2) * m1)
+    return out
+
+
 def smoothstep(e0, e1, x):
     """Cette méthode permet de passer en douceur de 0 à 1 entre e0 et e1."""
     if e1 == e0:
@@ -125,6 +150,37 @@ def grid_object(name, cols, rows, fn, keep=None, weights=None, wrap=True, uv_shi
     return ob
 
 
+def cap_row(ob, j=0, inward=0.0):
+    """Cette méthode permet de fermer d'un éventail de triangles le bord d'une grille à la rangée j (sommet d'un
+    suaire, pôle d'une calotte) ; le sommet central porte grid_i = 0, grid_j = j - 1 (hors grille), UV au bord."""
+    bm = bmesh.new()
+    bm.from_mesh(ob.data)
+    gi = bm.verts.layers.int.get("grid_i")
+    gj = bm.verts.layers.int.get("grid_j")
+    uv = bm.loops.layers.uv.active
+    ring = sorted((v for v in bm.verts if v[gj] == j), key=lambda v: v[gi])
+    c = sum((v.co for v in ring), Vector()) / len(ring)
+    # le centre suit la courbure : un peu au-delà du plan de l'anneau, du côté opposé à la rangée suivante
+    nxt = [v for v in bm.verts if v[gj] == j + 1]
+    if nxt:
+        c2 = sum((v.co for v in nxt), Vector()) / len(nxt)
+        c += (c - c2).normalized() * inward
+    center = bm.verts.new(c)
+    center[gi] = 0
+    center[gj] = j - 1
+    vv = 0.0 if j == 0 else 1.0
+    for k in range(len(ring)):
+        a, b = ring[k], ring[(k + 1) % len(ring)]
+        f = bm.faces.new((b, a, center))
+        for loop in f.loops:
+            loop[uv].uv = (k / len(ring), vv)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.to_mesh(ob.data)
+    bm.free()
+    for p in ob.data.polygons:
+        p.use_smooth = True
+
+
 def grid_index(ob):
     """Cette méthode permet de retrouver l'index de sommet de chaque case (i, j) d'une grille, après simulation ou
     sculpt (les attributs suivent les sommets)."""
@@ -171,6 +227,26 @@ def solidify(ob, thickness):
     s.use_even_offset = False  # l'épaisseur régulière fait exploser les angles vifs (poche de la capuche)
     s.use_quality_normals = True
     return s
+
+
+def atlas_uv(ob, angle=66.0, margin=0.006):
+    """Cette méthode permet de déplier les UV d'une pièce sans grille unique (maillage organique, plusieurs grilles
+    réunies) en îlots qui ne se chevauchent pas, pour la cuisson (Smart UV Project, sans interface)."""
+    import math as _m
+
+    for o in bpy.context.view_layer.objects:
+        o.select_set(o is ob)
+    bpy.context.view_layer.objects.active = ob
+    if not ob.data.uv_layers:
+        ob.data.uv_layers.new(name="UVMap")
+    with bpy.context.temp_override(active_object=ob, object=ob, selected_objects=[ob],
+                                   selected_editable_objects=[ob]):
+        bpy.ops.object.mode_set(mode="EDIT")
+        bpy.ops.mesh.select_all(action="SELECT")
+        bpy.ops.uv.smart_project(angle_limit=_m.radians(angle), island_margin=margin, area_weight=0.0,
+                                 correct_aspect=True, scale_to_bounds=False)
+        bpy.ops.object.mode_set(mode="OBJECT")
+    ob.select_set(False)
 
 
 def apply_modifier(ob, name):

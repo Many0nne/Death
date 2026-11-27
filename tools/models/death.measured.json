@@ -3,207 +3,221 @@
   "model": "Death",
   "budget": {
     "partTris": 12000,
-    "totalTris": 34000
+    "totalTris": 70000
   },
   "parts": {
     "Cloak": {
       "group": "Veil",
-      "tris": 7680,
+      "tris": 9704,
       "center": [
-        -0.5239,
-        -1.0371,
-        0.7387
+        -0.0875,
+        -0.1965,
+        0.2594
       ],
       "size": [
-        4.4241,
-        5.1184,
-        3.5201
+        1.8259,
+        5.3607,
+        2.3361
       ]
     },
-    "Hood": {
+    "Shroud": {
       "group": "Veil",
-      "tris": 10240,
+      "tris": 9600,
       "center": [
-        0.0103,
-        1.191,
-        0.1836
+        0.0255,
+        2.5123,
+        -0.1858
       ],
       "size": [
-        2.7503,
-        3.5637,
-        2.4163
+        1.9419,
+        2.0554,
+        1.8085
       ]
     },
-    "Void": {
-      "group": "Veil",
-      "tris": 1628,
+    "Tatters": {
+      "group": "Tatters",
+      "tris": 9328,
       "center": [
-        -0.0016,
-        1.8089,
-        -0.4129
+        -0.0686,
+        -2.0795,
+        0.5915
       ],
       "size": [
-        0.5233,
-        0.9295,
-        0.9384
+        1.9748,
+        2.7273,
+        2.8428
       ]
     },
-    "Sleeve": {
+    "Sleeves": {
       "group": "Arm",
-      "tris": 1248,
+      "tris": 5376,
       "center": [
-        0.9744,
-        0.3117,
-        -0.4149
+        0.155,
+        0.9389,
+        -0.8138
       ],
       "size": [
-        0.888,
-        1.0648,
-        0.8247
+        2.7583,
+        2.8529,
+        2.8424
       ]
     },
-    "BoneArm": {
+    "Hands": {
       "group": "Arm",
-      "tris": 3550,
+      "tris": 6428,
       "center": [
-        1.2104,
-        0.4836,
-        -0.811
+        0.3326,
+        0.8952,
+        -1.5473
       ],
       "size": [
-        0.6033,
-        0.4083,
-        0.9009
+        2.5263,
+        0.6994,
+        2.6982
+      ]
+    },
+    "Torso": {
+      "group": "Body",
+      "tris": 9280,
+      "center": [
+        -0.0009,
+        1.3911,
+        -0.0315
+      ],
+      "size": [
+        1.2409,
+        2.7831,
+        0.8645
       ]
     },
     "Blade": {
       "group": "Scythe",
-      "tris": 2156,
+      "tris": 2628,
       "center": [
-        -0.4712,
-        2.3372,
-        -1.0243
+        -0.4085,
+        2.9786,
+        -1.0638
       ],
       "size": [
-        3.1153,
-        2.2381,
-        0.122
+        3.1978,
+        2.281,
+        0.1348
       ]
     },
     "Edge": {
       "group": "Scythe",
-      "tris": 2156,
+      "tris": 2628,
       "center": [
-        -0.5139,
-        2.1286,
-        -1.0243
+        -0.4479,
+        2.7482,
+        -1.0638
       ],
       "size": [
-        3.0298,
-        1.8208,
-        0.0563
+        3.119,
+        1.8201,
+        0.0627
       ]
     },
     "Engraving": {
       "group": "Scythe",
-      "tris": 512,
+      "tris": 448,
       "center": [
-        -0.4574,
-        2.7196,
-        -1.0243
+        -0.3381,
+        3.4513,
+        -1.0638
       ],
       "size": [
-        2.3902,
-        1.1857,
-        0.0937
+        2.1901,
+        1.0228,
+        0.1021
       ]
     },
     "ScytheHead": {
       "group": "Scythe",
-      "tris": 272,
+      "tris": 516,
       "center": [
-        1.3562,
-        3.4388,
-        -1.0196
+        1.3634,
+        4.0372,
+        -1.0644
       ],
       "size": [
-        0.7636,
-        0.8257,
-        0.2947
+        0.5295,
+        0.7666,
+        0.295
       ]
     },
     "Gem": {
       "group": "Scythe",
-      "tris": 392,
+      "tris": 240,
       "center": [
-        1.1344,
-        3.23,
-        -1.02
+        1.2258,
+        3.86,
+        -1.0554
       ],
       "size": [
-        0.2,
-        0.1848,
-        0.3477
+        0.136,
+        0.1178,
+        0.3012
       ]
     },
     "Rings": {
       "group": "Scythe",
       "tris": 448,
       "center": [
-        1.3196,
-        0.0681,
-        -1.1086
+        1.4537,
+        0.2958,
+        -1.1892
       ],
       "size": [
-        0.5629,
-        5.9072,
-        0.3632
+        0.6161,
+        6.7639,
+        0.3983
       ]
     },
     "Shaft": {
       "group": "Scythe",
-      "tris": 984,
+      "tris": 1368,
       "center": [
-        1.3259,
-        0.1006,
-        -1.106
+        1.4402,
+        0.3507,
+        -1.1782
       ],
       "size": [
-        0.5461,
-        6.7068,
-        0.3351
+        0.5781,
+        7.551,
+        0.3941
       ]
     },
     "Grip": {
       "group": "Scythe",
-      "tris": 868,
+      "tris": 1040,
       "center": [
-        1.362,
-        0.5027,
-        -1.1291
+        1.5774,
+        0.6253,
+        -1.223
       ],
       "size": [
-        0.2894,
-        0.8261,
-        0.2338
+        0.6228,
+        1.9522,
+        0.3127
       ]
     },
     "Pommel": {
       "group": "Scythe",
       "tris": 100,
       "center": [
-        1.4806,
-        -3.3987,
-        -1.1799
+        1.6279,
+        -3.5375,
+        -1.2793
       ],
       "size": [
-        0.2424,
-        0.5426,
-        0.255
+        0.226,
+        0.4446,
+        0.2377
       ]
     }
   },
-  "totalTris": 32234,
+  "totalTris": 59132,
   "bones": [
     "Root",
     "C00_0",
@@ -271,24 +285,572 @@
     "C15_2",
     "C15_3"
   ],
+  "bodyBoneNames": [
+    "Spine",
+    "R_UpperArm",
+    "R_Forearm",
+    "R_Hand",
+    "R_Index1",
+    "R_Index2",
+    "R_Index3",
+    "R_Middle1",
+    "R_Middle2",
+    "R_Middle3",
+    "R_Ring1",
+    "R_Ring2",
+    "R_Ring3",
+    "R_Pinky1",
+    "R_Pinky2",
+    "R_Pinky3",
+    "R_Thumb1",
+    "R_Thumb2",
+    "R_Thumb3",
+    "L_UpperArm",
+    "L_Forearm",
+    "L_Hand",
+    "L_Index1",
+    "L_Index2",
+    "L_Index3",
+    "L_Middle1",
+    "L_Middle2",
+    "L_Middle3",
+    "L_Ring1",
+    "L_Ring2",
+    "L_Ring3",
+    "L_Pinky1",
+    "L_Pinky2",
+    "L_Pinky3",
+    "L_Thumb1",
+    "L_Thumb2",
+    "L_Thumb3"
+  ],
   "checks": {
-    "grip_gap_max": -0.0044,
-    "grip_gap_mean": -0.0091,
-    "void_leaks": 0,
-    "void_vertices": 816
+    "grip_gap_max": -0.0061,
+    "grip_gap_mean": -0.0128,
+    "grip_samples": 120,
+    "skin_Hands": {
+      "bones": 34,
+      "unweighted": 0,
+      "over4": 0
+    },
+    "skin_Sleeves": {
+      "bones": 4,
+      "unweighted": 0,
+      "over4": 0
+    },
+    "skin_Tatters": {
+      "bones": 32,
+      "unweighted": 0,
+      "over4": 0
+    },
+    "skin_Cloak": {
+      "bones": 65,
+      "unweighted": 0,
+      "over4": 0
+    },
+    "silhouette": {
+      "top": 3.54,
+      "bottom": -3.443,
+      "height": 7.19,
+      "clearance": 0.207,
+      "trailBack": 2.013
+    }
   },
   "drape": {
     "frames": 70,
-    "vertices": 1920,
-    "fingerprint": "243e88916182",
-    "sources": "1d2b194146bb",
+    "vertices": 2422,
+    "fingerprint": "995cbf268752",
+    "sources": "c276ef22ea2c",
     "blender": "5.2.3 LTS"
   },
   "textures": {
     "Cloak": {
-      "color": "assets/textures/death/Cloak_color.png",
       "normal": "assets/textures/death/Cloak_normal.png",
-      "roughness": "assets/textures/death/Cloak_roughness.png"
+      "roughness": "assets/textures/death/Cloak_roughness.png",
+      "color": "assets/textures/death/Cloak_color.png"
+    },
+    "Shroud": {
+      "normal": "assets/textures/death/Shroud_normal.png",
+      "roughness": "assets/textures/death/Shroud_roughness.png",
+      "color": "assets/textures/death/Shroud_color.png"
+    },
+    "Tatters": {
+      "roughness": "assets/textures/death/Tatters_roughness.png",
+      "color": "assets/textures/death/Tatters_color.png"
+    },
+    "Sleeves": {
+      "normal": "assets/textures/death/Sleeves_normal.png",
+      "roughness": "assets/textures/death/Sleeves_roughness.png",
+      "color": "assets/textures/death/Sleeves_color.png"
+    },
+    "Hands": {
+      "normal": "assets/textures/death/Hands_normal.png",
+      "roughness": "assets/textures/death/Hands_roughness.png",
+      "color": "assets/textures/death/Hands_color.png"
+    },
+    "Torso": {
+      "normal": "assets/textures/death/Torso_normal.png",
+      "roughness": "assets/textures/death/Torso_roughness.png",
+      "color": "assets/textures/death/Torso_color.png"
+    },
+    "Shaft": {
+      "normal": "assets/textures/death/Shaft_normal.png",
+      "roughness": "assets/textures/death/Shaft_roughness.png",
+      "color": "assets/textures/death/Shaft_color.png"
+    }
+  },
+  "bakeSpikesPct": {
+    "Cloak": 0.072,
+    "Shroud": 0.001,
+    "Sleeves": 0.13,
+    "Hands": 1.073,
+    "Torso": 0.0,
+    "Shaft": 0.0
+  },
+  "bodyBones": {
+    "Spine": {
+      "head": [
+        0.0,
+        1.4,
+        0.22
+      ],
+      "tail": [
+        0.0,
+        2.4,
+        -0.02
+      ]
+    },
+    "R_UpperArm": {
+      "head": [
+        0.7,
+        2.26,
+        -0.06
+      ],
+      "tail": [
+        1.2578,
+        1.0293,
+        0.3766
+      ]
+    },
+    "R_Forearm": {
+      "head": [
+        1.2578,
+        1.0293,
+        0.3766
+      ],
+      "tail": [
+        1.1396,
+        0.5774,
+        -0.8793
+      ]
+    },
+    "R_Hand": {
+      "head": [
+        1.1396,
+        0.5774,
+        -0.8793
+      ],
+      "tail": [
+        1.4032,
+        0.7639,
+        -1.0588
+      ]
+    },
+    "R_Index1": {
+      "head": [
+        1.4063,
+        0.8847,
+        -1.0452
+      ],
+      "tail": [
+        1.5535,
+        0.903,
+        -1.1701
+      ]
+    },
+    "R_Index2": {
+      "head": [
+        1.5535,
+        0.903,
+        -1.1701
+      ],
+      "tail": [
+        1.4848,
+        0.8932,
+        -1.296
+      ]
+    },
+    "R_Index3": {
+      "head": [
+        1.4848,
+        0.8932,
+        -1.296
+      ],
+      "tail": [
+        1.3825,
+        0.8725,
+        -1.2886
+      ]
+    },
+    "R_Middle1": {
+      "head": [
+        1.4014,
+        0.8016,
+        -1.051
+      ],
+      "tail": [
+        1.5652,
+        0.8219,
+        -1.1749
+      ]
+    },
+    "R_Middle2": {
+      "head": [
+        1.5652,
+        0.8219,
+        -1.1749
+      ],
+      "tail": [
+        1.485,
+        0.8109,
+        -1.3053
+      ]
+    },
+    "R_Middle3": {
+      "head": [
+        1.485,
+        0.8109,
+        -1.3053
+      ],
+      "tail": [
+        1.3775,
+        0.7887,
+        -1.283
+      ]
+    },
+    "R_Ring1": {
+      "head": [
+        1.4009,
+        0.7214,
+        -1.0627
+      ],
+      "tail": [
+        1.5665,
+        0.7402,
+        -1.1523
+      ]
+    },
+    "R_Ring2": {
+      "head": [
+        1.5665,
+        0.7402,
+        -1.1523
+      ],
+      "tail": [
+        1.5298,
+        0.7351,
+        -1.2878
+      ]
+    },
+    "R_Ring3": {
+      "head": [
+        1.5298,
+        0.7351,
+        -1.2878
+      ],
+      "tail": [
+        1.4312,
+        0.7161,
+        -1.3068
+      ]
+    },
+    "R_Pinky1": {
+      "head": [
+        1.4041,
+        0.6477,
+        -1.0765
+      ],
+      "tail": [
+        1.551,
+        0.662,
+        -1.1219
+      ]
+    },
+    "R_Pinky2": {
+      "head": [
+        1.551,
+        0.662,
+        -1.1219
+      ],
+      "tail": [
+        1.5741,
+        0.6634,
+        -1.2338
+      ]
+    },
+    "R_Pinky3": {
+      "head": [
+        1.5741,
+        0.6634,
+        -1.2338
+      ],
+      "tail": [
+        1.5211,
+        0.6526,
+        -1.2963
+      ]
+    },
+    "R_Thumb1": {
+      "head": [
+        1.1735,
+        0.718,
+        -0.9663
+      ],
+      "tail": [
+        1.2981,
+        0.9181,
+        -1.1266
+      ]
+    },
+    "R_Thumb2": {
+      "head": [
+        1.2981,
+        0.9181,
+        -1.1266
+      ],
+      "tail": [
+        1.3479,
+        0.9366,
+        -1.2676
+      ]
+    },
+    "R_Thumb3": {
+      "head": [
+        1.3479,
+        0.9366,
+        -1.2676
+      ],
+      "tail": [
+        1.4481,
+        0.953,
+        -1.2946
+      ]
+    },
+    "L_UpperArm": {
+      "head": [
+        -0.7,
+        2.26,
+        -0.06
+      ],
+      "tail": [
+        -0.9693,
+        1.0778,
+        -0.7991
+      ]
+    },
+    "L_Forearm": {
+      "head": [
+        -0.9693,
+        1.0778,
+        -0.7991
+      ],
+      "tail": [
+        -0.78,
+        1.2,
+        -2.12
+      ]
+    },
+    "L_Hand": {
+      "head": [
+        -0.78,
+        1.2,
+        -2.12
+      ],
+      "tail": [
+        -0.7346,
+        1.1907,
+        -2.5173
+      ]
+    },
+    "L_Index1": {
+      "head": [
+        -0.6622,
+        1.189,
+        -2.4909
+      ],
+      "tail": [
+        -0.6092,
+        1.1327,
+        -2.6861
+      ]
+    },
+    "L_Index2": {
+      "head": [
+        -0.6092,
+        1.1327,
+        -2.6861
+      ],
+      "tail": [
+        -0.5861,
+        1.0,
+        -2.7814
+      ]
+    },
+    "L_Index3": {
+      "head": [
+        -0.5861,
+        1.0,
+        -2.7814
+      ],
+      "tail": [
+        -0.5853,
+        0.8758,
+        -2.7957
+      ]
+    },
+    "L_Middle1": {
+      "head": [
+        -0.7091,
+        1.1901,
+        -2.5114
+      ],
+      "tail": [
+        -0.6814,
+        1.1458,
+        -2.7299
+      ]
+    },
+    "L_Middle2": {
+      "head": [
+        -0.6814,
+        1.1458,
+        -2.7299
+      ],
+      "tail": [
+        -0.6685,
+        1.0203,
+        -2.8534
+      ]
+    },
+    "L_Middle3": {
+      "head": [
+        -0.6685,
+        1.0203,
+        -2.8534
+      ],
+      "tail": [
+        -0.669,
+        0.8889,
+        -2.8783
+      ]
+    },
+    "L_Ring1": {
+      "head": [
+        -0.7598,
+        1.1917,
+        -2.5081
+      ],
+      "tail": [
+        -0.7666,
+        1.1313,
+        -2.7047
+      ]
+    },
+    "L_Ring2": {
+      "head": [
+        -0.7666,
+        1.1313,
+        -2.7047
+      ],
+      "tail": [
+        -0.7731,
+        0.9956,
+        -2.7925
+      ]
+    },
+    "L_Ring3": {
+      "head": [
+        -0.7731,
+        0.9956,
+        -2.7925
+      ],
+      "tail": [
+        -0.777,
+        0.8732,
+        -2.7943
+      ]
+    },
+    "L_Pinky1": {
+      "head": [
+        -0.8072,
+        1.1934,
+        -2.4985
+      ],
+      "tail": [
+        -0.8374,
+        1.1283,
+        -2.6504
+      ]
+    },
+    "L_Pinky2": {
+      "head": [
+        -0.8374,
+        1.1283,
+        -2.6504
+      ],
+      "tail": [
+        -0.8509,
+        1.0071,
+        -2.7008
+      ]
+    },
+    "L_Pinky3": {
+      "head": [
+        -0.8509,
+        1.0071,
+        -2.7008
+      ],
+      "tail": [
+        -0.8521,
+        0.9078,
+        -2.6886
+      ]
+    },
+    "L_Thumb1": {
+      "head": [
+        -0.712,
+        1.1764,
+        -2.1922
+      ],
+      "tail": [
+        -0.5708,
+        1.1263,
+        -2.2727
+      ]
+    },
+    "L_Thumb2": {
+      "head": [
+        -0.5708,
+        1.1263,
+        -2.2727
+      ],
+      "tail": [
+        -0.485,
+        1.0271,
+        -2.3215
+      ]
+    },
+    "L_Thumb3": {
+      "head": [
+        -0.485,
+        1.0271,
+        -2.3215
+      ],
+      "tail": [
+        -0.454,
+        0.923,
+        -2.3389
+      ]
     }
   }
 }

@@ -33,9 +33,10 @@ def ground(z, size=20.0):
 
 
 def drape(ob, pin_group, frames=60, quality=8, mass=0.3, stiffness=15.0, self_collision=True, self_distance=0.03,
-          shrink=0.0):
+          shrink=0.0, bending=0.6):
     """Cette méthode permet de laisser tomber le tissu `ob` (épinglé par `pin_group`) pendant `frames` images, puis de
-    figer le résultat dans son maillage ; renvoie le nombre de sommets, inchangé (déterminisme : cf. fingerprint)."""
+    figer le résultat dans son maillage ; renvoie le nombre de sommets, inchangé (déterminisme : cf. fingerprint).
+    `bending` : raideur à la flexion (plus haut : tissu lourd, peu de plis, larges)."""
     scene = bpy.context.scene
     n_before = len(ob.data.vertices)
     mod = ob.modifiers.new("Cloth", "CLOTH")
@@ -49,7 +50,7 @@ def drape(ob, pin_group, frames=60, quality=8, mass=0.3, stiffness=15.0, self_co
     s.tension_stiffness = stiffness
     s.compression_stiffness = stiffness
     s.shear_stiffness = stiffness * 0.5
-    s.bending_stiffness = 0.6
+    s.bending_stiffness = bending
     s.air_damping = 2.0
     s.vertex_group_mass = pin_group
     s.shrink_min = shrink

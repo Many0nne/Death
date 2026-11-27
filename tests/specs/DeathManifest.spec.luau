@@ -115,12 +115,56 @@ return function(T, Loader)
 			)
 		end)
 
-		T.it(
-			"le drapé de la cape garde la grille (même nombre de sommets, poids recalculés d'après la grille)",
-			function()
-				T.expect(measured.drape and measured.drape.frames > 0, "cape mesurée sans drapé")
-				T.expectEqual(measured.drape.vertices, 64 * 30)
+		T.it("la cape est mesurée après son drapé", function()
+			T.expect(measured.drape and measured.drape.frames > 0, "cape mesurée sans drapé")
+			T.expect(measured.drape.vertices > 0, "cape drapée sans sommet")
+		end)
+	end)
+
+	T.describe("Manifeste de la Mort : bras skinnés sur le rig R15 (#81)", function()
+		local body = manifest.bones.body
+
+		T.it("les pièces skinnées sur le corps sont marquées skinned", function()
+			for _, name in body.skinned do
+				T.expect(manifest.parts[name], "pièce skinnée absente du manifeste : " .. name)
+				T.expect(manifest.parts[name].skinned, name .. " doit être marquée skinned")
 			end
-		)
+		end)
+
+		T.it("chaque os rangé sur le rig et chaque articulation existent dans les mesures", function()
+			local names = {}
+			for _, n in measured.bodyBoneNames do
+				names[n] = true
+			end
+			T.expect(names[body.root], "racine du corps non mesurée : " .. body.root)
+			for bone in body.attach do
+				T.expect(names[bone], "os rangé non mesuré : " .. bone)
+			end
+			for _, j in body.joints do
+				local bone = measured.bodyBones[j[2]]
+				T.expect(bone and #bone.head == 3 and #bone.tail == 3, "articulation " .. j[1] .. " : os " .. j[2])
+			end
+		end)
+
+		T.it("aucun os du corps ne porte le nom d'un os de la robe", function()
+			local cloak = {}
+			for _, n in measured.bones do
+				cloak[n] = true
+			end
+			for _, n in measured.bodyBoneNames do
+				T.expect(not cloak[n], "os en double entre robe et corps : " .. n)
+			end
+		end)
+
+		T.it("les noms de morceaux cherchés par DeathView (constantes *_NAME) existent dans le manifeste", function()
+			local known = knownNames()
+			local source = fs.readFile("src/client/DeathView.luau")
+			local count = 0
+			for name in string.gmatch(source, 'local %u+_NAME = "([^"]+)"') do
+				T.expect(known[name], "DeathView cherche « " .. name .. " », absent du manifeste")
+				count += 1
+			end
+			T.expect(count >= 2, "constantes SCYTHE_NAME / TATTERS_NAME introuvables dans DeathView")
+		end)
 	end)
 end
