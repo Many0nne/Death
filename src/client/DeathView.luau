@@ -39,6 +39,8 @@ local RATES = { hem = 40, wisps = 14, embers = 6 }
 -- Bouffées jouées quand l'ombre se déchire dans le faisceau
 local TEAR_SMOKE = 30
 local TEAR_EMBERS = 8
+-- Au-delà, sans faux à mettre à part, un seul remplissage couvre tout le personnage
+local MAX_GROUPS = 8
 
 local DeathView = {}
 
@@ -63,7 +65,7 @@ end
 
 -- Cette méthode permet de lister les morceaux du corps à couvrir d'une ombre lorsque le modèle apparaît ou change : un
 -- Highlight ne prend qu'un Model ou une BasePart, donc un par Model visible sans la faux, un par pièce visible ; on
--- descend dans le reste (dossier, accessoire, pièce invisible du rig, Model qui contient la faux).
+-- descend dans tout le reste (dossier, accessoire, outil, pièce invisible du rig, Model qui contient la faux).
 local function collectGroups(container: Instance, scythe: Instance?, out: { Instance })
 	for _, child in container:GetChildren() do
 		if child == scythe then
@@ -79,9 +81,7 @@ local function collectGroups(container: Instance, scythe: Instance?, out: { Inst
 		if child:IsA("BasePart") and child.Transparency < 1 then
 			table.insert(out, child)
 		end
-		if child:IsA("Model") or child:IsA("BasePart") or child:IsA("Accessory") or child:IsA("Folder") then
-			collectGroups(child, scythe, out)
-		end
+		collectGroups(child, scythe, out)
 	end
 end
 
@@ -272,6 +272,10 @@ function DeathView.start()
 		local outline = if state.view == View.Self then SELF_COLOR else OUTLINE_COLOR
 		local groups = {}
 		collectGroups(character, scythe, groups)
+		if #groups > MAX_GROUPS and not scythe then
+			-- Avatar en pièces détachées (mannequin R15 d'un bot) : un seul remplissage, Roblox n'en dessine que 31
+			groups = { character }
+		end
 		state.highlights = {}
 		for _, group in groups do
 			table.insert(state.highlights, newHighlight(group, color, outline))
@@ -406,9 +410,10 @@ function DeathView.start()
 				visibility = 0,
 				reveal = 0,
 				revealTarget = 0,
-				muted = {},
-				castShadow = {},
-				emitters = {},
+				-- Clés faibles : une pièce détruite pendant que la Mort est suivie ne reste pas en mémoire
+				muted = setmetatable({}, { __mode = "k" }),
+				castShadow = setmetatable({}, { __mode = "k" }),
+				emitters = setmetatable({}, { __mode = "k" }),
 				dirty = true,
 			}
 			state.added = character.DescendantAdded:Connect(function(d)
@@ -431,7 +436,8 @@ function DeathView.start()
 		mute(character, state)
 		local exposed = subject:GetAttribute(LA.Exposed) == true
 		local position = if state.root then state.root.Position else nil
-		if state.view == View.Mortal and DeathLook.jumped(state.position, position, dt) then
+		-- Une dissipation suit toujours un faisceau : un saut sans faisceau (saccade réseau, placement) ne cache rien
+		if state.view == View.Mortal and state.revealTarget > 0 and DeathLook.jumped(state.position, position, dt) then
 			-- Dissipée et reformée ailleurs : rien ne doit trahir l'endroit où elle reparaît. Cachée tout de suite, et
 			-- jusqu'à ce que son exposition (encore vraie pendant le délai d'ombre du serveur) retombe
 			state.visibility, state.reveal, state.revealTarget = 0, 0, 0
