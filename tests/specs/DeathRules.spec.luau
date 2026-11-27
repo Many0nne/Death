@@ -108,4 +108,23 @@ return function(T, Loader)
 			T.expectEqual(DeathRules.isHoldValid(2 + DeathRules.HOLD_STALE + 0.1, 2), false)
 		end)
 	end)
+
+	T.describe("DeathRules.bodyChange", function()
+		local Change = DeathRules.BodyChange
+
+		T.it("revêt le corps de la Mort quand le joueur devient la Mort, une seule fois", function()
+			T.expectEqual(DeathRules.bodyChange(Role.Death, false), Change.Dress)
+			T.expectEqual(DeathRules.bodyChange(Role.Death, true), nil, "déjà revêtu")
+		end)
+
+		T.it("rend l'avatar quand le joueur n'est plus la Mort (fin de manche, mortel, spectateur)", function()
+			T.expectEqual(DeathRules.bodyChange(nil, true), Change.Undress)
+			T.expectEqual(DeathRules.bodyChange(Role.Mortal, true), Change.Undress)
+		end)
+
+		T.it("ne touche pas à l'avatar d'un mortel ou d'un joueur hors manche", function()
+			T.expectEqual(DeathRules.bodyChange(Role.Mortal, false), nil)
+			T.expectEqual(DeathRules.bodyChange(nil, false), nil)
+		end)
+	end)
 end

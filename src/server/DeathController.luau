@@ -35,6 +35,9 @@ local function defaultDeps()
 		lights = require(script.Parent.LightService).get(),
 		heartbeat = RunService.Heartbeat,
 		isStudio = RunService:IsStudio(),
+		-- Corps de la Mort (#73) : modèle revêtu par le joueur Mort, avatar rendu ensuite
+		body = require(script.Parent.DeathBody),
+		defer = task.defer,
 		log = function(message)
 			print("[Mort] " .. message)
 		end,
@@ -53,6 +56,7 @@ function DeathController.new(deps)
 		exposures = {} :: { [any]: DeathRules.Exposure },
 		-- Player immobilisé (lutte pour une âme) -> saut d'origine à rendre
 		rooted = {} :: { [any]: { jumpHeight: number, jumpPower: number } },
+		bodyPending = {} :: { [any]: boolean }, -- Player dont le changement de corps attend la frame suivante
 	}, DeathController)
 end
 
@@ -88,6 +92,7 @@ function DeathController:start()
 		self.characters[player] = nil
 		self.exposures[player] = nil
 		self.rooted[player] = nil
+		self.bodyPending[player] = nil
 	end)
 	self.deps.heartbeat:Connect(function(dt)
 		self:_step(dt)
@@ -210,6 +215,7 @@ function DeathController:_applyRole(player, role: string?, character: Model?)
 	if not character then
 		return
 	end
+	self:_updateBody(player, role, character)
 	local isDeath = role == Role.Death
 	local group = if isDeath then GROUP_DEATH else GROUP_MORTALS
 	for _, part in character:GetDescendants() do
@@ -227,6 +233,31 @@ function DeathController:_applyRole(player, role: string?, character: Model?)
 			humanoid.WalkSpeed = DeathRules.MORTAL_SPEED
 		end
 	end
+end
+
+-- Cette méthode permet de changer le corps d'un joueur lorsqu'il devient la Mort ou cesse de l'être (#73) : différé
+-- d'une frame (le personnage est remplacé), annulé si rôle ou personnage ont changé entre-temps ; un bot est ignoré.
+function DeathController:_updateBody(player, role: string?, character: Model)
+	local body = self.deps.body
+	if not body or self.bodyPending[player] or typeof(player) ~= "Instance" or not player:IsA("Player") then
+		return
+	end
+	local change = DeathRules.bodyChange(role, body.isWorn(character))
+	if not change then
+		return
+	end
+	self.bodyPending[player] = true
+	self.deps.defer(function()
+		self.bodyPending[player] = nil
+		if self.roles[player] ~= role or player.Character ~= character then
+			return
+		end
+		if change == DeathRules.BodyChange.Dress then
+			body.dress(player)
+		else
+			body.undress(player)
+		end
+	end)
 end
 
 -- Cette méthode permet de suivre un joueur lorsqu'il rejoint le serveur : groupe de collision des pièces ajoutées

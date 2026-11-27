@@ -22,7 +22,8 @@ local SILHOUETTE = Color3.fromRGB(0, 0, 0)
 local DeathView = {}
 
 -- Cette méthode permet d'appliquer la transparence locale à tout le corps d'un personnage lorsque la silhouette
--- change (pièces, accessoires, visage) ; invisible, il ne projette plus d'ombre (qui le trahirait sous une lampe).
+-- change (pièces, accessoires, visage) ; invisible, il ne projette plus d'ombre (qui le trahirait sous une lampe) et
+-- sa fumée (corps de la Mort, #73) s'arrête et disparaît.
 local function setLocalTransparency(character: Model, value: number)
 	for _, d in character:GetDescendants() do
 		if d:IsA("BasePart") then
@@ -30,6 +31,11 @@ local function setLocalTransparency(character: Model, value: number)
 			d.CastShadow = value < 1
 		elseif d:IsA("Decal") then
 			d.LocalTransparencyModifier = value
+		elseif d:IsA("ParticleEmitter") then
+			d.Enabled = value < 1
+			if value >= 1 then
+				d:Clear()
+			end
 		end
 	end
 end
