@@ -355,6 +355,12 @@ function DeathView.start()
 	-- débit selon la part d'ombre, bouffée de déchirure quand le faisceau la révèle.
 	local function renderFx(state, smoke: number, tearing: boolean)
 		if not state.root or not state.bounds then
+			-- Corps plus mesurable (racine ou pièces disparues) : rien ne doit continuer à fumer à l'ancienne place
+			if state.fx then
+				state.fx.hemSmoke.Enabled = false
+				state.fx.wisps.Enabled = false
+				state.fx.embers.Enabled = false
+			end
 			return
 		end
 		if not state.fx then
@@ -423,10 +429,13 @@ function DeathView.start()
 			scan(character, state)
 		end
 		mute(character, state)
+		local exposed = subject:GetAttribute(LA.Exposed) == true
 		local position = if state.root then state.root.Position else nil
-		if DeathLook.jumped(state.position, position) then
-			-- Dissipée et reformée ailleurs : rien ne doit trahir l'endroit où elle reparaît, les fondus repartent de zéro
+		if state.view == View.Mortal and DeathLook.jumped(state.position, position, dt) then
+			-- Dissipée et reformée ailleurs : rien ne doit trahir l'endroit où elle reparaît. Cachée tout de suite, et
+			-- jusqu'à ce que son exposition (encore vraie pendant le délai d'ombre du serveur) retombe
 			state.visibility, state.reveal, state.revealTarget = 0, 0, 0
+			state.hold = DeathLook.JUMP_HOLD
 			if state.fx then
 				for _, emitter in { state.fx.hemSmoke, state.fx.wisps, state.fx.embers, state.fx.tear } do
 					emitter:Clear()
@@ -434,13 +443,14 @@ function DeathView.start()
 			end
 		end
 		state.position = position
-		local exposed = subject:GetAttribute(LA.Exposed) == true
-		local mode = DeathLook.mode(state.view, exposed, subject:GetAttribute(LA.InBeam) == true)
-		local visibilityTarget, revealTarget = DeathLook.targets(mode, exposed)
+		state.hold = DeathLook.holdAfterJump(state.hold or 0, exposed, dt)
+		local shown = exposed and state.hold <= 0
+		local mode = DeathLook.mode(state.view, shown, subject:GetAttribute(LA.InBeam) == true)
+		local visibilityTarget, revealTarget = DeathLook.targets(mode, shown)
 		state.visibility =
 			DeathLook.approach(state.visibility, visibilityTarget, DeathLook.FADE_TIME, DeathLook.FADE_TIME, dt)
+		local tearing = DeathLook.tears(state.revealTarget, revealTarget, state.reveal, state.visibility)
 		state.reveal = DeathLook.approach(state.reveal, revealTarget, DeathLook.REVEAL_TIME, DeathLook.CLOSE_TIME, dt)
-		local tearing = revealTarget > state.revealTarget and state.visibility > 0
 		state.revealTarget = revealTarget
 		local layers = DeathLook.layers(state.view, state.visibility, state.reveal)
 

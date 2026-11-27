@@ -108,13 +108,33 @@ return function(T, Loader)
 		end)
 	end)
 
-	T.describe("DeathLook.jumped", function()
-		T.it("une glissade n'est pas un saut, une reformation lointaine l'est", function()
+	T.describe("DeathLook : téléportation et déchirure", function()
+		T.it("une glissade n'est pas un saut, même après une saccade ; une reformation lointaine l'est", function()
 			local a = Vector3.new(0, 3, 0)
-			T.expect(not DeathLook.jumped(a, a + Vector3.new(4, 0, 0)), "20 studs/s à 5 images/s")
-			T.expect(DeathLook.jumped(a, a + Vector3.new(50, 0, 0)), "reformée à 50 studs")
-			T.expect(not DeathLook.jumped(nil, a), "position inconnue")
-			T.expect(not DeathLook.jumped(a, nil))
+			T.expect(not DeathLook.jumped(a, a + Vector3.new(4, 0, 0), 0.2), "20 studs/s à 5 images/s")
+			T.expect(not DeathLook.jumped(a, a + Vector3.new(16, 0, 0), 0.8), "20 studs/s, frame de 0,8 s")
+			T.expect(DeathLook.jumped(a, a + Vector3.new(50, 0, 0), 1 / 60), "reformée à 50 studs")
+			T.expect(not DeathLook.jumped(nil, a, 1 / 60), "position inconnue")
+			T.expect(not DeathLook.jumped(a, nil, 1 / 60))
+		end)
+
+		T.it("cachée après un saut tant qu'elle reste exposée, au plus JUMP_HOLD", function()
+			local dt = 1 / 60
+			T.expect(DeathLook.holdAfterJump(DeathLook.JUMP_HOLD, true, dt) > 0, "encore exposée (délai d'ombre)")
+			T.expectEqual(DeathLook.holdAfterJump(DeathLook.JUMP_HOLD, false, dt), 0, "exposition retombée")
+			local remaining, t = DeathLook.JUMP_HOLD, 0
+			while remaining > 0 and t < 10 do
+				remaining = DeathLook.holdAfterJump(remaining, true, dt)
+				t += dt
+			end
+			T.expectNear(t, DeathLook.JUMP_HOLD, dt + 1e-6, "pas de blocage si elle reste éclairée")
+		end)
+
+		T.it("déchirure à l'entrée dans le faisceau, pas quand le faisceau tremble au bord", function()
+			T.expect(DeathLook.tears(0, 1, 0, 1), "ombre refermée")
+			T.expect(not DeathLook.tears(0, 1, 0.8, 1), "ombre encore ouverte")
+			T.expect(not DeathLook.tears(0, 1, 0, 0), "invisible")
+			T.expect(not DeathLook.tears(1, 1, 0, 1), "déjà dans le faisceau")
 		end)
 	end)
 

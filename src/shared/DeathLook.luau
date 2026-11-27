@@ -23,8 +23,15 @@ DeathLook.SHADOW_OUTLINE = 0.7
 -- Voile de la Mort sur son propre corps (transparence du remplissage) : dans l'ombre / à la lumière
 DeathLook.SELF_VEIL = table.freeze({ shadow = 0.6, light = 0.05 })
 -- Déplacement d'une frame à l'autre au-delà duquel la Mort a été téléportée (dissipation, reformation) : elle glisse
--- à 20 studs/s au plus, soit moins de 4 studs même à 5 images par seconde
+-- à 20 studs/s au plus, soit moins de 4 studs même à 5 images par seconde ; JUMP_SPEED couvre une frame plus longue
+-- (saccade du client)
 DeathLook.JUMP_DISTANCE = 12
+DeathLook.JUMP_SPEED = 40
+-- Après une téléportation, la Mort reste cachée jusqu'à ce que son exposition retombe (DeathRules.SHADOW_GRACE côté
+-- serveur, plus la latence), au plus ce délai (secondes)
+DeathLook.JUMP_HOLD = 1
+-- La déchirure ne se rejoue que si l'ombre s'était refermée au moins à ce point (révélation sous ce seuil)
+DeathLook.TEAR_RESET = 0.3
 -- Colonne de fumée au bas du corps : part de la hauteur du corps, bornée (studs)
 DeathLook.HEM_SHARE = 0.3
 DeathLook.HEM_MIN = 1
@@ -97,10 +104,28 @@ function DeathLook.layers(view: string, visibility: number, reveal: number): Lay
 	}
 end
 
--- Cette méthode permet de savoir si la Mort a été téléportée lorsque sa position change d'une frame à l'autre (nil :
--- position inconnue, pas de saut).
-function DeathLook.jumped(previous: Vector3?, current: Vector3?): boolean
-	return previous ~= nil and current ~= nil and (current - previous).Magnitude > DeathLook.JUMP_DISTANCE
+-- Cette méthode permet de savoir si la Mort a été téléportée lorsque sa position change d'une frame à l'autre de durée
+-- `dt` (nil : position inconnue, pas de saut).
+function DeathLook.jumped(previous: Vector3?, current: Vector3?, dt: number): boolean
+	if previous == nil or current == nil then
+		return false
+	end
+	return (current - previous).Magnitude > math.max(DeathLook.JUMP_DISTANCE, DeathLook.JUMP_SPEED * dt)
+end
+
+-- Cette méthode permet de faire avancer le temps où la Mort reste cachée après une téléportation lorsqu'une frame passe :
+-- fini dès que son exposition retombe (reformée dans l'ombre) ou au bout du délai ; renvoie le temps restant.
+function DeathLook.holdAfterJump(remaining: number, exposed: boolean, dt: number): number
+	if remaining <= 0 or not exposed then
+		return 0
+	end
+	return math.max(0, remaining - dt)
+end
+
+-- Cette méthode permet de savoir si l'ombre se déchire à cette frame lorsque la cible de révélation est connue : elle
+-- monte, la Mort est visible et l'ombre s'était refermée (un faisceau qui tremble au bord ne rejoue pas la bouffée).
+function DeathLook.tears(previousTarget: number, target: number, reveal: number, visibility: number): boolean
+	return target > previousTarget and visibility > 0 and reveal < DeathLook.TEAR_RESET
 end
 
 export type Box = { cframe: CFrame, size: Vector3 }
