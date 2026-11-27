@@ -35,7 +35,7 @@ local OUTLINE_COLOR = Color3.fromRGB(110, 98, 128)
 local SMOKE_TEXTURE = "rbxasset://textures/particles/smoke_main.dds"
 local EMBER_TEXTURE = "rbxasset://textures/particles/sparkles_main.dds"
 -- Débit (particules par seconde) de chaque effet de l'ombre, pleine ombre
-local RATES = { hem = 36, wisps = 10, embers = 4 }
+local RATES = { hem = 40, wisps = 14, embers = 6 }
 -- Bouffées jouées quand l'ombre se déchire dans le faisceau
 local TEAR_SMOKE = 30
 local TEAR_EMBERS = 8
@@ -133,30 +133,36 @@ local function newShadowFx(folder: Instance)
 	return {
 		hem = hem,
 		body = body,
-		-- Colonne épaisse au bas du corps : lente, elle traîne derrière la Mort qui glisse
+		-- Nuage épais au bas du corps, qui s'étale autour et traîne derrière la Mort qui glisse. Le remplissage
+		-- (Highlight) se dessine par-dessus les particules : la fumée noie le bas de la silhouette par les côtés et
+		-- derrière, elle ne peut pas le recouvrir (mesuré en jeu, ZOffset sans effet)
 		hemSmoke = newEmitter(hem, {
 			Name = "HemColumn",
 			Texture = SMOKE_TEXTURE,
 			Color = dark,
-			Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1.4), NumberSequenceKeypoint.new(1, 2.8) }),
+			Size = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 2),
+				NumberSequenceKeypoint.new(0.5, 3.2),
+				NumberSequenceKeypoint.new(1, 4.2),
+			}),
 			Transparency = NumberSequence.new({
-				NumberSequenceKeypoint.new(0, 0.25),
-				NumberSequenceKeypoint.new(0.6, 0.5),
+				NumberSequenceKeypoint.new(0, 0.05),
+				NumberSequenceKeypoint.new(0.5, 0.25),
 				NumberSequenceKeypoint.new(1, 1),
 			}),
-			Lifetime = NumberRange.new(1.1, 1.7),
-			Speed = NumberRange.new(0.4, 1.2),
-			SpreadAngle = Vector2.new(35, 35),
-			Acceleration = Vector3.new(0, 0.5, 0),
-			Drag = 1,
+			Lifetime = NumberRange.new(1.2, 2),
+			Speed = NumberRange.new(0.6, 1.6),
+			SpreadAngle = Vector2.new(80, 80),
+			Acceleration = Vector3.new(0, 0.3, 0),
+			Drag = 1.2,
 		}),
 		-- Volutes qui s'échappent de toute la silhouette : les bords ne sont jamais nets
 		wisps = newEmitter(body, {
 			Name = "Wisps",
 			Texture = SMOKE_TEXTURE,
 			Color = dark,
-			Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.6), NumberSequenceKeypoint.new(1, 1.4) }),
-			Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.45), NumberSequenceKeypoint.new(1, 1) }),
+			Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.8), NumberSequenceKeypoint.new(1, 1.8) }),
+			Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.35), NumberSequenceKeypoint.new(1, 1) }),
 			Lifetime = NumberRange.new(0.9, 1.4),
 			Speed = NumberRange.new(0.3, 0.8),
 			Acceleration = Vector3.new(0, 1.2, 0),
@@ -167,7 +173,7 @@ local function newShadowFx(folder: Instance)
 			Texture = EMBER_TEXTURE,
 			Color = ColorSequence.new(Color3.fromRGB(215, 200, 180), Color3.fromRGB(120, 105, 95)),
 			LightEmission = 0.6,
-			Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.14), NumberSequenceKeypoint.new(1, 0) }),
+			Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.18), NumberSequenceKeypoint.new(1, 0) }),
 			Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.2), NumberSequenceKeypoint.new(1, 1) }),
 			Lifetime = NumberRange.new(1.6, 2.6),
 			Speed = NumberRange.new(0.4, 1.2),
@@ -177,6 +183,7 @@ local function newShadowFx(folder: Instance)
 		-- Déchirure : bouffée rapide qui s'écarte du corps, jouée une fois quand le faisceau la révèle
 		tear = newEmitter(body, {
 			Name = "Tear",
+			Enabled = false, -- bouffées seulement (Emit)
 			Texture = SMOKE_TEXTURE,
 			Color = dark,
 			Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.9), NumberSequenceKeypoint.new(1, 2) }),

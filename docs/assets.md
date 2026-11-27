@@ -40,7 +40,9 @@ qu'immobile (40° → 65°), celui de devant de 7°.
 Pour un mortel, la Mort exposée hors faisceau est une **ombre pleine** sans faux (`Client.DeathView`, #80 : un
 `Highlight` sombre par morceau visible du corps, fumées créées par le client) : la forme du voile (capuche, lambeaux)
 passe avant le détail des textures, qui ne se voit que dans le faisceau d'une lampe. Le rendu ne dépend que du nom
-`Scythe` (la faux, cachée hors faisceau) : un nouveau modèle garde ce nom.
+`Scythe` (la faux, cachée hors faisceau) : un nouveau modèle garde ce nom. Rendu vu d'un mortel (salon éclairé) :
+ombre de près ![](mort/mortel-ombre.jpg), à 30 studs ![](mort/mortel-ombre-30-studs.jpg), dans le faisceau
+![](mort/mortel-faisceau.jpg) ; vue du joueur Mort, dans l'ombre ![](mort/vue-mort.jpg).
 
 **Refaire le modèle** : modifier `tools/blender/death_model.py`, l'exécuter dans Blender (MCP :
 `exec(open(chemin).read(), {"__name__": "__main__"})`), exporter en GLB dans `worktrees/.export`, envoyer, insérer,
