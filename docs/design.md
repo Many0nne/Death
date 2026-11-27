@@ -42,6 +42,15 @@ accomplir des objectifs pour fuir avant la fin de la nuit, en repérant les pré
   la main qui tiennent la faux. La Mort **glisse** (aucun pas) ; la cape n'est jamais figée : elle ondule au repos,
   traîne derrière elle en mouvement, et une fumée d'ombre monte du bas de la robe et sort de la capuche. Le joueur Mort
   revêt ce modèle pendant la manche et retrouve son avatar ensuite (`docs/assets.md`).
+- **Ce que voit un mortel** (#80, règles `src/shared/DeathLook.luau`, rendu `Client.DeathView`) :
+  - **dans l'ombre** : rien (ni corps, ni ombre portée, ni fumée) ;
+  - **à la lumière ambiante** : une **ombre**, pas une figure transparente. Une masse sombre et pleine (noir bleuté,
+    contour gris à peine visible) à la silhouette du voile, dont le bas se défait en colonne de fumée qui traîne
+    derrière elle, avec des volutes sur les bords et quelques braises claires. **Pas de faux** ;
+  - **dans le faisceau d'une lampe** (les 3 s avant la dissipation) : l'ombre se déchire (bouffée de fumée, 0,4 s) et
+    laisse voir le **vrai corps** et la **faux** ; hors du faisceau, elle se referme en 0,8 s. Puis la dissipation se
+    joue comme avant.
+  - **Le joueur Mort** voit toujours sa faux, son corps voilé dans l'ombre et plein à la lumière.
 - **Vue** : première personne verrouillée. Elle prépare un piège, coupe le disjoncteur ou grille une ampoule **en le
   regardant** (les invites n'apparaissent que sur la cible dans le cône du regard, environ 37°, ou tout près d'elle) ;
   son corps ne la gêne pas (pas de voile sur ses propres bras, l'indicateur ombre/lumière reste).
@@ -87,7 +96,7 @@ accomplir des objectifs pour fuir avant la fin de la nuit, en repérant les pré
 
 ## Lumière
 La lumière **révèle** la Mort, elle ne la bloque pas.
-- **Lumière ambiante** : Mort visible (silhouette), ralentie, ne peut pas préparer de piège. Ses pièges armés
+- **Lumière ambiante** : Mort visible (ombre, voir « La Mort »), ralentie, ne peut pas préparer de piège. Ses pièges armés
   fonctionnent et elle peut souffler depuis l'ombre.
 - **Faisceau de lampe torche** tenu 3 s sur elle : elle est **dissipée**, se reforme dans une ombre lointaine et perd
   une charge de souffle.

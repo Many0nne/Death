@@ -5,6 +5,10 @@ return table.freeze({
 	LightRole = "LightRole",
 	-- Sur le Player qui joue la Mort : true quand elle est éclairée (silhouette visible, ralentie)
 	Exposed = "DeathExposed",
+	-- Sur le Player qui joue la Mort, public : true quand un faisceau de lampe la touche alors qu'elle est exposée (les
+	-- mortels voient alors son vrai corps et sa faux, Shared.DeathLook, #80), nil sinon. Écrit par FlashlightService ;
+	-- la progression de la dissipation reste privée (DispelProgress). Pour un faux joueur Mort de debug, sur son mannequin.
+	InBeam = "DeathInBeam",
 
 	-- Sur chaque lampe (MapTags.Lamp) : false quand elle est éteinte (aile coupée ou ampoule grillée)
 	LampOn = "LampOn",

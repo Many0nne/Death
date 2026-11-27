@@ -9,7 +9,8 @@
 --
 -- API, via `FlashlightService.get()` : :isInBeam(position), :batteryOf(player), :toggle(player), :dispel(player).
 -- Événement : Dispelled({ player, from, to }). Attributs répliqués : Shared.LightAttributes (FlashlightBattery,
--- FlashlightOn) ; DispelProgress va dans le conteneur privé de la Mort (Server.PrivateState, #49).
+-- FlashlightOn, DeathInBeam sur la Mort exposée tenue par un faisceau, #80) ; DispelProgress va dans le conteneur
+-- privé de la Mort (Server.PrivateState, #49).
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
@@ -535,6 +536,9 @@ function FlashlightService:step(dt: number)
 			if private then
 				PrivateState.write(private, LA.DispelProgress, nil)
 			end
+			if player:GetAttribute(LA.InBeam) ~= nil then
+				player:SetAttribute(LA.InBeam, nil)
+			end
 		end
 	end
 	for _, player in deaths do
@@ -560,6 +564,12 @@ function FlashlightService:_stepDeath(player, dt: number)
 	local private = self.deps.privateOf(player)
 	if private then
 		PrivateState.write(private, LA.DispelProgress, published)
+	end
+	-- Public (#80) : les mortels voient alors son vrai corps ; seulement exposée, jamais pour une Mort invisible. Le
+	-- faisceau réel, pas le cumul : ni la coupure tolérée ni le répit d'après dissipation ne comptent (le client lisse)
+	local inBeam = if hit and player:GetAttribute(LA.Exposed) == true then true else nil
+	if player:GetAttribute(LA.InBeam) ~= inBeam then
+		player:SetAttribute(LA.InBeam, inBeam)
 	end
 	if dispelled then
 		self:dispel(player)
