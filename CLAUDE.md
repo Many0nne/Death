@@ -91,6 +91,10 @@ toujours avec lui.
    explicite » des consignes globales) : CI verte, puis `gh pr merge <n> --merge --delete-branch`. CI rouge : corriger,
    ne pas merger. Puis fermer le thread (settle) : le nettoyage automatique supprime alors le worktree et la branche
    locale.
+   **Exception, modèle 3D ou asset jugé à l'œil** (personnage, décor, faux, effet) : le thread qui reçoit la demande
+   délègue la production et reste orchestrateur. Le délégué ouvre la PR, rend des captures avant/après sous les mêmes
+   angles et **ne merge pas** ; l'orchestrateur compare aux références, renvoie des retours précis, itère, puis merge
+   (ou autorise le merge) quand ça colle. Skill `delegation-dth`, section 4.
 - Git : identité locale `Many0nne` et push par `gh auth git-credential` (config git locale) ; ne pas les retirer. Un
   worktree hérite de cette config.
 - **Rubrique « Trouvé »** : chaque point qui mérite une suite devient une issue, créée sans demander, avec ses labels
