@@ -1,7 +1,8 @@
 """Cuisson Cycles sans interface (`blender -b`) de la version détaillée vers la version jouable (UV) : normales
 (espace tangent, convention OpenGL comme Roblox), occlusion, couleur, rugosité ; PNG 1024 (grandes pièces) ou 512.
 
-La couleur finale multiplie la couleur cuite par l'occlusion (Roblox n'a pas de carte d'occlusion). Les
+La couleur finale multiplie la couleur cuite par l'occlusion (Roblox n'a pas de carte d'occlusion), en valeurs sRGB
+codées : voulu, les creux en sortent un peu plus sombres qu'un produit linéaire (choix de rendu, pas d'erreur). Les
 modificateurs de la pièce jouable (épaisseur, armature) sont coupés pendant la cuisson : on cuit la surface seule, les
 deux faces de l'épaisseur partagent ensuite les UV.
 """

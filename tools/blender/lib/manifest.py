@@ -85,8 +85,9 @@ def check(m):
             extra = sorted(set(have) - set(want))
             if missing or extra:
                 errors.append(f"os de {skin} : manquants {missing}, en trop {extra}")
-            groups = {g.name for g in ob.vertex_groups}
-            unweighted = sorted(set(want) - groups)
+            index = {g.index: g.name for g in ob.vertex_groups}
+            weighted = {index[e.group] for v in ob.data.vertices for e in v.groups if e.weight > 0}
+            unweighted = sorted(set(want) - weighted)
             if unweighted:
                 errors.append(f"{skin} : os sans poids {unweighted}")
             measured["bones"] = have

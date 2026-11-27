@@ -10,6 +10,7 @@ Options :
   --blend <chemin>  enregistre la scène (contrôle à l'œil, jamais versionnée)
   --no-drape        robe sans simulation de tissu (forme dessinée, plus rapide ; ni --bake ni --glb)
   --no-write        n'écrit pas <modèle>.measured.json
+  --accept-drape    accepte un drapé différent avec les mêmes sources (nouvelle version de Blender constatée)
 
 Sortie : rapport (triangles par pièce, contrôles propres au modèle, empreinte du drapé), code 1 si un contrôle échoue
 (dont un drapé différent avec les mêmes sources) ; dans ce cas ni cuisson, ni mesures, ni GLB.
@@ -33,11 +34,14 @@ from lib import bake, cloth, detail, manifest, textures  # noqa: E402
 def args():
     """Cette méthode permet de lire les options passées après `--`."""
     argv = sys.argv[sys.argv.index("--") + 1 :] if "--" in sys.argv else []
-    opts = {"model": "death", "bake": False, "glb": None, "blend": None, "drape": True, "write": True}
+    opts = {"model": "death", "bake": False, "glb": None, "blend": None, "drape": True, "write": True,
+            "accept_drape": False}
     k = 0
     while k < len(argv):
         a = argv[k]
         if a in ("--model", "--glb", "--blend"):
+            if k + 1 >= len(argv):
+                raise SystemExit(f"{a} attend une valeur")
             opts[a[2:]] = argv[k + 1]
             k += 1
         elif a == "--bake":
@@ -46,6 +50,8 @@ def args():
             opts["drape"] = False
         elif a == "--no-write":
             opts["write"] = False
+        elif a == "--accept-drape":
+            opts["accept_drape"] = True
         else:
             raise SystemExit(f"option inconnue : {a}")
         k += 1
@@ -157,13 +163,15 @@ def main():
         extra["drape"] = {"frames": getattr(model, "DRAPE_FRAMES", 0) if opts["drape"] else 0,
                           "vertices": len(skin_ob.data.vertices),
                           "fingerprint": cloth.fingerprint(skin_ob),
-                          "sources": sources_hash(m)}
+                          "sources": sources_hash(m),
+                          "blender": bpy.app.version_string}
         print(f"DRAPE {extra['drape']}")
         # mêmes sources, autre drapé : la simulation n'est plus déterministe (version de Blender, threads)
         if opts["drape"] and os.path.isfile(measured_path):
             with open(measured_path, encoding="utf-8") as f:
                 before = json.load(f).get("drape", {})
-            if before.get("sources") == extra["drape"]["sources"] and before.get("fingerprint") != extra["drape"]["fingerprint"]:
+            same = before.get("sources") == extra["drape"]["sources"] and before.get("blender") == bpy.app.version_string
+            if same and before.get("fingerprint") != extra["drape"]["fingerprint"] and not opts["accept_drape"]:
                 errors.append(f"drapé non déterministe : empreinte {extra['drape']['fingerprint']} au lieu de "
                               f"{before.get('fingerprint')} avec les mêmes sources")
     out_dir = os.path.join(ROOT, "assets", "textures", opts["model"])

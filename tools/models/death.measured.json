@@ -281,7 +281,8 @@
     "frames": 70,
     "vertices": 1920,
     "fingerprint": "243e88916182",
-    "sources": "6bc4d2f8a6e4"
+    "sources": "1d2b194146bb",
+    "blender": "5.2.3 LTS"
   },
   "textures": {
     "Cloak": {

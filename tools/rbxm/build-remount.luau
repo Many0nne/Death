@@ -31,9 +31,10 @@ local function replace(text: string, marker: string, value: string): string
 	assert(a, "marqueur absent : " .. marker)
 	return string.sub(text, 1, a - 1) .. value .. string.sub(text, b + 1)
 end
+-- ordre inverse de leur place dans le modèle : un marqueur cité dans un JSON déjà injecté ne peut pas être pris
 local script = template
-script = replace(script, "@MANIFEST@", compact("tools/models/" .. name .. ".manifest.json"))
-script = replace(script, "@MEASURED@", compact("tools/models/" .. name .. ".measured.json"))
 script = replace(script, "@IMPORT@", import)
+script = replace(script, "@MEASURED@", compact("tools/models/" .. name .. ".measured.json"))
+script = replace(script, "@MANIFEST@", compact("tools/models/" .. name .. ".manifest.json"))
 fs.writeFile(out, script)
 print(string.format("%s (%d octets)", out, #script))

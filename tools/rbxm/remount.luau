@@ -10,7 +10,8 @@
 -- - couleurs, matériaux, SurfaceAppearance (table « surface » du manifeste : retirée si la table est vide) ;
 -- - pièces sans masse, sans collision, contact ni requête, soudées à la racine (une WeldConstraint chacune) ;
 -- - pièces ajoutées dans Studio (HemSmokeArea), fumées (HemSmoke, HoodShadow), réglages du Humanoid.
--- Imprime un rapport JSON (préfixe « REMOUNT ») ; l'import est détruit à la fin.
+-- Imprime un rapport JSON (préfixe « REMOUNT ») ; l'import est détruit à la fin, sauf échec (il reste pour relancer).
+-- Les centres sont contrôlés avant toute modification : un import incohérent ne touche pas au modèle.
 local HttpService = game:GetService("HttpService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -50,6 +51,7 @@ end
 -- Cette méthode permet de trouver (ou créer) le groupe (Model) d'une pièce sous le modèle.
 local function group(name: string): Model
 	local g = model:FindFirstChild(name)
+	assert(not g or g:IsA("Model"), model:GetFullName() .. "." .. name .. " n'est pas un Model")
 	if not g then
 		g = Instance.new("Model")
 		g.Name = name
@@ -172,9 +174,28 @@ local function moveBones(fresh: BasePart, placed: BasePart)
 	end
 end
 
--- import : écart entre l'origine déduite de chaque pièce et celle de la première (vérifie le repère des centres)
+-- avant toute modification : l'origine déduite de chaque pièce importée doit être la même (repère des centres)
 local origin = nil
 local originDrift = 0
+if import then
+	for name in MANIFEST.parts do
+		local fresh = findPart(import, name)
+		local measured = MEASURED.parts[name]
+		if fresh and measured then
+			local c = measured.center
+			local o = fresh.CFrame * (CFrame.new(c[1], c[2], c[3]) * TURN):Inverse()
+			if origin then
+				originDrift = math.max(originDrift, (o.Position - origin.Position).Magnitude)
+			else
+				origin = o
+			end
+		end
+	end
+	report.originDrift = math.round(originDrift * 1000) / 1000
+	if originDrift > 0.01 then
+		error("centres incohérents avec l'import (écart " .. report.originDrift .. " stud) : rien n'est modifié")
+	end
+end
 
 for name, spec in MANIFEST.parts do
 	local measured = MEASURED.parts[name]
@@ -182,16 +203,10 @@ for name, spec in MANIFEST.parts do
 	local fresh = import and findPart(import, name)
 	local part = old
 	if fresh and measured then
-		local o = fresh.CFrame
-			* (CFrame.new(measured.center[1], measured.center[2], measured.center[3]) * TURN):Inverse()
-		if origin then
-			originDrift = math.max(originDrift, (o.Position - origin.Position).Magnitude)
-		else
-			origin = o
-		end
 		local placed = fresh:Clone()
 		for _, c in placed:GetChildren() do
-			if not c:IsA("Bone") then
+			-- les os ne restent (jusqu'à moveBones) que sur la pièce skinnée
+			if not c:IsA("Bone") or not spec.skinned then
 				c:Destroy()
 			end
 		end
@@ -312,15 +327,20 @@ for prop, value in MANIFEST.studio.humanoid do
 	end
 end
 
--- contrôle : une pièce par nom, os de la cape sous la racine
+-- contrôle : une pièce par nom, os de la cape sous la racine et nulle part ailleurs
 local bones = 0
 for _, d in root:GetDescendants() do
 	if d:IsA("Bone") then
 		bones += 1
 	end
 end
+local roots = 0
+for _, d in model:GetDescendants() do
+	if d:IsA("Bone") and d.Name == MANIFEST.bones.root then
+		roots += 1
+	end
+end
 report.bones = bones
-report.originDrift = math.round(originDrift * 1000) / 1000
 local duplicates = {}
 for name in MANIFEST.parts do
 	local n = 0
@@ -336,8 +356,8 @@ end
 report.duplicates = duplicates
 local expectedBones = 1 + MANIFEST.bones.chains * MANIFEST.bones.perChain
 local failures = {}
-if report.originDrift > 0.01 then
-	table.insert(failures, "centres incohérents avec l'import (écart " .. report.originDrift .. " stud)")
+if roots ~= 1 then
+	table.insert(failures, string.format("%d os « %s » dans le modèle, 1 attendu", roots, MANIFEST.bones.root))
 end
 if next(duplicates) then
 	table.insert(failures, "pièces absentes ou en double : " .. HttpService:JSONEncode(duplicates))
@@ -345,10 +365,11 @@ end
 if bones ~= expectedBones then
 	table.insert(failures, string.format("%d os sous la racine, %d attendus", bones, expectedBones))
 end
-if import then
-	import:Destroy()
-end
 print("REMOUNT " .. HttpService:JSONEncode(report))
 if #failures > 0 then
+	-- l'import reste en place pour corriger puis relancer
 	error("remontage incomplet : " .. table.concat(failures, " ; "))
+end
+if import then
+	import:Destroy()
 end
