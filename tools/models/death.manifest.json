@@ -1,0 +1,85 @@
+{
+  "_doc": "Manifeste du modèle de la Mort (#79), source unique : noms attendus par le code et produits par tools/blender/death_model.py, budgets de triangles, cuisson, et table de remontage Studio (tools/rbxm/remount.luau). Mesures : death.measured.json (écrit par tools/blender/pipeline.py). Procédure : docs/assets.md.",
+  "model": "Death",
+  "script": "tools/blender/death_model.py",
+  "glb": "DeathVeil.glb",
+  "budget": { "partTris": 12000, "totalTris": 34000 },
+  "codeNames": ["Characters", "Death", "HumanoidRootPart", "Humanoid"],
+  "bones": { "parent": "HumanoidRootPart", "root": "Root", "chains": 16, "perChain": 4, "skin": "Cloak" },
+  "parts": {
+    "Cloak": {
+      "group": "Veil", "maxTris": 9000, "skinned": true,
+      "material": "Fabric", "color": [12, 12, 15], "castShadow": true,
+      "bake": {
+        "size": 1024, "cc0": "rough_linen", "seed": 79,
+        "dark": [0.004, 0.004, 0.005], "light": [0.05, 0.046, 0.05],
+        "rough": [0.78, 1.0], "scale": [10, 6], "normalStrength": 1.2, "grime": 0.6,
+        "strokes": 90, "subdiv": 3, "noise": [1.6, 0.03], "fine": [0.1, 0.01]
+      },
+      "surface": {
+        "ColorMap": "rbxassetid://90768318909720",
+        "NormalMap": "rbxassetid://75803274684492",
+        "RoughnessMap": "rbxassetid://134709665699025"
+      }
+    },
+    "Hood": { "group": "Veil", "maxTris": 12000, "material": "Fabric", "color": [12, 12, 15], "castShadow": true },
+    "Void": { "group": "Veil", "maxTris": 3000, "material": "Neon", "color": [0, 0, 0], "castShadow": false },
+    "Sleeve": { "group": "Arm", "maxTris": 4000, "material": "Fabric", "color": [12, 12, 15], "castShadow": true },
+    "BoneArm": { "group": "Arm", "maxTris": 8000, "material": "SmoothPlastic", "color": [196, 186, 160], "castShadow": true },
+    "Blade": { "group": "Scythe", "maxTris": 2500, "material": "Metal", "color": [92, 96, 104], "castShadow": true },
+    "Edge": { "group": "Scythe", "maxTris": 2500, "material": "Foil", "color": [205, 210, 218], "castShadow": true },
+    "Engraving": { "group": "Scythe", "maxTris": 1000, "material": "Metal", "color": [52, 52, 58], "castShadow": true },
+    "ScytheHead": { "group": "Scythe", "maxTris": 1500, "material": "Metal", "color": [46, 46, 52], "castShadow": true },
+    "Gem": { "group": "Scythe", "maxTris": 1000, "material": "Neon", "color": [40, 140, 120], "castShadow": true },
+    "Rings": { "group": "Scythe", "maxTris": 1000, "material": "Metal", "color": [140, 118, 82], "castShadow": true },
+    "Shaft": { "group": "Scythe", "maxTris": 2000, "material": "Wood", "color": [46, 32, 24], "castShadow": true },
+    "Grip": { "group": "Scythe", "maxTris": 1500, "material": "Leather", "color": [54, 26, 20], "castShadow": true },
+    "Pommel": { "group": "Scythe", "maxTris": 500, "material": "Metal", "color": [46, 46, 52], "castShadow": true }
+  },
+  "studio": {
+    "weldTo": "HumanoidRootPart",
+    "humanoid": { "AutomaticScalingEnabled": false, "HipHeight": 2.65 },
+    "extraParts": {
+      "HemSmokeArea": {
+        "group": "Veil", "size": [3.2, 0.4, 2.8], "offset": [0, -3.35, 0.351],
+        "transparency": 1, "castShadow": false
+      }
+    },
+    "emitters": {
+      "HemSmoke": {
+        "parent": "HemSmokeArea",
+        "props": {
+          "Texture": "rbxasset://textures/particles/smoke_main.dds",
+          "Rate": 18, "Drag": 1, "LightInfluence": 1, "LightEmission": 0,
+          "Lifetime": { "NumberRange": [1.2, 2] },
+          "Speed": { "NumberRange": [0.2, 0.6] },
+          "Rotation": { "NumberRange": [0, 360] },
+          "RotSpeed": { "NumberRange": [-30, 30] },
+          "Size": { "NumberSequence": [[0, 0.6], [1, 2]] },
+          "Transparency": { "NumberSequence": [[0, 1], [0.25, 0.55], [1, 1]] },
+          "Color": { "ColorSequence": [[0, [8, 8, 10]], [1, [8, 8, 10]]] },
+          "Acceleration": { "Vector3": [0, 0.35, 0] },
+          "SpreadAngle": { "Vector2": [60, 60] },
+          "EmissionDirection": { "Enum": ["NormalId", "Top"] }
+        }
+      },
+      "HoodShadow": {
+        "parent": "Void",
+        "props": {
+          "Texture": "rbxasset://textures/particles/smoke_main.dds",
+          "Rate": 4, "Drag": 1, "LightInfluence": 1, "LightEmission": 0,
+          "Lifetime": { "NumberRange": [1, 1.6] },
+          "Speed": { "NumberRange": [0.1, 0.3] },
+          "Rotation": { "NumberRange": [0, 360] },
+          "RotSpeed": { "NumberRange": [-30, 30] },
+          "Size": { "NumberSequence": [[0, 0.2], [1, 0.7]] },
+          "Transparency": { "NumberSequence": [[0, 1], [0.25, 0.55], [1, 1]] },
+          "Color": { "ColorSequence": [[0, [8, 8, 10]], [1, [8, 8, 10]]] },
+          "Acceleration": { "Vector3": [0, 0.2, 0] },
+          "SpreadAngle": { "Vector2": [60, 60] },
+          "EmissionDirection": { "Enum": ["NormalId", "Bottom"] }
+        }
+      }
+    }
+  }
+}

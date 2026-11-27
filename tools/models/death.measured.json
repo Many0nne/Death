@@ -1,0 +1,294 @@
+{
+  "_doc": "Mesuré par tools/blender/pipeline.py sur tools/blender/death_model.py : ne pas modifier à la main.",
+  "model": "Death",
+  "budget": {
+    "partTris": 12000,
+    "totalTris": 34000
+  },
+  "parts": {
+    "Cloak": {
+      "group": "Veil",
+      "tris": 7680,
+      "center": [
+        -0.5239,
+        -1.0371,
+        0.7387
+      ],
+      "size": [
+        4.4241,
+        5.1184,
+        3.5201
+      ]
+    },
+    "Hood": {
+      "group": "Veil",
+      "tris": 10240,
+      "center": [
+        0.0103,
+        1.191,
+        0.1836
+      ],
+      "size": [
+        2.7503,
+        3.5637,
+        2.4163
+      ]
+    },
+    "Void": {
+      "group": "Veil",
+      "tris": 1628,
+      "center": [
+        -0.0016,
+        1.8089,
+        -0.4129
+      ],
+      "size": [
+        0.5233,
+        0.9295,
+        0.9384
+      ]
+    },
+    "Sleeve": {
+      "group": "Arm",
+      "tris": 1248,
+      "center": [
+        0.9744,
+        0.3117,
+        -0.4149
+      ],
+      "size": [
+        0.888,
+        1.0648,
+        0.8247
+      ]
+    },
+    "BoneArm": {
+      "group": "Arm",
+      "tris": 3550,
+      "center": [
+        1.2104,
+        0.4836,
+        -0.811
+      ],
+      "size": [
+        0.6033,
+        0.4083,
+        0.9009
+      ]
+    },
+    "Blade": {
+      "group": "Scythe",
+      "tris": 2156,
+      "center": [
+        -0.4712,
+        2.3372,
+        -1.0243
+      ],
+      "size": [
+        3.1153,
+        2.2381,
+        0.122
+      ]
+    },
+    "Edge": {
+      "group": "Scythe",
+      "tris": 2156,
+      "center": [
+        -0.5139,
+        2.1286,
+        -1.0243
+      ],
+      "size": [
+        3.0298,
+        1.8208,
+        0.0563
+      ]
+    },
+    "Engraving": {
+      "group": "Scythe",
+      "tris": 512,
+      "center": [
+        -0.4574,
+        2.7196,
+        -1.0243
+      ],
+      "size": [
+        2.3902,
+        1.1857,
+        0.0937
+      ]
+    },
+    "ScytheHead": {
+      "group": "Scythe",
+      "tris": 272,
+      "center": [
+        1.3562,
+        3.4388,
+        -1.0196
+      ],
+      "size": [
+        0.7636,
+        0.8257,
+        0.2947
+      ]
+    },
+    "Gem": {
+      "group": "Scythe",
+      "tris": 392,
+      "center": [
+        1.1344,
+        3.23,
+        -1.02
+      ],
+      "size": [
+        0.2,
+        0.1848,
+        0.3477
+      ]
+    },
+    "Rings": {
+      "group": "Scythe",
+      "tris": 448,
+      "center": [
+        1.3196,
+        0.0681,
+        -1.1086
+      ],
+      "size": [
+        0.5629,
+        5.9072,
+        0.3632
+      ]
+    },
+    "Shaft": {
+      "group": "Scythe",
+      "tris": 984,
+      "center": [
+        1.3259,
+        0.1006,
+        -1.106
+      ],
+      "size": [
+        0.5461,
+        6.7068,
+        0.3351
+      ]
+    },
+    "Grip": {
+      "group": "Scythe",
+      "tris": 868,
+      "center": [
+        1.362,
+        0.5027,
+        -1.1291
+      ],
+      "size": [
+        0.2894,
+        0.8261,
+        0.2338
+      ]
+    },
+    "Pommel": {
+      "group": "Scythe",
+      "tris": 100,
+      "center": [
+        1.4806,
+        -3.3987,
+        -1.1799
+      ],
+      "size": [
+        0.2424,
+        0.5426,
+        0.255
+      ]
+    }
+  },
+  "totalTris": 32234,
+  "bones": [
+    "Root",
+    "C00_0",
+    "C00_1",
+    "C00_2",
+    "C00_3",
+    "C01_0",
+    "C01_1",
+    "C01_2",
+    "C01_3",
+    "C02_0",
+    "C02_1",
+    "C02_2",
+    "C02_3",
+    "C03_0",
+    "C03_1",
+    "C03_2",
+    "C03_3",
+    "C04_0",
+    "C04_1",
+    "C04_2",
+    "C04_3",
+    "C05_0",
+    "C05_1",
+    "C05_2",
+    "C05_3",
+    "C06_0",
+    "C06_1",
+    "C06_2",
+    "C06_3",
+    "C07_0",
+    "C07_1",
+    "C07_2",
+    "C07_3",
+    "C08_0",
+    "C08_1",
+    "C08_2",
+    "C08_3",
+    "C09_0",
+    "C09_1",
+    "C09_2",
+    "C09_3",
+    "C10_0",
+    "C10_1",
+    "C10_2",
+    "C10_3",
+    "C11_0",
+    "C11_1",
+    "C11_2",
+    "C11_3",
+    "C12_0",
+    "C12_1",
+    "C12_2",
+    "C12_3",
+    "C13_0",
+    "C13_1",
+    "C13_2",
+    "C13_3",
+    "C14_0",
+    "C14_1",
+    "C14_2",
+    "C14_3",
+    "C15_0",
+    "C15_1",
+    "C15_2",
+    "C15_3"
+  ],
+  "checks": {
+    "grip_gap_max": -0.0044,
+    "grip_gap_mean": -0.0091,
+    "void_leaks": 0,
+    "void_vertices": 816
+  },
+  "drape": {
+    "frames": 70,
+    "vertices": 1920,
+    "fingerprint": "243e88916182",
+    "sources": "1d2b194146bb",
+    "blender": "5.2.3 LTS"
+  },
+  "textures": {
+    "Cloak": {
+      "color": "assets/textures/death/Cloak_color.png",
+      "normal": "assets/textures/death/Cloak_normal.png",
+      "roughness": "assets/textures/death/Cloak_roughness.png"
+    }
+  }
+}
