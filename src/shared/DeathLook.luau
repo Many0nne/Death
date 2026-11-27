@@ -22,6 +22,9 @@ DeathLook.SHADOW_FILL = 0.04
 DeathLook.SHADOW_OUTLINE = 0.7
 -- Voile de la Mort sur son propre corps (transparence du remplissage) : dans l'ombre / à la lumière
 DeathLook.SELF_VEIL = table.freeze({ shadow = 0.6, light = 0.05 })
+-- Déplacement d'une frame à l'autre au-delà duquel la Mort a été téléportée (dissipation, reformation) : elle glisse
+-- à 20 studs/s au plus, soit moins de 4 studs même à 5 images par seconde
+DeathLook.JUMP_DISTANCE = 12
 -- Colonne de fumée au bas du corps : part de la hauteur du corps, bornée (studs)
 DeathLook.HEM_SHARE = 0.3
 DeathLook.HEM_MIN = 1
@@ -92,6 +95,12 @@ function DeathLook.layers(view: string, visibility: number, reveal: number): Lay
 		scytheFill = 1,
 		smoke = shadow,
 	}
+end
+
+-- Cette méthode permet de savoir si la Mort a été téléportée lorsque sa position change d'une frame à l'autre (nil :
+-- position inconnue, pas de saut).
+function DeathLook.jumped(previous: Vector3?, current: Vector3?): boolean
+	return previous ~= nil and current ~= nil and (current - previous).Magnitude > DeathLook.JUMP_DISTANCE
 end
 
 export type Box = { cframe: CFrame, size: Vector3 }

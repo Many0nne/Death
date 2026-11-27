@@ -565,8 +565,9 @@ function FlashlightService:_stepDeath(player, dt: number)
 	if private then
 		PrivateState.write(private, LA.DispelProgress, published)
 	end
-	-- Public (#80) : les mortels voient alors son vrai corps ; seulement exposée, jamais pour une Mort invisible
-	local inBeam = if published ~= nil and player:GetAttribute(LA.Exposed) == true then true else nil
+	-- Public (#80) : les mortels voient alors son vrai corps ; seulement exposée, jamais pour une Mort invisible. Le
+	-- faisceau réel, pas le cumul : ni la coupure tolérée ni le répit d'après dissipation ne comptent (le client lisse)
+	local inBeam = if hit and player:GetAttribute(LA.Exposed) == true then true else nil
 	if player:GetAttribute(LA.InBeam) ~= inBeam then
 		player:SetAttribute(LA.InBeam, inBeam)
 	end

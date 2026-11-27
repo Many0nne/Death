@@ -62,18 +62,25 @@ local function hasVisible(instance: Instance): boolean
 end
 
 -- Cette méthode permet de lister les morceaux du corps à couvrir d'une ombre lorsque le modèle apparaît ou change : un
--- par enfant visible du personnage, la faux mise à part même si elle est rangée plus bas (bras, accessoire).
+-- Highlight ne prend qu'un Model ou une BasePart, donc un par Model visible sans la faux, un par pièce visible ; on
+-- descend dans le reste (dossier, accessoire, pièce invisible du rig, Model qui contient la faux).
 local function collectGroups(container: Instance, scythe: Instance?, out: { Instance })
 	for _, child in container:GetChildren() do
 		if child == scythe then
 			continue
-		elseif scythe and scythe:IsDescendantOf(child) then
-			collectGroups(child, scythe, out)
-		elseif
-			(child:IsA("Model") or child:IsA("BasePart") or child:IsA("Accessory") or child:IsA("Folder"))
-			and hasVisible(child)
-		then
+		end
+		local holdsScythe = scythe ~= nil and scythe:IsDescendantOf(child)
+		if child:IsA("Model") and not holdsScythe then
+			if hasVisible(child) then
+				table.insert(out, child)
+			end
+			continue
+		end
+		if child:IsA("BasePart") and child.Transparency < 1 then
 			table.insert(out, child)
+		end
+		if child:IsA("Model") or child:IsA("BasePart") or child:IsA("Accessory") or child:IsA("Folder") then
+			collectGroups(child, scythe, out)
 		end
 	end
 end
@@ -256,6 +263,9 @@ function DeathView.start()
 		for _, highlight in state.highlights do
 			highlight:Destroy()
 		end
+		if state.scytheHighlight then
+			state.scytheHighlight:Destroy()
+		end
 		local scythe = character:FindFirstChild(SCYTHE_NAME, true)
 		state.scythe = scythe
 		local color = if state.view == View.Self then SELF_COLOR else SHADOW_COLOR
@@ -396,8 +406,14 @@ function DeathView.start()
 				dirty = true,
 			}
 			state.added = character.DescendantAdded:Connect(function(d)
-				-- Les remplissages ajoutés par ce rendu ne changent pas le modèle
-				if not d:IsA("Highlight") then
+				-- Seul ce qui se dessine change le modèle (pas un son, un os, une soudure ni les remplissages de ce rendu)
+				if
+					d:IsA("BasePart")
+					or d:IsA("Decal")
+					or d:IsA("ParticleEmitter")
+					or d:IsA("Model")
+					or d:IsA("Accessory")
+				then
 					state.dirty = true
 				end
 			end)
@@ -407,6 +423,17 @@ function DeathView.start()
 			scan(character, state)
 		end
 		mute(character, state)
+		local position = if state.root then state.root.Position else nil
+		if DeathLook.jumped(state.position, position) then
+			-- Dissipée et reformée ailleurs : rien ne doit trahir l'endroit où elle reparaît, les fondus repartent de zéro
+			state.visibility, state.reveal, state.revealTarget = 0, 0, 0
+			if state.fx then
+				for _, emitter in { state.fx.hemSmoke, state.fx.wisps, state.fx.embers, state.fx.tear } do
+					emitter:Clear()
+				end
+			end
+		end
+		state.position = position
 		local exposed = subject:GetAttribute(LA.Exposed) == true
 		local mode = DeathLook.mode(state.view, exposed, subject:GetAttribute(LA.InBeam) == true)
 		local visibilityTarget, revealTarget = DeathLook.targets(mode, exposed)
