@@ -85,6 +85,18 @@ return function(T, Loader)
 			T.expectEqual(dark.smoke, 0)
 		end)
 
+		T.it(
+			"lanières (#81) : cachées avec le corps, à demi effacées dans l'ombre, pleines révélées et pour la Mort",
+			function()
+				T.expectEqual(settled(View.Mortal, false, false).tatters, 1)
+				T.expectNear(settled(View.Mortal, true, false).tatters, DeathLook.TATTER_FADE)
+				T.expect(DeathLook.TATTER_FADE > 0 and DeathLook.TATTER_FADE < 1, "ni pleines ni invisibles")
+				T.expectEqual(settled(View.Mortal, true, true).tatters, 0)
+				T.expectEqual(settled(View.Self, false, false).tatters, 0)
+				T.expectEqual(settled(View.Self, true, false).tatters, 0)
+			end
+		)
+
 		T.it("à mi-déchirure : la faux apparaît pendant que l'ombre se retire", function()
 			local l = DeathLook.layers(View.Mortal, 1, 0.5)
 			T.expectNear(l.scythe, 0.5)

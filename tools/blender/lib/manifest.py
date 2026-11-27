@@ -91,7 +91,45 @@ def check(m):
             if unweighted:
                 errors.append(f"{skin} : os sans poids {unweighted}")
             measured["bones"] = have
+    body = m["bones"].get("body")
+    if body:
+        errors += check_body(m, body, found, measured)
     return measured, errors
+
+
+def check_body(m, body, found, measured):
+    """Cette méthode permet de vérifier l'armature du corps (os des bras) : chaque pièce skinnée sur elle, racine et os
+    rangés sur une pièce du rig R15 présents ; renvoie les erreurs et relève les os dans les mesures."""
+    errors = []
+    rig = None
+    for name in body["skinned"]:
+        obs = found.get(name, [])
+        if len(obs) != 1:
+            continue
+        arm = next((md.object for md in obs[0].modifiers if md.type == "ARMATURE" and md.object), None)
+        if arm is None:
+            errors.append(f"{name} : pas d'armature du corps")
+            continue
+        if rig is not None and arm != rig:
+            errors.append(f"{name} : skinnée sur une autre armature que {rig.name}")
+        rig = arm
+        if m["parts"][name].get("skinned") is not True:
+            errors.append(f"{name} : skinnée mais pas marquée « skinned » dans le manifeste")
+    if rig is None:
+        return errors + ["armature du corps introuvable"]
+    have = [b.name for b in rig.data.bones]
+    roots = [b.name for b in rig.data.bones if b.parent is None]
+    if roots != [body["root"]]:
+        errors.append(f"armature du corps : racine(s) {roots}, attendu [{body['root']}]")
+    missing = sorted(set(body["attach"]) - set(have))
+    if missing:
+        errors.append(f"armature du corps : os à ranger absents {missing}")
+    cloak = set(measured.get("bones", []))
+    clash = sorted(cloak & set(have))
+    if clash:
+        errors.append(f"noms d'os en double entre la robe et le corps : {clash}")
+    measured["bodyBoneNames"] = have
+    return errors
 
 
 def write_measured(path, m, measured, extra=None):

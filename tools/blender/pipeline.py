@@ -20,7 +20,9 @@ import hashlib
 import importlib.util
 import json
 import os
+import shutil
 import sys
+import tempfile
 import time
 
 import bpy
@@ -29,6 +31,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(HERE, "..", ".."))
 sys.path.insert(0, HERE)
 from lib import bake, cloth, detail, manifest, textures  # noqa: E402
+
+# part des pixels très inclinés de chaque carte de normales cuite (%, #85), écrite dans les mesures
+BAKE_SPIKES = {}
+# au-delà, la cuisson est refusée (taches visibles, #85) : ni mesures ni GLB
+SPIKES_MAX_PCT = 0.2
 
 
 def args():
@@ -67,45 +74,56 @@ def load_model(m):
     return mod
 
 
-def bake_part(m, name, spec, out_dir):
-    """Cette méthode permet de cuire une pièce : version détaillée (sculpt le long de la grille si la pièce en a
-    une), matériau CC0, cuisson vers la pièce jouable ; renvoie {carte: chemin relatif}."""
+def bake_part(m, model, name, spec, out_dir):
+    """Cette méthode permet de cuire une pièce (version détaillée, sculpt, matériau CC0 ou procédural) dans
+    `out_dir` lorsque --bake est demandé ; renvoie {carte: chemin}."""
     low = next(o for o in bpy.data.objects if o.type == "MESH" and o.data.name == name and not o.name.endswith("_hi"))
     cfg = spec["bake"]
     seed = cfg.get("seed", 0)
-    strokes = None
+    strokes = []
     if cfg.get("strokes") and "grid_i" in low.data.attributes:
         ai = low.data.attributes["grid_i"].data
         aj = low.data.attributes["grid_j"].data
         cols = max(a.value for a in ai) + 1
         rows = max(a.value for a in aj) + 1
-        strokes = detail.grid_strokes(low, cfg["strokes"], rows, cols, seed, j_min=rows // 6)
+        strokes += detail.grid_strokes(low, cfg["strokes"], rows, cols, seed, j_min=rows // 6)
+    if hasattr(model, "bake_strokes"):
+        strokes += model.bake_strokes(name, low) or []
     t0 = time.time()
     hi = detail.detailed_copy(
-        low, seed, levels=cfg.get("subdiv", 3), strokes=strokes, noise=tuple(cfg["noise"]), fine=tuple(cfg["fine"])
+        low, seed, levels=cfg.get("subdiv", 3), strokes=strokes or None, noise=tuple(cfg["noise"]),
+        fine=tuple(cfg["fine"])
     )
     hi.data.materials.clear()
-    hi.data.materials.append(
-        textures.cc0_material(
-            f"{name}_hi",
-            cfg["cc0"],
-            cfg["dark"],
-            cfg["light"],
-            rough=tuple(cfg["rough"]),
-            scale=tuple(cfg["scale"]),
-            normal_strength=cfg.get("normalStrength", 1.0),
-            grime=cfg.get("grime", 0.5),
+    if cfg.get("shader") == "flesh":
+        hi.data.materials.append(textures.flesh_material(f"{name}_hi", seed))
+    else:
+        hi.data.materials.append(
+            textures.cc0_material(
+                f"{name}_hi",
+                cfg["cc0"],
+                cfg["dark"],
+                cfg["light"],
+                rough=tuple(cfg["rough"]),
+                scale=tuple(cfg["scale"]),
+                normal_strength=cfg.get("normalStrength", 1.0),
+                grime=cfg.get("grime", 0.5),
+            )
         )
-    )
     hi_tris = len(hi.data.polygons)
     t1 = time.time()
-    maps = bake.bake_maps(hi, low, out_dir, name, size=cfg["size"])
+    extrusion, max_ray = cfg.get("cage", (0.05, 0.1))
+    maps = bake.bake_maps(hi, low, out_dir, name, size=cfg["size"], extrusion=extrusion, max_ray=max_ray,
+                          normal=cfg.get("normal", True))
     t2 = time.time()
     bpy.data.objects.remove(hi, do_unlink=True)
     print(f"BAKE {name}: détail {hi_tris} faces en {t1 - t0:.1f}s, cuisson {cfg['size']}px en {t2 - t1:.1f}s")
     for kind, path in maps.items():
-        print(f"BAKE {name} {kind}: {bake.stats(path)}")
-    return {k: os.path.relpath(v, ROOT).replace("\\", "/") for k, v in maps.items() if k != "ao"}
+        st = bake.stats(path, normal=kind == "normal")
+        print(f"BAKE {name} {kind}: {st}")
+        if kind == "normal":
+            BAKE_SPIKES[name] = st["spikesPct"]
+    return maps
 
 
 def export_glb(m, path):
@@ -140,6 +158,8 @@ def sources_hash(m):
 def main():
     """Cette méthode permet d'enchaîner construction, contrôles, cuisson, mesures et export."""
     opts = args()
+    if opts["bake"] and not opts["write"]:
+        raise SystemExit("--bake exige l'écriture des mesures : sans elles, les textures ne correspondraient plus")
     if (opts["bake"] or opts["glb"]) and not opts["drape"]:
         raise SystemExit("--bake et --glb exigent le drapé : sans lui, la cape n'est pas celle du jeu (ni des mesures)")
     mpath = os.path.join(ROOT, "tools", "models", f"{opts['model']}.manifest.json")
@@ -175,18 +195,50 @@ def main():
                 errors.append(f"drapé non déterministe : empreinte {extra['drape']['fingerprint']} au lieu de "
                               f"{before.get('fingerprint')} avec les mêmes sources")
     out_dir = os.path.join(ROOT, "assets", "textures", opts["model"])
+    # cuisson dans un dossier temporaire : les textures versionnées ne sont remplacées que si la cuisson est acceptée
+    bake_dir = tempfile.mkdtemp(prefix=f"bake_{opts['model']}_") if opts["bake"] and not errors else None
+    fresh = {}
     baked = {}
     for name, spec in m["parts"].items():
         if not spec.get("bake"):
             continue
         if opts["bake"] and not errors:
-            baked[name] = bake_part(m, name, spec, out_dir)
+            fresh[name] = bake_part(m, model, name, spec, bake_dir)
         else:
-            maps = {k: f"assets/textures/{opts['model']}/{name}_{k}.png" for k in ("color", "normal", "roughness")}
+            kinds = ("color", "normal", "roughness") if spec["bake"].get("normal", True) else ("color", "roughness")
+            maps = {k: f"assets/textures/{opts['model']}/{name}_{k}.png" for k in kinds}
             if all(os.path.isfile(os.path.join(ROOT, p)) for p in maps.values()):
                 baked[name] = maps
+    if BAKE_SPIKES:
+        extra["bakeSpikesPct"] = dict(BAKE_SPIKES)
+        for name, pct in BAKE_SPIKES.items():
+            limit = m["parts"][name]["bake"].get("spikesMax", SPIKES_MAX_PCT)
+            if pct > limit:
+                errors.append(f"carte de normales de {name} : {pct} % de pixels très inclinés (> {limit})")
+    if fresh and not errors:
+        os.makedirs(out_dir, exist_ok=True)
+        for name, maps in fresh.items():
+            baked[name] = {}
+            for kind, path in maps.items():
+                dest = os.path.join(out_dir, os.path.basename(path))
+                shutil.move(path, dest)
+                if kind != "ao":
+                    baked[name][kind] = os.path.relpath(dest, ROOT).replace("\\", "/")
+        shutil.rmtree(bake_dir, ignore_errors=True)
+    elif fresh:
+        print(f"textures cuites refusées, laissées dans {bake_dir} (assets/textures inchangé)")
+    elif bake_dir:
+        shutil.rmtree(bake_dir, ignore_errors=True)  # rien de cuit (aucune pièce à cuire)
+    elif os.path.isfile(measured_path):
+        # sans cuisson, les mesures de la dernière cuisson acceptée restent
+        with open(measured_path, encoding="utf-8") as f:
+            kept = json.load(f).get("bakeSpikesPct")
+        if kept:
+            extra["bakeSpikesPct"] = kept
     if baked:
         extra["textures"] = baked
+    if hasattr(model, "measures"):
+        extra.update(model.measures())
     for name, p in measured["parts"].items():
         print(f"TRIS {name}: {p['tris']}")
     print(f"TRIS TOTAL: {measured['totalTris']} (budget {m['budget']['totalTris']})")

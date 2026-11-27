@@ -6,7 +6,8 @@
 -- - pour la Mort elle-même : son corps et sa faux restent visibles, voilés dans l'ombre, pleins à la lumière
 --   (l'indicateur « ombre / lumière » est dans le HUD, Client.Hud) ;
 -- - pour tous : la Mort ne fait aucun bruit de pas.
--- Indépendant du modèle : la faux est retrouvée par son nom (`Scythe`), le reste du corps est pris tel quel. Les
+-- Indépendant du modèle : la faux (`Scythe`) et les lanières du bas (`Tatters`, #81, estompées dans l'ombre au lieu
+-- d'être remplies) sont retrouvées par leur nom, le reste du corps est pris tel quel. Les
 -- valeurs d'origine (CastShadow, fumées du modèle) sont mémorisées et rétablies (#78).
 -- Studio : un faux joueur Mort de debug (mannequin tagué MatchAttributes.BotTag, attributs sur le mannequin) est rendu
 -- comme un joueur (#63).
@@ -26,6 +27,8 @@ local View = DeathLook.View
 
 -- Nom de la faux dans le modèle de la Mort (docs/assets.md)
 local SCYTHE_NAME = "Scythe"
+-- Nom du groupe des lanières du bas (#81), que l'ombre vue d'un mortel estompe au lieu de la remplir
+local TATTERS_NAME = "Tatters"
 -- Remplissage du voile de la Mort sur elle-même (inchangé depuis #4)
 local SELF_COLOR = Color3.fromRGB(0, 0, 0)
 -- Ombre vue des mortels : noir bleuté plutôt que noir pur, contour gris violacé à peine visible
@@ -44,9 +47,10 @@ local MAX_GROUPS = 8
 
 local DeathView = {}
 
--- Cette méthode permet de savoir si une instance fait partie de la faux lorsque le rendu sépare corps et faux.
-local function inScythe(instance: Instance, scythe: Instance?): boolean
-	return scythe ~= nil and (instance == scythe or instance:IsDescendantOf(scythe))
+-- Cette méthode permet de savoir si une instance fait partie d'un morceau mis à part (faux, lanières) lorsque le rendu
+-- le traite autrement que le corps.
+local function within(instance: Instance, piece: Instance?): boolean
+	return piece ~= nil and (instance == piece or instance:IsDescendantOf(piece))
 end
 
 -- Cette méthode permet de savoir si un morceau du personnage a quelque chose à dessiner lorsque les remplissages sont
@@ -64,15 +68,19 @@ local function hasVisible(instance: Instance): boolean
 end
 
 -- Cette méthode permet de lister les morceaux du corps à couvrir d'une ombre lorsque le modèle apparaît ou change : un
--- Highlight ne prend qu'un Model ou une BasePart, donc un par Model visible sans la faux, un par pièce visible ; on
--- descend dans tout le reste (dossier, accessoire, outil, pièce invisible du rig, Model qui contient la faux).
-local function collectGroups(container: Instance, scythe: Instance?, out: { Instance })
+-- Highlight ne prend qu'un Model ou une BasePart, donc un par Model visible hors des morceaux mis à part (`skip` : la
+-- faux, les lanières vues d'un mortel), un par pièce visible ; on descend dans tout le reste (dossier, accessoire,
+-- outil, pièce invisible du rig, Model qui contient un morceau mis à part).
+local function collectGroups(container: Instance, skip: { Instance }, out: { Instance })
 	for _, child in container:GetChildren() do
-		if child == scythe then
+		if table.find(skip, child) then
 			continue
 		end
-		local holdsScythe = scythe ~= nil and scythe:IsDescendantOf(child)
-		if child:IsA("Model") and not holdsScythe then
+		local holdsSkipped = false
+		for _, s in skip do
+			holdsSkipped = holdsSkipped or s:IsDescendantOf(child)
+		end
+		if child:IsA("Model") and not holdsSkipped then
 			if hasVisible(child) then
 				table.insert(out, child)
 			end
@@ -81,7 +89,7 @@ local function collectGroups(container: Instance, scythe: Instance?, out: { Inst
 		if child:IsA("BasePart") and child.Transparency < 1 then
 			table.insert(out, child)
 		end
-		collectGroups(child, scythe, out)
+		collectGroups(child, skip, out)
 	end
 end
 
@@ -206,9 +214,9 @@ end
 -- Cette méthode permet d'appliquer la transparence locale au corps et à la faux lorsque leur part visible change ;
 -- caché, un morceau ne projette plus d'ombre (qui le trahirait sous une lampe) et ses fumées s'arrêtent. Les valeurs
 -- d'origine (CastShadow, ParticleEmitter.Enabled) sont relevées à la première écriture et rétablies ensuite (#78).
-local function applyTransparency(character: Model, state, body: number, scythe: number)
+local function applyTransparency(character: Model, state, body: number, scythe: number, tatters: number)
 	for _, d in character:GetDescendants() do
-		local value = if inScythe(d, state.scythe) then scythe else body
+		local value = if within(d, state.scythe) then scythe elseif within(d, state.tatters) then tatters else body
 		if d:IsA("BasePart") then
 			if state.castShadow[d] == nil then
 				state.castShadow[d] = d.CastShadow
@@ -268,10 +276,19 @@ function DeathView.start()
 		end
 		local scythe = character:FindFirstChild(SCYTHE_NAME, true)
 		state.scythe = scythe
+		-- lanières vues d'un mortel : sans remplissage, effacées à demi (DeathLook.TATTER_FADE)
+		local tatters = if state.view == View.Mortal then character:FindFirstChild(TATTERS_NAME, true) else nil
+		state.tatters = tatters
 		local color = if state.view == View.Self then SELF_COLOR else SHADOW_COLOR
 		local outline = if state.view == View.Self then SELF_COLOR else OUTLINE_COLOR
 		local groups = {}
-		collectGroups(character, scythe, groups)
+		local skip = {}
+		for _, s in { scythe, tatters } do
+			if s then
+				table.insert(skip, s)
+			end
+		end
+		collectGroups(character, skip, groups)
 		if #groups > MAX_GROUPS and not scythe then
 			-- Avatar en pièces détachées (mannequin R15 d'un bot) : un seul remplissage, Roblox n'en dessine que 31
 			groups = { character }
@@ -287,7 +304,7 @@ function DeathView.start()
 		if state.root then
 			local boxes = {}
 			for _, d in character:GetDescendants() do
-				if d:IsA("BasePart") and d.Transparency < 1 and not inScythe(d, scythe) then
+				if d:IsA("BasePart") and d.Transparency < 1 and not within(d, scythe) then
 					table.insert(boxes, { cframe = d.CFrame, size = d.Size })
 				end
 			end
@@ -476,9 +493,14 @@ function DeathView.start()
 		end
 
 		local applied = state.applied
-		if not applied or applied.body ~= layers.body or applied.scythe ~= layers.scythe then
-			state.applied = { body = layers.body, scythe = layers.scythe }
-			applyTransparency(character, state, layers.body, layers.scythe)
+		if
+			not applied
+			or applied.body ~= layers.body
+			or applied.scythe ~= layers.scythe
+			or applied.tatters ~= layers.tatters
+		then
+			state.applied = { body = layers.body, scythe = layers.scythe, tatters = layers.tatters }
+			applyTransparency(character, state, layers.body, layers.scythe, layers.tatters)
 		end
 		local shadowOn = layers.fill < 1
 		for _, highlight in state.highlights do

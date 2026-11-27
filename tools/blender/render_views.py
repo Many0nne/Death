@@ -1,4 +1,4 @@
-"""Rendus de contrôle d'un modèle : 7 vues fixes en PNG (face, 3/4, profil, dos, gros plans capuche, main, lame), à
+"""Rendus de contrôle d'un modèle : 8 vues fixes en PNG (face, 3/4, profil, dos, gros plans tête, deux mains, lame), à
 comparer avant et après chaque changement (#79 ; base reprise de worktrees/.render/render_views.py).
 
   blender -b --factory-startup --python tools/blender/render_views.py -- <dossier> [options]   (racine du dépôt)
@@ -28,21 +28,26 @@ from lib import mesh, textures  # noqa: E402
 
 # nom -> (position de la caméra, cible, focale) ; repère Blender du modèle (sol à -3,65, avant vers +Y)
 VIEWS = {
-    "front": ((0, 16, 0), (0, 0, -0.2), 45),
+    "front": ((0, 16, 0), (0, 0, -0.1), 45),
     "three_quarter": ((10, 11, 2), (0.3, 0, 0), 45),
     "side": ((16, 0, 0.5), (0, 0, 0), 45),
     "back": ((-4, -15, 1), (0, 0, 0), 45),
-    "hood_close": ((0.6, 4.5, 2.4), (0, 0, 1.9), 50),
-    "hand_close": ((2.8, 3.4, 0.6), (1.35, 1.1, 0.3), 50),
-    "blade_close": ((0.2, 7, 3.8), (-0.3, 1.0, 3.6), 45),
+    "hood_close": ((0.9, 4.6, 3.3), (0, 0.3, 2.8), 50),
+    "hand_close": ((2.9, 3.3, 1.3), (1.4, 1.15, 0.75), 50),
+    "claw_close": ((-2.0, 4.4, 1.9), (-0.8, 2.3, 1.15), 50),
+    "blade_close": ((0.2, 7.5, 4.6), (-0.4, 1.0, 4.3), 45),
 }
-CLOTH = ("CloakCloth", "HoodCloth")
+# vues de la silhouette en ombre pleine (--silhouette) : ce que voit un mortel hors faisceau
+SILHOUETTE_VIEWS = ("front", "side", "three_quarter", "back")
+CLOTH = ("CloakCloth", "HoodCloth", "ShroudCloth", "TatterCloth", "SleeveCloth")
 
 
 def args():
     """Cette méthode permet de lire le dossier de sortie et les options passés après `--`."""
     argv = sys.argv[sys.argv.index("--") + 1 :]
-    opts = {"out": argv[0], "model": "death", "script": None, "textured": False, "drape": True}
+    # chemin absolu : Blender résout un chemin relatif de rendu depuis la racine du disque, pas le dossier courant
+    opts = {"out": os.path.abspath(argv[0]), "model": "death", "script": None, "textured": False, "drape": True,
+            "silhouette": False}
     k = 1
     while k < len(argv):
         a = argv[k]
@@ -53,6 +58,8 @@ def args():
             opts["textured"] = True
         elif a == "--no-drape":
             opts["drape"] = False
+        elif a == "--silhouette":
+            opts["silhouette"] = True
         else:
             raise SystemExit(f"option inconnue : {a}")
         k += 1
@@ -102,6 +109,25 @@ def setup_form(sc):
             mat.diffuse_color = (0.35, 0.33, 0.38, 1)
         if mat.name == "Void":
             mat.diffuse_color = (0.02, 0.02, 0.02, 1)
+        if mat.name == "Flesh":
+            mat.diffuse_color = (0.58, 0.55, 0.49, 1)
+
+
+def setup_silhouette(sc):
+    """Cette méthode permet de régler Workbench pour l'ombre pleine : tout le modèle noir uni, faux comprise, sur
+    fond blanc, sans relief (la silhouette doit se lire seule, #81)."""
+    sc.render.engine = "BLENDER_WORKBENCH"
+    sc.display.shading.light = "FLAT"
+    sc.display.shading.color_type = "SINGLE"
+    sc.display.shading.single_color = (0, 0, 0)
+    sc.display.shading.show_cavity = False
+    sc.display.shading.show_shadows = False
+    sc.display.shading.background_type = "VIEWPORT"
+    sc.display.shading.background_color = (1, 1, 1)
+    world = bpy.data.worlds.new("Blanc")
+    world.color = (1, 1, 1)
+    sc.world = world
+    sc.view_settings.view_transform = "Standard"
 
 
 def setup_textured(sc, model):
@@ -151,7 +177,7 @@ def shot(sc, cam, out, name, pos, target, lens):
 
 
 def main():
-    """Cette méthode permet de construire le modèle puis de rendre les 7 vues."""
+    """Cette méthode permet de construire le modèle puis de rendre les vues demandées."""
     opts = args()
     if opts["textured"] and opts["script"]:
         raise SystemExit("--textured ne s'applique qu'au modèle du manifeste (pas à --script)")
@@ -159,14 +185,21 @@ def main():
     count_tris()
     sc = bpy.context.scene
     sc.render.resolution_x, sc.render.resolution_y = 800, 1000
-    if opts["textured"]:
+    views = VIEWS
+    if opts["silhouette"]:
+        setup_silhouette(sc)
+        views = {k: VIEWS[k] for k in SILHOUETTE_VIEWS}
+    elif opts["textured"]:
         setup_textured(sc, opts["model"])
     else:
         setup_form(sc)
+    for o in bpy.data.objects:
+        if o.type == "ARMATURE":
+            o.hide_render = True
     cam = mesh.link(bpy.data.objects.new("Cam", bpy.data.cameras.new("Cam")))
     sc.camera = cam
     os.makedirs(opts["out"], exist_ok=True)
-    for name, (pos, target, lens) in VIEWS.items():
+    for name, (pos, target, lens) in views.items():
         shot(sc, cam, opts["out"], name, pos, target, lens)
 
 
