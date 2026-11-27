@@ -9,22 +9,43 @@ Studio : une modification non réexportée est perdue. La CI fait un checkout LF
 
 | Modèle | Fichier | Utilisé par |
 |---|---|---|
-| La Mort (#73) | `assets/rbx/Characters/Death.rbxm` | `Server.DeathBody` : le joueur Mort le revêt, il retrouve son avatar ensuite |
+| La Mort (#73, #76) | `assets/rbx/Characters/Death.rbxm` | `Server.DeathBody` : le joueur Mort le revêt, il retrouve son avatar ensuite ; `Client.CloakAnimator` anime la cape |
 
-**La Mort** : direction artistique abstraite (décision de l'utilisateur, 2026-11-27) : pas de visage, robe en
-lambeaux, bras longs, mains noires griffues, faux. Base générée par l'IA de Roblox dans Studio (`generate_avatar`,
-pipeline `npc`, R15 statique), puis :
-- rig converti en R15 classique : `AnimationConstraint` → `Motor6D` (C0/C1 = CFrame des attachements),
-  `BallSocketConstraint` et dossier `InitialPoses` retirés, `Animator` ajouté ; le script `Animate` du joueur est
-  repris tel quel au moment du changement de corps ;
-- tête en `Neon` noir : vide sans ombrage sous la capuche (le générateur avait mis un crâne) ;
-- faux (`generate_mesh`, sans segmentation) : MeshPart `Scythe` soudée à `RightHand` (`WeldConstraint`), sans
-  masse, collision, contact ni requête de rayon ;
-- fumée noire au bas de la robe : `ParticleEmitter` `HemSmoke` dans `LeftLowerLeg` et `RightLowerLeg`
-  (texture intégrée `smoke_main.dds`), coupée par `Client.DeathView` quand la Mort est invisible.
+**La Mort** (#76, retour de l'utilisateur sur #73, jugé trop humanoïde) : un voile en lambeaux, capuche vide, aucun
+pied ; seuls le bras squelette et la main qui tient la faux dépassent. Modélisée à la main dans Blender par script
+(`tools/blender/death_model.py`, rejouable : la source est le script, pas un `.blend`), exportée en GLB, envoyée par
+Open Cloud (asset Model 112747301669865, dossier d'envoi approuvé `worktrees/.export` du checkout principal), puis
+montée dans Studio sur le rig R15 de #73 :
+- **rig R15 gardé, invisible** (`Transparency = 1` : un `Highlight` ne dessine pas ces pièces, vérifié) : il porte le
+  Humanoid et les déplacements. `AutomaticScalingEnabled = false` et `HipHeight = 2,65` : sinon le Humanoid recalcule
+  une hauteur de hanches nulle et reste en chute libre (constaté en jeu) ;
+- **voile** (modèle `Veil`) : `Cloak` (robe à os, 16 chaînes de 4 os `Cxx_y` sous `HumanoidRootPart.Root`), `Hood`
+  (capuche et pèlerine), `Void` (`Neon` noir dans la capuche), `HemSmokeArea` (pièce invisible, fumée `HemSmoke`) ;
+  fumée `HoodShadow` dans `Void` ;
+- **bras** (modèle `Arm`) : `Sleeve` (manche) et `BoneArm` (avant-bras et main squelette serrée sur la poignée) ;
+- **faux** (modèle `Scythe`), une MeshPart par zone de skin, chacune avec ses UV (manche, poignée et gravure : u le
+  long de la pièce) : `Blade` (acier, rainure), `Edge` (fil poli), `Engraving` (panneau dans la rainure, des deux
+  côtés, prévu pour une texture gravée), `ScytheHead` (douille et éperon), `Gem` (sertie des deux côtés), `Rings`
+  (bagues), `Shaft` (manche), `Grip` (cuir en hélice), `Pommel` (pointe) ;
+- toutes les pièces ajoutées sont soudées à `HumanoidRootPart` (`WeldConstraint`), sans masse, collision, contact ni
+  requête de rayon : elles ne suivent pas les membres animés, la Mort glisse.
+- Couleurs et matériaux posés dans Studio (l'import GLB les perd) : tissus `Fabric` presque noirs, os ivoire, lame
+  `Metal`, fil `Foil`, bagues laiton, manche `Wood`, poignée `Leather`, gemme `Neon` sarcelle.
+
+**Cape vivante** : `Shared.CloakMotion` (règles pures, testées) et `Client.CloakAnimator`, qui écrit `Bone.Transform` en
+`PreSimulation`, car l'Animator du Humanoid remet ces valeurs à zéro à chaque étape d'animation. Ondulation au repos,
+traîne à l'opposé du mouvement : mesuré en jeu, à 14,7 studs/s, l'os du bas arrière s'incline de 24° de plus
+qu'immobile (40° → 65°), celui de devant de 7°.
 
 Pour un mortel, la Mort exposée reste une **silhouette noire pleine** (`Highlight` opaque, `Client.DeathView`) : ce qui
-compte chez elle est la forme (capuche, lambeaux, griffes, faux), pas le détail des textures.
+compte chez elle est la forme (capuche, lambeaux, faux), pas le détail des textures.
+
+**Refaire le modèle** : modifier `tools/blender/death_model.py`, l'exécuter dans Blender (MCP :
+`exec(open(chemin).read(), {"__name__": "__main__"})`), exporter en GLB dans `worktrees/.export`, envoyer, insérer,
+puis remplacer les MeshParts du modèle (même nom, même repère : l'import tourne le modèle de 180° autour de Y) et
+remettre couleurs et matériaux. N'existent que dans Studio, à garder : `HemSmokeArea` et les fumées `HemSmoke` et
+`HoodShadow`, les soudures, les réglages du Humanoid. Le premier import (asset 112747301669865) date d'avant le
+renommage `Head` → `ScytheHead` et `Sphere` → `Void` dans le script, ces deux pièces ont été renommées dans Studio.
 
 ## Produire un modèle
 

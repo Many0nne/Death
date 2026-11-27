@@ -37,8 +37,11 @@ accomplir des objectifs pour fuir avant la fin de la nuit, en repérant les pré
 
 ## La Mort
 - **Déplacement** : d'ombre en ombre. Pas d'attaque directe sur un vivant.
-- **Apparence** (#73) : silhouette abstraite sans visage, robe en lambeaux, bras longs, mains noires griffues, faux ;
-  le joueur Mort revêt ce modèle pendant la manche et retrouve son avatar ensuite (`docs/assets.md`).
+- **Apparence** (#73, refaite en #76) : un voile, pas un corps. Robe et pèlerine en lambeaux jusqu'au sol, capuche
+  vide (noir pur, aucune tête), aucun pied : on ne doit pas deviner un humanoïde. Seuls dépassent le bras squelette et
+  la main qui tiennent la faux. La Mort **glisse** (aucun pas) ; la cape n'est jamais figée : elle ondule au repos,
+  traîne derrière elle en mouvement, et une fumée d'ombre monte du bas de la robe et sort de la capuche. Le joueur Mort
+  revêt ce modèle pendant la manche et retrouve son avatar ensuite (`docs/assets.md`).
 - **Vue** : première personne verrouillée. Elle prépare un piège, coupe le disjoncteur ou grille une ampoule **en le
   regardant** (les invites n'apparaissent que sur la cible dans le cône du regard, environ 37°, ou tout près d'elle) ;
   son corps ne la gêne pas (pas de voile sur ses propres bras, l'indicateur ombre/lumière reste).

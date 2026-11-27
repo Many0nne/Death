@@ -3,6 +3,7 @@
 require(script.LightPrompts).start()
 require(script.ResetControl).start()
 require(script.DeathView).start()
+require(script.CloakAnimator).start()
 require(script.CameraController).start()
 require(script.TrapCues).start()
 require(script.DeathTrapPrompts).start()
