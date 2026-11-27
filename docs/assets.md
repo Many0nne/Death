@@ -62,31 +62,44 @@ rig R15 de #73 :
   reste une silhouette noire pleine, sans artefact. La texture ne compte donc que pour la Mort elle-même et pour la
   lumière d'une lampe avant exposition.
 
+**Spectre (#81)**, mesuré dans Studio : modèle asset 136242008686173, 20 images (identifiants dans la table `surface`
+du manifeste) ; mémoire des textures **+10,3 Mo** pour sept pièces texturées (102,45 → 112,79 Mo : trois pièces en
+1024, quatre en 512) ; remontage : 15 pièces remplacées, 4 retirées, 65 os de robe, 37 os du corps rangés sur le rig,
+écart d'origine 0.
+
 **Cape vivante** : `Shared.CloakMotion` (règles pures, testées) et `Client.CloakAnimator`, qui écrit `Bone.Transform` en
 `PreSimulation`, car l'Animator du Humanoid remet ces valeurs à zéro à chaque étape d'animation. Ondulation au repos,
-traîne à l'opposé du mouvement : mesuré en jeu, à 14,7 studs/s, l'os du bas arrière s'incline de 24° de plus
-qu'immobile (40° → 65°), celui de devant de 7°.
+traîne à l'opposé du mouvement ; les lanières suivent les mêmes os. Mesuré en jeu sur le spectre (#81, os du bas
+arrière `C08_3`, angle à la verticale) : 7,5° immobile en moyenne (ondulation de 0 à 14°), 27° entre 12,5 et 15
+studs/s (+20°), 38° entre 17,5 et 20 studs/s (+30°, pointes à 55°). Sur le voile de #76, évasé, la mesure était de
++24° à 14,7 studs/s (40° → 65°).
 
 Pour un mortel, la Mort exposée hors faisceau est une **ombre pleine** sans faux (`Client.DeathView`, #80 : un
-`Highlight` sombre par morceau visible du corps, fumées créées par le client) : la forme du voile (capuche, lambeaux)
-passe avant le détail des textures, qui ne se voit que dans le faisceau d'une lampe. Le rendu ne dépend que du nom
-`Scythe` (la faux, cachée hors faisceau) : un nouveau modèle garde ce nom. Rendu vu d'un mortel (salon éclairé) :
-ombre de près ![](mort/mortel-ombre.jpg), à 30 studs ![](mort/mortel-ombre-30-studs.jpg), dans le faisceau
-![](mort/mortel-faisceau.jpg) ; vue du joueur Mort, dans l'ombre ![](mort/vue-mort.jpg).
+`Highlight` sombre par morceau visible du corps, fumées créées par le client), dont les lanières s'effacent à demi
+dans la fumée (#81) : la forme du voile passe avant le détail des textures, qui ne se voit que dans le faisceau d'une
+lampe. Le rendu ne dépend que des noms `Scythe` (la faux, cachée hors faisceau) et `Tatters`. Rendu vu d'un mortel
+(salon éclairé) : ombre de près ![](mort/mortel-ombre.jpg), à 20 studs ![](mort/mortel-ombre-20-studs.jpg), dans le
+faisceau ![](mort/mortel-faisceau.jpg) et de près ![](mort/mortel-faisceau-pres.jpg) ; la Mort à la lumière (vue
+d'elle-même) ![](mort/mort-lumiere.jpg), en déplacement ![](mort/mort-deplacement.jpg) ; vue du joueur Mort
+![](mort/vue-mort.jpg). Captures de #76 et #80 : `docs/mort/v76/`.
 
 **Refaire le modèle** (aucune retouche à la main) :
 1. modifier `tools/blender/death_model.py` (ou le manifeste), puis, depuis la racine du worktree :
    `blender -b --factory-startup --python tools/blender/pipeline.py -- [--bake] --glb <worktrees/.export>/DeathVeil.glb`
    (contrôles, mesures `tools/models/death.measured.json`, textures si `--bake`) ;
-2. rendre les 7 vues avant et après (`tools/blender/render_views.py`) et les comparer ;
-3. sous le verrou Studio : envoyer le GLB (Open Cloud, type Model) et, si elles ont changé, les textures (type Image) ;
-   reporter les identifiants d'images dans la table `surface` de la pièce (manifeste) ;
+2. rendre les vues avant et après (`tools/blender/render_views.py`, aussi `--textured` et `--silhouette`) et les
+   comparer ;
+3. sous le verrou Studio : envoyer le GLB (Open Cloud, type Model) et, si elles ont changé, les textures (type Image,
+   copiées dans le dossier d'envoi approuvé) ; reporter les identifiants d'images dans la table `surface` de la pièce
+   (manifeste) ;
 4. insérer le modèle envoyé dans `workspace` (nom `DeathVeil`), puis
    `lune run tools/rbxm/build-remount.luau -- death DeathVeil <%TEMP%>/remount.luau` et exécuter ce fichier dans
-   Studio (MCP `execute_luau`, mode Edit) : il remplace les pièces de même nom, déplace les os de la cape, repose
+   Studio (MCP `execute_luau`, mode Edit ; un fichier trop long pour un appel se sert sur `localhost:34990` et se lit
+   par `HttpService:GetAsync` puis `loadstring`) : il retire les pièces d'un ancien modèle, recale les articulations
+   des bras du rig, remplace les pièces de même nom, range les os (robe sous la racine, corps sous le rig), repose
    couleurs, matériaux, `SurfaceAppearance`, soudures, fumées et réglages du Humanoid, contrôle (un seul exemplaire
-   par pièce, 65 os, cohérence des centres) et détruit l'import. Relancé sans import (`""`), il ne fait que
-   réappliquer la table ;
+   par pièce, 65 os de robe, chaque os du corps une fois et à sa place, cohérence des centres) et détruit l'import.
+   Relancé sans import (`""`), il ne fait que réappliquer la table ;
 5. exporter (section « Exporter vers le dépôt »).
 
 ## Produire un modèle détaillé sans crédits (#79)
