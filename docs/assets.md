@@ -36,6 +36,16 @@ Cloud (dossier d'envoi approuvé `worktrees/.export` du checkout principal), pui
   remontage : tissus `Fabric` presque noirs, os ivoire, lame `Metal`, fil `Foil`, bagues laiton, manche `Wood`,
   poignée `Leather`, gemme `Neon` sarcelle.
 
+**Preuve `SurfaceAppearance` (#79, cape seule)** : modèle envoyé en asset Model 104750013155394 (#76 :
+112747301669865), textures cuites de la cape en assets Image 90768318909720 (couleur), 75803274684492 (normales),
+134709665699025 (rugosité), posées par le remontage sur la MeshPart skinnée `Cloak`. Mesuré dans Studio :
+- mémoire des textures (`Stats:GetMemoryUsageMbForTag(GraphicsTexture)`, clone affiché à l'écran) : **+2,67 Mo** pour
+  les trois cartes 1024 (99,78 → 102,45 Mo) ;
+- la cape s'anime toujours (`Client.CloakAnimator`, os `C08_3` relevé à 3,39° puis 4,00° en jeu) ;
+- le `Highlight` de `Client.DeathView` (noir, opaque, `Occluded`) recouvre entièrement la texture : la Mort exposée
+  reste une silhouette noire pleine, sans artefact. La texture ne compte donc que pour la Mort elle-même et pour la
+  lumière d'une lampe avant exposition.
+
 **Cape vivante** : `Shared.CloakMotion` (règles pures, testées) et `Client.CloakAnimator`, qui écrit `Bone.Transform` en
 `PreSimulation`, car l'Animator du Humanoid remet ces valeurs à zéro à chaque étape d'animation. Ondulation au repos,
 traîne à l'opposé du mouvement : mesuré en jeu, à 14,7 studs/s, l'os du bas arrière s'incline de 24° de plus

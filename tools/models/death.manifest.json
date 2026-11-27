@@ -16,7 +16,11 @@
         "rough": [0.78, 1.0], "scale": [10, 6], "normalStrength": 1.2, "grime": 0.6,
         "strokes": 90, "subdiv": 3, "noise": [1.6, 0.03], "fine": [0.1, 0.01]
       },
-      "surface": {}
+      "surface": {
+        "ColorMap": "rbxassetid://90768318909720",
+        "NormalMap": "rbxassetid://75803274684492",
+        "RoughnessMap": "rbxassetid://134709665699025"
+      }
     },
     "Hood": { "group": "Veil", "maxTris": 12000, "material": "Fabric", "color": [12, 12, 15], "castShadow": true },
     "Void": { "group": "Veil", "maxTris": 3000, "material": "Neon", "color": [0, 0, 0], "castShadow": false },
