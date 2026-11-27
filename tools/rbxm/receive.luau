@@ -17,10 +17,7 @@ local PORT = 34990
 local FOLDERS = { "Characters" }
 local only = process.args[1]
 if only then
-	assert(
-		table.find(FOLDERS, only),
-		"dossier inconnu : " .. only .. " (attendu : " .. table.concat(FOLDERS, ", ") .. ")"
-	)
+	assert(table.find(FOLDERS, only), "dossier inconnu : " .. only .. " (attendu : " .. table.concat(FOLDERS, ", ") .. ")")
 	FOLDERS = { only }
 end
 
@@ -110,9 +107,7 @@ task.wait(1)
 handle.stop()
 
 if finished ~= "ok" then
-	print(
-		string.format("Export interrompu dans Studio (%d fichier(s) écrit(s), aucun supprimé) : %s", count, finished)
-	)
+	print(string.format("Export interrompu dans Studio (%d fichier(s) écrit(s), aucun supprimé) : %s", count, finished))
 	process.exit(1)
 end
 removeStale(received)
