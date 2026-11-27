@@ -6,12 +6,14 @@
 --   chaîne : la Mort n'est jamais figée, comme une ombre ;
 -- - traîne : en glissant, la robe part vers l'arrière du mouvement, surtout du côté qui traîne, et ondule plus vite.
 -- Les angles sont donnés dans le repère de la racine (HumanoidRootPart), autour du point d'attache de chaque os.
+local DeathRules = require(script.Parent.DeathRules)
+
 local CloakMotion = {}
 
 CloakMotion.CHAINS = 16
 CloakMotion.BONES = 4
--- Vitesse (studs/s) à laquelle la traîne est complète : la Mort dans l'ombre (DeathRules.SPEED_SHADOW)
-CloakMotion.FULL_SPEED = 20
+-- Vitesse (studs/s) à laquelle la traîne est complète : la Mort dans l'ombre
+CloakMotion.FULL_SPEED = DeathRules.SPEED_SHADOW
 -- Ondulation au repos, par os, au bas de la chaîne (radians) ; s'y ajoute FLAP_MOVING à pleine vitesse
 CloakMotion.FLAP_IDLE = math.rad(4)
 CloakMotion.FLAP_MOVING = math.rad(5)

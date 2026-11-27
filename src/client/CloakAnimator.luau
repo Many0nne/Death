@@ -19,31 +19,41 @@ local MAX_DISTANCE = 150
 local CloakAnimator = {}
 
 type BoneState = { bone: Bone, chain: number, index: number, rest: CFrame, restInverse: CFrame }
-type CloakState = { root: BasePart, cloak: BasePart?, bones: { BoneState } }
+type CloakState = { root: BasePart, cloak: BasePart, bones: { BoneState } }
 
 -- Cette méthode permet de relever les os de la cape d'un corps et leur orientation de repos (repère de la racine)
--- lorsqu'un corps de la Mort apparaît ; nil si le corps n'a pas encore sa racine.
+-- lorsqu'un corps de la Mort apparaît ; nil tant que la racine, la robe ou tous ses os ne sont pas arrivés (le
+-- client réessaie à la frame suivante).
 local function collect(character: Model): CloakState?
 	local root = character:FindFirstChild("HumanoidRootPart")
-	if not root or not root:IsA("BasePart") then
+	local veil = character:FindFirstChild("Veil")
+	local cloak = veil and veil:FindFirstChild("Cloak")
+	if not root or not root:IsA("BasePart") or not cloak or not cloak:IsA("BasePart") then
 		return nil
 	end
-	local bones = {}
+	-- deux passes : toutes les rotations à zéro avant de lire les repères de repos (un parent tourné fausserait l'enfant)
+	local found = {}
 	for _, d in root:GetDescendants() do
 		if d:IsA("Bone") then
+			d.Transform = CFrame.identity
 			local chain, index = CloakMotion.parseBone(d.Name)
 			if chain and index then
-				d.Transform = CFrame.identity
-				local rest = root.CFrame:ToObjectSpace(d.WorldCFrame).Rotation
-				table.insert(
-					bones,
-					{ bone = d, chain = chain, index = index, rest = rest, restInverse = rest:Inverse() }
-				)
+				table.insert(found, { bone = d, chain = chain, index = index })
 			end
 		end
 	end
-	local cloak = character:FindFirstChild("Cloak", true)
-	return { root = root, cloak = if cloak and cloak:IsA("BasePart") then cloak else nil, bones = bones }
+	if #found < CloakMotion.CHAINS * CloakMotion.BONES then
+		return nil
+	end
+	local bones = {}
+	for _, f in found do
+		local rest = root.CFrame:ToObjectSpace(f.bone.WorldCFrame).Rotation
+		table.insert(
+			bones,
+			{ bone = f.bone, chain = f.chain, index = f.index, rest = rest, restInverse = rest:Inverse() }
+		)
+	end
+	return { root = root, cloak = cloak, bones = bones }
 end
 
 -- Cette méthode permet de démarrer l'animation des capes lorsque le client se lance.
@@ -63,7 +73,7 @@ function CloakAnimator.start()
 				states[character] = state
 				if state then
 					local far = camera and (camera.CFrame.Position - state.root.Position).Magnitude > MAX_DISTANCE
-					local hidden = state.cloak ~= nil and state.cloak.LocalTransparencyModifier >= 1
+					local hidden = state.cloak.LocalTransparencyModifier >= 1
 					if not far and not hidden then
 						local velocity = state.root.CFrame:VectorToObjectSpace(state.root.AssemblyLinearVelocity)
 						for _, b in state.bones do

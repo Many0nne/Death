@@ -42,7 +42,10 @@ compte chez elle est la forme (capuche, lambeaux, faux), pas le détail des text
 
 **Refaire le modèle** : modifier `tools/blender/death_model.py`, l'exécuter dans Blender (MCP :
 `exec(open(chemin).read(), {"__name__": "__main__"})`), exporter en GLB dans `worktrees/.export`, envoyer, insérer,
-puis remplacer les MeshParts du modèle (même nom, même repère : l'import tourne le modèle de 180° autour de Y).
+puis remplacer les MeshParts du modèle (même nom, même repère : l'import tourne le modèle de 180° autour de Y) et
+remettre couleurs et matériaux. N'existent que dans Studio, à garder : `HemSmokeArea` et les fumées `HemSmoke` et
+`HoodShadow`, les soudures, les réglages du Humanoid. Le premier import (asset 112747301669865) date d'avant le
+renommage `Head` → `ScytheHead` et `Sphere` → `Void` dans le script, ces deux pièces ont été renommées dans Studio.
 
 ## Produire un modèle
 

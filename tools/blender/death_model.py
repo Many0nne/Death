@@ -285,6 +285,7 @@ def build_hood():
     bpy.ops.mesh.primitive_uv_sphere_add(segments=20, ring_count=12, location=(0, 0.12, 1.95))
     void = bpy.context.active_object
     void.name = "Void"
+    void.data.name = "Void"  # le glTF nomme la MeshPart d'après le maillage (sinon « Sphere »)
     void.scale = (0.66, 0.62, 0.78)
     void.data.materials.append(material("Void", (0, 0, 0), 0, 1))
     return hood, void
@@ -515,7 +516,7 @@ def build_scythe():
     # tête : douille autour du haut du manche, éperon arrière, sertissure de la gemme
     top = shaft_point(1.0)
     a = shaft_axis(1.0)
-    h = Builder("Head")
+    h = Builder("ScytheHead")  # pas « Head » : le rig R15 a déjà une pièce Head
     h.tube([top - a * 0.42, top - a * 0.36, top - a * 0.1, top + a * 0.08, top + a * 0.16],
            [SHAFT_R * 1.2, SHAFT_R * 1.55, SHAFT_R * 1.45, SHAFT_R * 1.7, SHAFT_R * 0.6], segs=8)
     spur = [top + Vector((0.08, 0, -0.05)), top + Vector((0.3, 0, 0.02)), top + Vector((0.5, 0, 0.18)),
