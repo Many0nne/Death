@@ -1,8 +1,9 @@
 -- Manifeste du modèle de la Mort (#79) : les noms que le code cherche dans le modèle, les os de la cape et les budgets
 -- de triangles. La CI n'a pas Blender : on relit le manifeste (tools/models/death.manifest.json) et les mesures que
 -- tools/blender/pipeline.py y a écrites (death.measured.json), comparés au code (Client.CloakAnimator,
--- Server.DeathBody, Client.DeathView, Shared.CloakMotion).
+-- Server.DeathBody, Client.DeathView, Shared.CloakMotion). Le .rbxm versionné est lu directement (Lune >= 0.11, #87).
 local fs = require("@lune/fs")
+local roblox = require("@lune/roblox")
 local serde = require("@lune/serde")
 
 return function(T, Loader)
@@ -172,6 +173,151 @@ return function(T, Loader)
 				count += 1
 			end
 			T.expect(count >= 2, "constantes SCYTHE_NAME / SHROUD_NAME introuvables dans DeathView")
+		end)
+	end)
+
+	T.describe("Modèle versionné de la Mort (Death.rbxm) contre le manifeste (#87)", function()
+		-- Lecture protégée : un .rbxm illisible (pointeur LFS, export raté) fait échouer ces tests, pas toute la spec.
+		local loaded, result = pcall(function()
+			return roblox.deserializeModel(fs.readFile("assets/rbx/Characters/Death.rbxm"))[1]
+		end)
+		local model: Instance = if loaded then result else nil :: any
+		local weldTo = manifest.studio.weldTo
+
+		-- Cette méthode permet de signaler un .rbxm illisible lorsqu'un test en a besoin ; renvoie false dans ce cas.
+		local function hasModel(): boolean
+			T.expect(model, "Death.rbxm illisible (git lfs pull ?) : " .. tostring(result))
+			return model ~= nil
+		end
+
+		-- Cette méthode permet de lister les pièces que le manifeste attend dans le modèle (pièces Blender et pièces
+		-- ajoutées dans Studio) lorsqu'on les compare au .rbxm.
+		local function expectedParts(): { [string]: { group: string, castShadow: boolean? } }
+			local out = {}
+			for name, part in manifest.parts do
+				out[name] = part
+			end
+			for name, part in manifest.studio.extraParts do
+				out[name] = part
+			end
+			return out
+		end
+
+		-- Cette méthode permet de retrouver une pièce dans son groupe lorsque le groupe porte le même nom qu'elle
+		-- (Tatters/Tatters : une recherche récursive sur le nom renverrait le groupe).
+		local function findPart(name: string, spec: { group: string }): Instance?
+			local group = model:FindFirstChild(spec.group)
+			return group and group:FindFirstChild(name)
+		end
+
+		T.it("le .rbxm est le modèle de la Mort, avec Humanoid et HumanoidRootPart", function()
+			if not hasModel() then
+				return
+			end
+			T.expectEqual(model.Name, manifest.model)
+			T.expect(model:FindFirstChildOfClass("Humanoid"), "Humanoid manquant")
+			T.expect(model:FindFirstChild("HumanoidRootPart"), "HumanoidRootPart manquant")
+		end)
+
+		T.it(
+			"chaque pièce du manifeste est une pièce de son groupe, sans pièce en trop ni pièce retirée",
+			function()
+				if not hasModel() then
+					return
+				end
+				local parts = expectedParts()
+				for name, spec in parts do
+					local part = findPart(name, spec)
+					T.expect(part and part:IsA("BasePart"), "pièce absente de son groupe dans le .rbxm : " .. name)
+				end
+				for _, group in model:GetChildren() do
+					if group:IsA("Model") then
+						for _, part in group:GetChildren() do
+							T.expect(
+								parts[part.Name],
+								"pièce du .rbxm hors manifeste : " .. group.Name .. "." .. part.Name
+							)
+						end
+					end
+				end
+				for _, name in manifest.studio.remove do
+					local stray = model:FindFirstChild(name, true)
+					T.expect(not (stray and stray:IsA("BasePart")), "pièce retirée toujours présente : " .. name)
+				end
+			end
+		)
+
+		T.it("une seule soudure par pièce, vers HumanoidRootPart (ou la main pour le groupe de la faux)", function()
+			if not hasModel() then
+				return
+			end
+			for name, spec in expectedParts() do
+				local part = findPart(name, spec)
+				if not part then
+					continue -- déjà signalée par le test précédent
+				end
+				local welds = {}
+				for _, child in part:GetChildren() do
+					if child:IsA("WeldConstraint") then
+						table.insert(welds, child)
+					end
+				end
+				T.expectEqual(#welds, 1, name .. " : nombre de soudures")
+				local target = manifest.studio.groupWeld[spec.group] or weldTo
+				T.expectEqual(welds[1] and welds[1].Part0 and welds[1].Part0.Name, target, name .. " : Part0")
+				T.expect(welds[1] and welds[1].Part1 == part, name .. " : Part1 doit être la pièce")
+			end
+		end)
+
+		T.it("castShadow du manifeste respecté par chaque pièce (CastShadow)", function()
+			if not hasModel() then
+				return
+			end
+			for name, spec in expectedParts() do
+				local part = findPart(name, spec)
+				if part then
+					T.expectEqual(part.CastShadow, spec.castShadow == true, name .. " : CastShadow")
+				end
+			end
+		end)
+
+		T.it("les os de la robe sous Root sont ceux mesurés par pipeline.py (65)", function()
+			if not hasModel() then
+				return
+			end
+			local hrp = model:FindFirstChild("HumanoidRootPart")
+			local root = hrp and hrp:FindFirstChild(manifest.bones.root)
+			T.expect(root and root:IsA("Bone"), "os racine absent sous HumanoidRootPart : " .. manifest.bones.root)
+			if not root then
+				return
+			end
+			local seen, count = { [root.Name] = true }, 1
+			for _, bone in root:GetDescendants() do
+				if bone:IsA("Bone") then
+					T.expect(not seen[bone.Name], "os en double : " .. bone.Name)
+					seen[bone.Name] = true
+					count += 1
+				end
+			end
+			T.expectEqual(count, #measured.bones, "nombre d'os sous la racine")
+			for _, name in measured.bones do
+				T.expect(seen[name], "os mesuré absent du .rbxm : " .. name)
+			end
+		end)
+
+		T.it("les pièces cuites portent une SurfaceAppearance (les images ne sont pas lisibles par Lune)", function()
+			-- Lune ne connaît pas les valeurs par défaut des cartes : les ids restent contrôlés dans le manifeste.
+			if not hasModel() then
+				return
+			end
+			for name, spec in manifest.parts do
+				local part = findPart(name, spec)
+				if part and spec.bake then
+					T.expect(part:FindFirstChildOfClass("SurfaceAppearance"), name .. " : SurfaceAppearance manquante")
+				end
+			end
+			local cloak = findPart("Cloak", manifest.parts.Cloak)
+			T.expect(cloak and cloak:FindFirstChildOfClass("SurfaceAppearance"), "SurfaceAppearance de la cape")
 		end)
 	end)
 
