@@ -181,7 +181,13 @@ par le bord bas. Le maillage s'arrête juste derrière les poignets (bout ouvert
 couvraient la moitié de l'écran (constaté). Dans l'ombre : voile noir (`Highlight`, remplissage 0,15) et transparence
 0,35 ; à la lumière : plein. Captures des états : attribut de debug `DebugViewmodel` sur le Player (Studio : `Rest`,
 `Reach`, `Blow:<âge>`, `Reap:<avancée>`, `Pull:<part>`) ; l'état affiché est l'attribut `State` du modèle
-`DeathViewmodel` sous la caméra.
+`DeathViewmodel` sous la caméra. Armée et pendant la lutte, la lame est présentée de face (vue de chant, elle
+disparaît : constaté). Mesuré dans Studio (salon éclairé, 1611 x 759, différence de captures viewmodel affiché /
+caché) : 7,5 % de l'écran au repos, 0 % au centre ; 10,8 % main tendue. Après (#91, #74) : repos
+![](mort/vue-mort.jpg), regard en bas ![](mort/vue-mort-bas.jpg), en haut ![](mort/vue-mort-haut.jpg), pièce sombre
+![](mort/vue-mort-sombre.jpg), main tendue vers la bibliothèque (vraie invite) ![](mort/vue-mort-piege.jpg), souffle
+![](mort/vue-mort-souffle.jpg), fin du fauchage ![](mort/vue-mort-fauchage.jpg), lutte
+![](mort/vue-mort-traction.jpg).
 
 **Refaire le modèle** (aucune retouche à la main) :
 1. modifier `tools/blender/death_model.py` (ou le manifeste) ; si une base sculptée change (tête, torse, mains, faux),
