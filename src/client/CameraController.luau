@@ -8,6 +8,9 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local CameraRules = require(Shared:WaitForChild("CameraRules"))
 local MatchAttributes = require(Shared:WaitForChild("MatchAttributes"))
 
+-- Attribut posé par Server.DeathBody sur le corps de la Mort
+local DEATH_BODY_ATTRIBUTE = "DeathBody"
+
 local CameraController = {}
 
 -- Cette méthode permet de démarrer le pilotage de la caméra lorsque le client se lance.
@@ -37,6 +40,16 @@ function CameraController.start()
 		elseif releaseZoom then
 			releaseZoom = false
 			player.CameraMinZoomDistance = CameraRules.DEFAULT_MIN_ZOOM
+		end
+		-- Caméra aux yeux du spectre quand le personnage porte le corps de la Mort (#91) ; posée sur le Humanoid local,
+		-- le serveur et les autres clients ne la voient pas
+		local character = player.Character
+		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+		if humanoid then
+			local offset = CameraRules.cameraOffsetFor(character:GetAttribute(DEATH_BODY_ATTRIBUTE) == true)
+			if humanoid.CameraOffset ~= offset then
+				humanoid.CameraOffset = offset
+			end
 		end
 		-- Champ de vision réappliqué à chaque frame : la caméra peut apparaître après le changement de mode
 		local camera = workspace.CurrentCamera
