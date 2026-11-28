@@ -18,10 +18,9 @@ DeathLook.Mode = table.freeze({ Hidden = "Hidden", Shadow = "Shadow", Revealed =
 DeathLook.FADE_TIME = 0.2
 DeathLook.REVEAL_TIME = 0.4
 DeathLook.CLOSE_TIME = 0.8
--- Ombre vue d'un mortel : transparence du remplissage (quasi opaque) et du contour léger qui garde la silhouette
--- lisible sur un fond sombre
+-- Ombre vue d'un mortel : transparence du remplissage (quasi opaque), sans contour (#96 : le liseré, tracé par
+-- morceau, détourait aussi les trous du torse et faisait un objet sélectionné plutôt qu'une ombre)
 DeathLook.SHADOW_FILL = 0.04
-DeathLook.SHADOW_OUTLINE = 0.7
 -- Voile de la Mort sur son propre corps (transparence du remplissage) : dans l'ombre / à la lumière
 DeathLook.SELF_VEIL = table.freeze({ shadow = 0.6, light = 0.05 })
 -- Lanières du bas (#81, pièces à part du modèle) vues d'un mortel : en pleine ombre, sans remplissage et à demi
@@ -96,7 +95,7 @@ export type Layers = {
 }
 
 -- Cette méthode permet de calculer ce qu'il faut dessiner lorsque visibilité et révélation sont connues : pour un
--- mortel, corps et ombre apparaissent ensemble, puis l'ombre (remplissage, contour, fumée) cède la place à la faux ;
+-- mortel, corps et ombre apparaissent ensemble, puis l'ombre (remplissage sans contour, fumée) cède la place à la faux ;
 -- les lanières, à demi effacées dans l'ombre, reprennent corps avec la révélation.
 function DeathLook.layers(view: string, visibility: number, reveal: number): Layers
 	if view == DeathLook.View.Self then
@@ -118,7 +117,7 @@ function DeathLook.layers(view: string, visibility: number, reveal: number): Lay
 		scythe = 1 - visibility * reveal,
 		tatters = 1 - visibility * (1 - DeathLook.TATTER_FADE * (1 - reveal)),
 		fill = 1 - shadow * (1 - DeathLook.SHADOW_FILL),
-		outline = 1 - shadow * (1 - DeathLook.SHADOW_OUTLINE),
+		outline = 1,
 		scytheFill = 1,
 		smoke = shadow,
 		modelSmoke = reveal >= 0.5,

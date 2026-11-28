@@ -35,9 +35,45 @@ function BotMethods:FindFirstChildOfClass(_className: string): Instance?
 	return nil
 end
 
+-- Cette méthode permet de revêtir un bot Mort du vrai modèle (ReplicatedStorage.Characters.Death, comme
+-- Server.DeathBody pour un joueur) lorsqu'il est ajouté : son ombre et sa cape se voient comme en partie (#96).
+-- nil si la place n'a pas le modèle (le bot garde le mannequin simple).
+local function deathMannequin(name: string): Model?
+	local characters = ReplicatedStorage:FindFirstChild("Characters")
+	local template = characters and characters:FindFirstChild("Death")
+	if not template or not template:IsA("Model") then
+		return nil
+	end
+	local model = template:Clone()
+	local root = model:FindFirstChild("HumanoidRootPart")
+	if not root or not root:IsA("BasePart") then
+		model:Destroy()
+		return nil
+	end
+	model.Name = name
+	-- Non ancré, comme le corps d'un joueur Mort : le Humanoid le pose sur le sol (ancré, il flottait de 2,4 studs à
+	-- son apparition)
+	root.Anchored = false
+	model.PrimaryPart = root
+	-- Client.CloakAnimator anime la cape des corps qui portent cet attribut (Server.DeathBody.ATTRIBUTE)
+	model:SetAttribute("DeathBody", true)
+	local humanoid = model:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		humanoid.DisplayName = name
+	end
+	return model
+end
+
 -- Cette méthode permet de construire le mannequin d'un bot lorsqu'il est ajouté en jeu : un Model avec Humanoid et
--- HumanoidRootPart, ancré (il ne tombe pas, PivotTo le déplace), posé dans le workspace.
-function DebugBots.createMannequin(name: string): Instance
+-- HumanoidRootPart, ancré (il ne tombe pas, PivotTo le déplace), posé dans le workspace ; un bot Mort porte le
+-- modèle de la Mort quand la place l'a (non ancré : il se tient debout comme un joueur).
+function DebugBots.createMannequin(name: string, role: string?): Instance
+	local dressed = if role == "Death" then deathMannequin(name) else nil
+	if dressed then
+		dressed:AddTag(A.BotTag)
+		dressed.Parent = workspace
+		return dressed
+	end
 	local model = Instance.new("Model")
 	model.Name = name
 	local root = Instance.new("Part")
@@ -68,9 +104,9 @@ function DebugBots.createMannequin(name: string): Instance
 	return model
 end
 
--- Cette méthode permet de créer le registre de bots lorsque le service de manche démarre ; `createModel(name)` fabrique
--- le mannequin (faux objet à attributs dans les tests Lune).
-function DebugBots.new(createModel: (string) -> any)
+-- Cette méthode permet de créer le registre de bots lorsque le service de manche démarre ; `createModel(name, role)`
+-- fabrique le mannequin (faux objet à attributs dans les tests Lune).
+function DebugBots.new(createModel: (string, string) -> any)
 	return setmetatable({
 		createModel = createModel,
 		bots = {} :: { any },
@@ -87,7 +123,7 @@ function DebugBots:add(role: string)
 	self.counter += 1
 	self.perRole[role] = (self.perRole[role] or 0) + 1
 	local name = string.format("Bot %s %d", ROLE_LABELS[role] or role, self.perRole[role])
-	local model = self.createModel(name)
+	local model = self.createModel(name, role)
 	local bot = setmetatable({
 		UserId = FIRST_USER_ID - self.counter,
 		Name = name,

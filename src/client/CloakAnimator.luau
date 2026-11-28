@@ -4,12 +4,14 @@
 -- invisible pour ce joueur (Client.DeathView pose la transparence locale de son corps).
 -- Écrit en PreSimulation : l'Animator du Humanoid remet Bone.Transform à zéro à chaque étape d'animation (mesuré :
 -- une rotation posée avant PreAnimation est effacée avant PreSimulation), une écriture plus tôt serait perdue.
+local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local CloakMotion = require(Shared:WaitForChild("CloakMotion"))
+local MatchAttributes = require(Shared:WaitForChild("MatchAttributes"))
 
 -- Attribut posé par Server.DeathBody sur le corps de la Mort
 local BODY_ATTRIBUTE = "DeathBody"
@@ -56,6 +58,24 @@ local function collect(character: Model): CloakState?
 	return { root = root, cloak = cloak, bones = bones }
 end
 
+-- Cette méthode permet de lister les corps de la Mort à animer lorsque la frame commence : personnages des joueurs
+-- et, en Studio, mannequins des faux joueurs Mort revêtus du modèle (Server.DebugBots, #96).
+local function bodies(): { Model }
+	local list = {}
+	for _, player in Players:GetPlayers() do
+		local character = player.Character
+		if character and character:GetAttribute(BODY_ATTRIBUTE) == true then
+			table.insert(list, character)
+		end
+	end
+	for _, mannequin in CollectionService:GetTagged(MatchAttributes.BotTag) do
+		if mannequin:IsA("Model") and mannequin:GetAttribute(BODY_ATTRIBUTE) == true then
+			table.insert(list, mannequin)
+		end
+	end
+	return list
+end
+
 -- Cette méthode permet de démarrer l'animation des capes lorsque le client se lance.
 function CloakAnimator.start()
 	local states: { [Model]: CloakState } = {}
@@ -65,21 +85,18 @@ function CloakAnimator.start()
 		clock += dt
 		local camera = workspace.CurrentCamera
 		local seen = {}
-		for _, player in Players:GetPlayers() do
-			local character = player.Character
-			if character and character:GetAttribute(BODY_ATTRIBUTE) == true then
-				seen[character] = true
-				local state = states[character] or collect(character)
-				states[character] = state
-				if state then
-					local far = camera and (camera.CFrame.Position - state.root.Position).Magnitude > MAX_DISTANCE
-					local hidden = state.cloak.LocalTransparencyModifier >= 1
-					if not far and not hidden then
-						local velocity = state.root.CFrame:VectorToObjectSpace(state.root.AssemblyLinearVelocity)
-						for _, b in state.bones do
-							local rotation = CloakMotion.boneRotation(clock, b.chain, b.index, velocity)
-							b.bone.Transform = b.restInverse * rotation * b.rest
-						end
+		for _, character in bodies() do
+			seen[character] = true
+			local state = states[character] or collect(character)
+			states[character] = state
+			if state then
+				local far = camera and (camera.CFrame.Position - state.root.Position).Magnitude > MAX_DISTANCE
+				local hidden = state.cloak.LocalTransparencyModifier >= 1
+				if not far and not hidden then
+					local velocity = state.root.CFrame:VectorToObjectSpace(state.root.AssemblyLinearVelocity)
+					for _, b in state.bones do
+						local rotation = CloakMotion.boneRotation(clock, b.chain, b.index, velocity)
+						b.bone.Transform = b.restInverse * rotation * b.rest
 					end
 				end
 			end
