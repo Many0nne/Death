@@ -1,9 +1,10 @@
 -- Rendu de la Mort selon qui la regarde (#80, docs/design.md « La Mort ») : règles pures lues à chaque frame par
 -- Client.DeathView, indépendantes du modèle (la faux, `Scythe`, et les lanières du bas, `Tatters`, #81, sont retrouvées
 -- par leur nom).
--- - Un mortel : invisible dans l'ombre ; exposée (lumière ambiante), une ombre pleine dont le bas part en fumée, sans
---   faux ; tenue dans un faisceau de lampe (attribut public DeathInBeam), l'ombre se déchire et laisse voir le vrai
---   corps et la faux, jusqu'à la dissipation (Server.FlashlightService).
+-- - Un mortel : invisible dans l'ombre ; exposée (lumière ambiante), une ombre pleine qui épouse la silhouette et dont
+--   le bas se défait en volutes ondulantes (#90), sans faux ; tenue dans un faisceau de lampe (attribut public
+--   DeathInBeam), l'ombre se déchire et laisse voir le vrai corps et la faux, jusqu'à la dissipation
+--   (Server.FlashlightService).
 -- - La Mort elle-même : son corps et sa faux toujours visibles, voilés dans l'ombre, pleins à la lumière.
 local DeathLook = {}
 
@@ -36,7 +37,7 @@ DeathLook.JUMP_SPEED = 40
 DeathLook.JUMP_HOLD = 1
 -- La déchirure ne se rejoue que si l'ombre s'était refermée au moins à ce point (révélation sous ce seuil)
 DeathLook.TEAR_RESET = 0.3
--- Colonne de fumée au bas du corps : part de la hauteur du corps, bornée (studs)
+-- Volume au bas du corps d'où montent les braises de l'ombre : part de la hauteur du corps, bornée (studs)
 DeathLook.HEM_SHARE = 0.3
 DeathLook.HEM_MIN = 1
 DeathLook.HEM_MAX = 2.5
@@ -88,7 +89,10 @@ export type Layers = {
 	fill: number, -- transparence du remplissage sombre du corps (1 : aucun)
 	outline: number, -- transparence du contour du corps (1 : aucun)
 	scytheFill: number, -- transparence du remplissage sombre de la faux
-	smoke: number, -- part (0 à 1) des fumées et braises de l'ombre
+	smoke: number, -- part (0 à 1) des volutes, fumées et braises de l'ombre
+	-- fumées du modèle lui-même (HemSmoke...) : coupées tant qu'un mortel voit l'ombre, sinon elles feraient un nuage rond
+	-- autour du bas (#90) ; rendues avec le vrai corps
+	modelSmoke: boolean,
 }
 
 -- Cette méthode permet de calculer ce qu'il faut dessiner lorsque visibilité et révélation sont connues : pour un
@@ -97,7 +101,16 @@ export type Layers = {
 function DeathLook.layers(view: string, visibility: number, reveal: number): Layers
 	if view == DeathLook.View.Self then
 		local veil = DeathLook.SELF_VEIL.shadow + (DeathLook.SELF_VEIL.light - DeathLook.SELF_VEIL.shadow) * visibility
-		return { body = 0, scythe = 0, tatters = 0, fill = veil, outline = 1, scytheFill = veil, smoke = 0 }
+		return {
+			body = 0,
+			scythe = 0,
+			tatters = 0,
+			fill = veil,
+			outline = 1,
+			scytheFill = veil,
+			smoke = 0,
+			modelSmoke = true,
+		}
 	end
 	local shadow = visibility * (1 - reveal)
 	return {
@@ -108,6 +121,7 @@ function DeathLook.layers(view: string, visibility: number, reveal: number): Lay
 		outline = 1 - shadow * (1 - DeathLook.SHADOW_OUTLINE),
 		scytheFill = 1,
 		smoke = shadow,
+		modelSmoke = reveal >= 0.5,
 	}
 end
 
@@ -161,7 +175,7 @@ function DeathLook.bounds(root: CFrame, boxes: { Box }): Bounds?
 	return { bottom = bottom, top = top, radius = radius }
 end
 
--- Cette méthode permet de placer la colonne de fumée du bas du corps lorsque les mesures sont connues : décalage du
+-- Cette méthode permet de placer le volume des braises au bas du corps lorsque les mesures sont connues : décalage du
 -- centre depuis la racine et taille du volume d'émission (pris dans le corps, plus étroit que les lambeaux).
 function DeathLook.hemBox(bounds: Bounds): (Vector3, Vector3)
 	local height = math.clamp((bounds.top - bounds.bottom) * DeathLook.HEM_SHARE, DeathLook.HEM_MIN, DeathLook.HEM_MAX)
@@ -175,6 +189,83 @@ function DeathLook.bodyBox(bounds: Bounds): (Vector3, Vector3)
 	local height = math.max(bounds.top - bounds.bottom, 0.5)
 	local width = math.max(bounds.radius * 1.2, 0.5)
 	return Vector3.new(0, (bounds.top + bounds.bottom) / 2, 0), Vector3.new(width, height * 0.9, width)
+end
+
+-- Volutes du bas de l'ombre (#90) : une traînée sombre par chaîne d'os de la robe, qui part du bas de la chaîne (elle
+-- suit la cape animée, dans le prolongement des lanières), ondule et plonge vers le bas et l'arrière ; en mouvement,
+-- elle se couche derrière la Mort. Longueur (studs) devant / derrière, largeur au départ / au bout, ondulation de côté
+-- (studs), pulsation (rad/s), recul par stud/s de vitesse et au plus (part de la longueur), marge au-dessus du sol.
+DeathLook.TENDRIL = table.freeze({
+	FRONT_LENGTH = 1.3,
+	BACK_LENGTH = 2.6,
+	WIDTH_START = 0.6,
+	WIDTH_END = 0.05,
+	SWAY = 0.4,
+	WAVE = 1.7,
+	TRAIL = 0.09,
+	TRAIL_MAX = 0.85,
+	FLOOR_GAP = 0.1,
+})
+
+export type Tendril = {
+	start: Vector3, -- point de départ (bas de la chaîne)
+	finish: Vector3, -- bout de la volute
+	startAxis: Vector3, -- direction de départ (le premier point de contrôle suit cet axe)
+	startCurve: number,
+	endAxis: Vector3, -- axe du second point de contrôle (ondulation de côté)
+	endCurve: number,
+}
+
+-- Cette méthode permet de donner la longueur d'une volute selon sa place autour de la robe lorsque les volutes sont
+-- posées : `back` vaut 0 devant, 1 derrière (les traînes les plus longues derrière, comme les lanières).
+function DeathLook.tendrilLength(back: number): number
+	local T = DeathLook.TENDRIL
+	return T.FRONT_LENGTH + (T.BACK_LENGTH - T.FRONT_LENGTH) * math.clamp(back, 0, 1)
+end
+
+-- Cette méthode permet de placer une volute à l'instant t lorsque le client avance d'une frame : elle part de `start`
+-- vers le bas, s'écarte un peu de la robe (`outward`, horizontal), ondule de côté (phase propre à la volute) et se
+-- couche à l'opposé de la vitesse ; son bout reste au-dessus du sol (`floorY`).
+function DeathLook.tendril(
+	start: Vector3,
+	outward: Vector3,
+	velocity: Vector3,
+	t: number,
+	phase: number,
+	length: number,
+	floorY: number
+): Tendril
+	local T = DeathLook.TENDRIL
+	local flat = Vector3.new(velocity.X, 0, velocity.Z)
+	local speed = flat.Magnitude
+	local trailDir = if speed > 0.05 then -flat.Unit else Vector3.zero
+	local trail = math.min(speed * T.TRAIL, T.TRAIL_MAX)
+	local out = Vector3.new(outward.X, 0, outward.Z)
+	out = if out.Magnitude > 1e-6 then out.Unit else Vector3.new(0, 0, 1)
+	local side = Vector3.new(0, 1, 0):Cross(out)
+	local wave = math.sin(T.WAVE * t + phase)
+	local wave2 = math.sin(T.WAVE * 1.37 * t + phase * 1.9)
+	-- immobile, elle tombe et s'écarte à peine ; en mouvement, elle se couche derrière
+	local dir = (Vector3.new(0, -1, 0) * (1 - trail) + trailDir * trail + out * 0.25 + side * (0.12 * wave2)).Unit
+	local finish = start + dir * length + side * (T.SWAY * wave)
+	local lowest = floorY + T.FLOOR_GAP
+	if finish.Y < lowest then
+		-- au sol, elle glisse vers l'arrière (ou vers l'extérieur) en gardant sa longueur, au lieu de s'y enfoncer
+		local drop = math.max(start.Y - lowest, 0)
+		local flatDir = Vector3.new(dir.X, 0, dir.Z)
+		flatDir = if flatDir.Magnitude > 1e-3 then flatDir.Unit else out
+		local reach = math.sqrt(math.max(length * length - drop * drop, 0))
+		finish = Vector3.new(start.X, lowest, start.Z) + flatDir * reach + side * (T.SWAY * wave)
+	end
+	return {
+		start = start,
+		finish = finish,
+		startAxis = Vector3.new(0, -1, 0),
+		startCurve = length * 0.35,
+		endAxis = side,
+		-- ondulation en S : le second point de contrôle bat à contretemps du bout
+		endCurve = -T.SWAY * 0.9 * math.sin(T.WAVE * t + phase + 1.3),
+	}
 end
 
 return DeathLook

@@ -136,6 +136,16 @@ def bake_maps(high, low, out_dir, prefix, size=1024, samples=32, extrusion=0.05,
     return out
 
 
+def uniform_map(out_dir, name, value, size=64):
+    """Cette méthode permet d'écrire une carte uniforme (métal d'une pièce de fer : sans elle, la SurfaceAppearance
+    de Roblox la rend non métallique) ; renvoie le chemin du PNG."""
+    img = _image(name, size, True)
+    img.pixels.foreach_set(np.tile(np.array([value, value, value, 1.0], dtype=np.float32), size * size))
+    path = os.path.join(out_dir, f"{name}.png")
+    _save(img, path)
+    return path
+
+
 def stats(path, normal=False):
     """Cette méthode permet de résumer une carte cuite (moyenne et écart par canal) pour le compte rendu ; pour une
     carte de normales, part des pixels très inclinés (n.z < 0,5, les « taches » de #85) hors fond noir."""

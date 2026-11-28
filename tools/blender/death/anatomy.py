@@ -26,6 +26,8 @@ FINGER_SINK = 0.62
 GRIP_PATHS = []
 # articulations des doigts (point, direction du doigt, côté dos, rayon), pour les plis de la chair (crease_strokes)
 JOINTS = []
+# griffes posées (bout du doigt, direction, dos de l'ongle, longueur), pour le sculpt (death/sessions/hands.py)
+CLAWS = []
 # main droite, doigt par doigt (index -> auriculaire) : hauteur le long du manche, angle de la jointure autour de la
 # poignée (degrés depuis le côté paume), longueur relative, épaisseur relative ; les doigts ne sont pas des anneaux
 # identiques : le majeur est le plus long, l'auriculaire court et fin, l'index serre plus haut
@@ -217,6 +219,32 @@ def claw_hand():
     return nodes, bones, claws
 
 
+CLAW_RINGS, CLAW_SEGS = 12, 12  # anneaux le long, sommets autour (un sommet sur l'arête du dos)
+CLAW_ROOT = 0.045  # longueur de la griffe posée sur le dos de la dernière phalange, avant le bout du doigt
+
+
+def claw_creases(claw):
+    """Cette méthode permet de garder vives la pointe et l'arête du dos d'une griffe (anneaux de build_claw, un sommet
+    sur l'arête à chaque anneau) lorsque la subdivision et le sculpt adouciraient le reste."""
+    me = claw.data
+    crease = me.attributes.new("crease_edge", "FLOAT", "EDGE")
+    ring_verts = (CLAW_RINGS + 1) * CLAW_SEGS  # puis les deux centres des bouchons
+    ridge = CLAW_SEGS // 4  # a = pi / 2 : le dos de l'ongle
+
+    def ring(k):
+        """Cette méthode permet de donner l'anneau d'un sommet (None pour un centre de bouchon)."""
+        return k // CLAW_SEGS if k < ring_verts else None
+
+    for e in me.edges:
+        a, b = e.vertices
+        ra, rb = ring(a), ring(b)
+        tip = all(r is None or r >= CLAW_RINGS * 0.72 for r in (ra, rb))
+        if tip:
+            crease.data[e.index].value = 1.0
+        elif ra is not None and rb is not None and a % CLAW_SEGS == ridge and b % CLAW_SEGS == ridge:
+            crease.data[e.index].value = 0.7
+
+
 def build_claw(b, tip, direction, up_hint, length=0.13, base=0.022):
     """Cette méthode permet d'ajouter une griffe (ongle épais, long, recourbé, à arête dorsale) au bout d'un doigt :
     section en goutte qui s'effile jusqu'à la pointe, courbée vers la paume."""
@@ -224,16 +252,17 @@ def build_claw(b, tip, direction, up_hint, length=0.13, base=0.022):
     up = (up_hint - d * up_hint.dot(d)).normalized()  # dos de l'ongle
     lat = d.cross(up)
     rows = []
-    n = 9
+    n = CLAW_RINGS
     for k in range(n + 1):
         s = k / n
-        # la griffe recourbe vers la paume (-up) en s'allongeant
-        c = tip + d * (length * s) - up * (0.05 * s * s) + up * (base * 0.55 * (1 - s))
+        # elle naît sur le dos de la dernière phalange (base enfoncée dans le doigt, comme un ongle), puis recourbe
+        # vers la paume (-up) en s'allongeant
+        c = tip + d * (length * s - CLAW_ROOT * (1 - s)) - up * (0.05 * s * s) + up * (base * 0.7 * (1 - s))
         w = base * (1 - s) ** 0.8 + 0.002
         hgt = base * 0.75 * (1 - s) ** 0.9 + 0.0015
         ring = []
-        for m in range(8):
-            a = 2 * math.pi * m / 8
+        for m in range(CLAW_SEGS):
+            a = 2 * math.pi * m / CLAW_SEGS
             # goutte : arête sur le dos, ventre plat
             ry = hgt * (1.25 if math.sin(a) > 0 else 0.55)
             ring.append(c + lat * (w * math.cos(a)) + up * (ry * math.sin(a) * (1 + 0.35 * math.sin(a) ** 8)))
@@ -246,6 +275,7 @@ def build_hands():
     (skinnée sur les os du corps) ; renvoie (objet, os du corps des bras, squelettes) pour le rig et les mesures."""
     parts = []
     bones = []
+    CLAWS.clear()
     flesh = material("Flesh", FLESH_RGB, 0.0, 0.7)
     for side in (1, -1):
         nodes, hbones, claws = grip_hand() if side > 0 else claw_hand()
@@ -266,15 +296,15 @@ def build_hands():
                 g, ax = scythe.shaft_point(scythe.GRIP_T), scythe.shaft_axis(scythe.GRIP_T)
                 hint = (tip - g) - ax * (tip - g).dot(ax)
             cb = Builder(f"Claw{p}{k}")
-            build_claw(cb, tip, direction, hint, length=0.085 if kind == "grip" else 0.14)
+            length = 0.09 if kind == "grip" else 0.17
+            build_claw(cb, tip, direction, hint, length=length)
+            CLAWS.append((tip.copy(), direction.copy(), hint.copy(), length))
             claw = cb.finish(flesh)
             claw.vertex_groups.new(name=bone).add(list(range(len(claw.data.vertices))), 1.0, "REPLACE")
             organic.set_zone(claw, 1)
-            # griffe gardée vive dans la version détaillée (la subdivision émousserait la pointe, et la cuisson la
-            # raterait)
-            crease = claw.data.attributes.new("crease_edge", "FLOAT", "EDGE")
-            for d in crease.data:
-                d.value = 1.0
+            # pointe et arête du dos gardées vives dans la version détaillée (la subdivision émousserait la pointe,
+            # et la cuisson la raterait)
+            claw_creases(claw)
             parts.append(claw)
     hands = organic.merge_objects("Hands", parts)
     # une seule matière (une MeshPart Roblox = une matière) : les griffes se distinguent par l'attribut de face
@@ -298,68 +328,98 @@ def crease_strokes():
 
 
 # ---------------------------------------------------------------- torse
-# profil du torse le long de la hauteur : (z, centre y, demi-largeur, demi-profondeur) ; ventre creusé sous les côtes
+# profil du torse le long de la hauteur : (z, centre y, demi-largeur, demi-profondeur) ; cage en tonneau, ventre creusé
 TORSO = [
     (0.0, 0.10, 0.30, 0.22),
-    (0.55, 0.04, 0.29, 0.19),
-    (0.95, 0.01, 0.44, 0.29),
-    (1.45, -0.02, 0.50, 0.32),
-    (1.85, 0.00, 0.50, 0.30),
-    (2.12, 0.04, 0.62, 0.26),
+    (0.55, 0.04, 0.27, 0.17),
+    (0.95, 0.01, 0.40, 0.26),
+    (1.45, -0.02, 0.49, 0.32),
+    (1.85, 0.00, 0.49, 0.30),
+    (2.12, 0.04, 0.60, 0.26),
     (2.30, 0.06, 0.24, 0.17),
     (2.50, 0.10, 0.12, 0.12),
     (2.78, 0.26, 0.10, 0.11),
 ]
-TORSO_COLS, TORSO_ROWS = 40, 58
+# grille : colonnes autour, rangées du bas vers le cou, deux fois plus serrées sur la cage (les côtes sculptées)
+TORSO_COLS, TORSO_ROWS = 52, 96
 RIBS = 10
+# bas du sternum (pointe du rebord costal) et bas de la cage sur les côtés
+XIPHOID_Z = 1.28
+CAGE_LOW_Z = 0.98
+
+
+def _torso_rows():
+    """Cette méthode permet de répartir les rangées du torse, serrées sur la cage thoracique."""
+    lo, hi = TORSO[0][0], TORSO[-1][0]
+    return [lo + (hi - lo) * t for t in mesh.warp_samples(
+        TORSO_ROWS, lambda t: 1 + 1.3 * smoothstep(0.28, 0.36, t) * smoothstep(0.8, 0.72, t))]
+
+
+def costal_margin(th):
+    """Cette méthode permet de donner la hauteur du rebord costal (bas de la cage) à l'angle th (0 devant) : un V
+    renversé qui part du bas du sternum et descend sur les côtés."""
+    a = abs(math.atan2(math.sin(th), math.cos(th)))
+    return CAGE_LOW_Z + (XIPHOID_Z - CAGE_LOW_Z) * max(0.0, 1 - a / 1.25) ** 1.4
 
 
 def rib_relief(th, z):
-    """Cette méthode permet de donner le relief des côtes (multiplicateur du rayon) au point d'angle th (0 devant) et
-    de hauteur z : côtes qui descendent du dos vers l'avant, creux entre elles, sternum, ventre rentré sous la cage."""
+    """Cette méthode permet de donner la forme lisse du torse (multiplicateur du rayon) à l'angle th et à la hauteur z :
+    rebord costal, ventre rentré, clavicules, colonne ; les côtes sont sculptées (death/sessions/torso.py)."""
     front = math.cos(th)
     lateral = abs(math.sin(th))
     rel = 0.0
-    # cage : de 0,95 à 2,1, sauf le dos ; chaque côte plonge de 0,25 en allant vers l'avant
-    cage = smoothstep(0.9, 1.05, z) * smoothstep(2.15, 2.0, z) * smoothstep(-0.75, -0.2, front)
-    if cage > 0:
-        drop = 0.22 * (1 + front) / 2
-        phase = (z + drop - 0.96) / 0.118
-        ridge = 0.5 + 0.5 * math.cos(2 * math.pi * phase)
-        sternum = math.exp(-((th if th < math.pi else th - 2 * math.pi) / 0.18) ** 2)
-        rel += cage * (0.07 * ridge ** 2.5 - 0.035) * (1 - 0.8 * sternum) * (0.5 + 0.5 * lateral + 0.3 * (front > 0))
-        rel += cage * 0.03 * sternum * smoothstep(1.35, 1.5, z)
-    # ventre rentré sous la cage, devant
-    belly = smoothstep(0.95, 0.75, z) * smoothstep(0.1, 0.4, z) * max(0.0, front) ** 1.5
-    rel -= 0.22 * belly
+    # sous le rebord costal, le ventre desséché se creuse (surtout devant)
+    margin = costal_margin(th)
+    below = smoothstep(margin + 0.02, margin - 0.12, z) * smoothstep(0.15, 0.45, z)
+    rel -= below * (0.1 + 0.16 * max(0.0, front) ** 1.5)
     # clavicules
     clav = math.exp(-((z - 2.13) / 0.04) ** 2) * smoothstep(0.2, 0.6, lateral) * max(0.0, front)
     rel += 0.08 * clav
+    # creux sous les clavicules
+    rel -= 0.05 * math.exp(-((z - 2.02) / 0.05) ** 2) * smoothstep(0.2, 0.6, lateral) * max(0.0, front)
     # colonne saillante dans le dos
     spine = math.exp(-((th - math.pi) / 0.12) ** 2) * (0.5 + 0.5 * math.cos(2 * math.pi * z / 0.12))
     rel += 0.04 * spine * smoothstep(0.5, 0.8, z) * smoothstep(2.4, 2.2, z)
     return 1 + rel
 
 
-def torso_pt(i, j):
-    """Cette méthode permet de placer le sommet (i, j) du torse (i autour, 0 devant ; j du bas vers le cou)."""
-    th = 2 * math.pi * i / TORSO_COLS
-    t = j / (TORSO_ROWS - 1)
-    z = TORSO[0][0] + (TORSO[-1][0] - TORSO[0][0]) * t
+def torso_at(th, z, relief=True):
+    """Cette méthode permet de placer un point de la surface du torse à l'angle th (0 devant, + vers la droite) et à
+    la hauteur z (repère monde)."""
     cy, rx, ry = interp(TORSO, z)
-    k = rib_relief(th, z)
+    k = rib_relief(th, z) if relief else 1.0
     # le dos se voûte avec la colonne
     sp = posture.SPINE
     back = interp([(p.z, p.y) for p in sp], z)[0]
     cy += 0.35 * (back - (-0.1))
-    return (rx * k * math.sin(th), cy + ry * k * math.cos(th), z)
+    return Vector((rx * k * math.sin(th), cy + ry * k * math.cos(th), z))
+
+
+def torso_normal(th, z):
+    """Cette méthode permet de donner la normale extérieure du torse au point (th, z)."""
+    e = 1e-3
+    around = torso_at(th + e, z) - torso_at(th - e, z)  # vers +X devant (th croît de l'avant vers la droite)
+    up = torso_at(th, z + e) - torso_at(th, z - e)
+    return up.cross(around).normalized()
 
 
 def build_torso():
-    """Cette méthode permet de construire le torse décharné (pièce `Torso`) : cage thoracique sous la peau, sternum,
-    clavicules, ventre creusé, cou maigre ; ouvert en bas (caché dans la robe) et en haut (sous le suaire)."""
-    ob = mesh.grid_object("Torso", TORSO_COLS, TORSO_ROWS, torso_pt, uv_shift=TORSO_COLS // 2)
+    """Cette méthode permet de construire le torse décharné (pièce `Torso`, base du sculpt), ouvert en haut et en bas,
+    sans épaisseur : on ne le voit que du dehors, par les trous de la robe."""
+    rows = _torso_rows()
+
+    def pt(i, j):
+        """Cette méthode permet de placer le sommet (i autour, 0 devant ; j du bas vers le cou) du torse."""
+        return tuple(torso_at(2 * math.pi * i / TORSO_COLS, rows[j]))
+
+    ob = mesh.grid_object("Torso", TORSO_COLS, TORSO_ROWS, pt, uv_shift=TORSO_COLS // 2)
+    # tube ouvert : le recalcul des normales peut les tourner vers l'intérieur (masqué en #81 par l'épaisseur) ;
+    # sans épaisseur, Roblox n'afficherait que l'intérieur
+    me = ob.data
+    outward = sum(1 for p in me.polygons if p.normal.dot(Vector((p.center.x, p.center.y - torso_at(0, p.center.z,
+                  relief=False).y + interp(TORSO, p.center.z)[2], 0))) > 0)
+    if outward < len(me.polygons) / 2:
+        me.flip_normals()
     organic.set_zone(ob, 0)
-    mesh.solidify(ob, 0.02)
     ob.data.materials.append(material("Flesh", FLESH_RGB, 0.0, 0.7))
     return ob

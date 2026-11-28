@@ -35,7 +35,7 @@ VIEWS = {
     "hood_close": ((0.9, 4.6, 3.3), (0, 0.3, 2.8), 50),
     "hand_close": ((2.9, 3.3, 1.3), (1.4, 1.15, 0.75), 50),
     "claw_close": ((-2.0, 4.4, 1.9), (-0.8, 2.3, 1.15), 50),
-    "blade_close": ((0.2, 7.5, 4.6), (-0.4, 1.0, 4.3), 45),
+    "blade_close": ((0.3, 7.0, 3.4), (-0.5, 1.0, 3.0), 45),
 }
 # vues de la silhouette en ombre pleine (--silhouette) : ce que voit un mortel hors faisceau
 SILHOUETTE_VIEWS = ("front", "side", "three_quarter", "back")

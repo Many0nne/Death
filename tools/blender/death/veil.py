@@ -305,10 +305,15 @@ def build_cloak(drape=True, frames=70):
 
 
 # ---------------------------------------------------------------- suaire
-SC, SR = 60, 40
-SKULL_V = 0.42  # au-dessus : le suaire épouse le crâne (calotte tendue, épinglée au drapé) ; en dessous : il pend
-SKULL_VS = 0.66  # hauteur du crâne (0 sommet, 1 sous la mâchoire) où la calotte s'arrête : sous les pommettes
-SKULL_HUG = 0.9  # part du relief du crâne que garde la calotte tendue (le tissu enjambe un peu les orbites)
+# grille du suaire : colonnes autour du crâne (plus serrées sur le visage), rangées du sommet au bas du voile
+SC, SR = 60, 44
+# part des rangées posées sur le crâne (le reste tombe) : le visage a la résolution
+SKULL_ROWS = 0.56
+# tension du tissu : part du relief du crâne gardée sur les bosses (pommettes, arcade, mâchoire) et dans les creux
+# (orbites, joues, tempes : le tissu tendu les enjambe en partie)
+HUG_RIDGE = 0.95
+HUG_HOLLOW = 0.62
+CLOTH_GAP = 0.03  # épaisseur du tissu posé sur le crâne
 SHROUD_HEM = [(0.07, 4, PH[5]), (0.05, 7, PH[6]), (0.035, 11, PH[7])]
 
 
@@ -339,32 +344,63 @@ def support_radius(th, z):
     return (-b + math.sqrt(disc)) / (2 * a)
 
 
-def shroud_shape(i, j):
-    """Cette méthode permet de placer un sommet du suaire : calotte tendue sur le crâne jusqu'aux pommettes, puis
-    rideau qui tombe du visage et se pose sur le cou et les épaules, plis verticaux, bord effiloché."""
-    u = (i % SC) / SC
-    th = 2 * math.pi * u
-    v = j / (SR - 1)
-    if v <= SKULL_V:
-        vs = 0.04 + (SKULL_VS - 0.04) * v / SKULL_V
-        smooth = posture.skull_point(u, vs, relief=False)
-        hug = smooth.lerp(posture.skull_point(u, vs), SKULL_HUG)
-        return hug + _skull_normal(u, vs) * 0.035
-    smooth = posture.skull_point(u, SKULL_VS, relief=False)
-    top = smooth.lerp(posture.skull_point(u, SKULL_VS), SKULL_HUG) + _skull_normal(u, SKULL_VS) * 0.035
-    k = (v - SKULL_V) / (1 - SKULL_V)
-    z = top.z + (shroud_hem(th) - top.z) * k ** 0.9
-    rel = top - SHROUD_AXIS
-    ring = Vector((rel.x, rel.y, 0.0)).length
-    # le tissu tombe d'aplomb du bord de la calotte, puis s'appuie sur le corps (+ épaisseur de la robe) : maximum
-    # adouci, le rideau s'évase sur les épaules au lieu d'y faire une marche
-    a = ring * (1 + 0.3 * smoothstep(0.0, 0.6, k))
-    b = support_radius(th, z) + 0.08
-    r = 0.5 * (a + b + math.sqrt((a - b) ** 2 + 0.12 ** 2))
-    r *= 1 + smoothstep(0.0, 0.55, k) * wave(th + 0.25 * k, SHROUD_FOLDS)
-    # devant, le voile pend en avant du visage (le menton ne se lit pas)
-    fwd = 0.1 * max(0.0, math.cos(th)) ** 2 * smoothstep(0.0, 0.35, k)
-    return SHROUD_AXIS + Vector((r * math.sin(th), r * math.cos(th) + fwd, z))
+def shroud_release(u):
+    """Cette méthode permet de donner la hauteur du crâne (0 sommet, 1 sous la mâchoire) où le tissu quitte le crâne
+    dans la colonne u (0 devant) : sous le menton devant, à l'angle de la mâchoire sur les côtés, à l'occiput derrière."""
+    front = 0.5 + 0.5 * math.cos(2 * math.pi * u)
+    return 0.56 + 0.37 * front ** 1.3
+
+
+def cloth_on_skull(u, vs):
+    """Cette méthode permet de placer le tissu tendu sur le crâne au point (u, vs) : il épouse les bosses, enjambe
+    en partie les creux, à CLOTH_GAP de la surface."""
+    smooth = posture.skull_point(u, vs, relief=False)
+    rough = posture.skull_point(u, vs)
+    c = posture.SKULL_CENTER
+    hollow = (rough - c).length < (smooth - c).length
+    return smooth.lerp(rough, HUG_HOLLOW if hollow else HUG_RIDGE) + _skull_normal(u, vs) * CLOTH_GAP
+
+
+def _shroud_columns():
+    """Cette méthode permet de répartir les colonnes du suaire autour du crâne, deux fois plus serrées sur le visage."""
+    return mesh.warp_samples(SC, lambda u: 1 + 1.4 * max(0.0, math.cos(2 * math.pi * u)) ** 2, closed=True)
+
+
+def shroud_shape_fn():
+    """Cette méthode permet de construire la fonction de placement du suaire (colonnes réparties une fois)."""
+    cols = _shroud_columns()
+
+    def fn(i, j):
+        """Cette méthode permet de placer le sommet (i autour, j du sommet au bas) du suaire : il épouse le crâne
+        jusqu'à sa ligne de chute (menton, mâchoire, occiput), puis tombe en rideau sur le cou et les épaules."""
+        u = cols[i % SC]
+        k = j / (SR - 1)
+        rel = shroud_release(u)
+        if k <= SKULL_ROWS:
+            return cloth_on_skull(u, 0.03 + (rel - 0.03) * k / SKULL_ROWS)
+        s = (k - SKULL_ROWS) / (1 - SKULL_ROWS)
+        p0 = cloth_on_skull(u, rel)
+        tangent = (cloth_on_skull(u, rel + 0.01) - cloth_on_skull(u, rel - 0.01)).normalized()
+        flat = Vector((p0.x - SHROUD_AXIS.x, p0.y - SHROUD_AXIS.y, 0.0))
+        th = math.atan2(flat.x, flat.y)
+        z1 = shroud_hem(th)
+        r1 = support_radius(th, z1) + 0.1
+        p1 = SHROUD_AXIS + Vector((r1 * math.sin(th), r1 * math.cos(th), z1))
+        length = (p1 - p0).length
+        # Hermite : le tissu part tangent au crâne, arrive presque vertical sur le corps
+        h00, h10 = 2 * s ** 3 - 3 * s * s + 1, s ** 3 - 2 * s * s + s
+        h01, h11 = -2 * s ** 3 + 3 * s * s, s ** 3 - s * s
+        p = p0 * h00 + tangent * (0.9 * length) * h10 + p1 * h01 + Vector((0, 0, -0.6 * length)) * h11
+        # il ne rentre pas dans le corps : maximum adouci avec le dessus de la robe
+        flat = Vector((p.x - SHROUD_AXIS.x, p.y - SHROUD_AXIS.y, 0.0))
+        a = flat.length
+        b = support_radius(th, p.z) + 0.08
+        r = 0.5 * (a + b + math.sqrt((a - b) ** 2 + 0.1 ** 2))
+        r *= 1 + smoothstep(0.1, 0.6, s) * wave(th + 0.25 * s, SHROUD_FOLDS)
+        d = flat.normalized() if a > 1e-6 else Vector((math.sin(th), math.cos(th), 0.0))
+        return SHROUD_AXIS + d * r + Vector((0, 0, p.z))
+
+    return fn
 
 
 def _skull_normal(u, v):
@@ -380,9 +416,9 @@ def _skull_normal(u, v):
 
 
 def build_shroud():
-    """Cette méthode permet de construire le suaire, forme dessinée (calotte sur le crâne sculpté, rideau posé sur
-    le corps) ; un drapé simulé le froissait en écharpe au cou, illisible en ombre pleine."""
-    ob = grid_object("Shroud", SC, SR, shroud_shape)
+    """Cette méthode permet de construire le suaire, forme dessinée d'un seul tenant (tissu tendu sur le crâne, rideau
+    posé sur le corps) ; le sculpt (tools/blender/death/sessions/head.py) creuse ensuite le visage et les plis."""
+    ob = grid_object("Shroud", SC, SR, shroud_shape_fn())
     mesh.cap_row(ob, 0, inward=0.01)
     solidify(ob, 0.04)
     ob.data.materials.append(material("ShroudCloth", CLOTH_RGB, 0, 0.95))
@@ -476,30 +512,35 @@ def build_sleeves(drape=True, frames=50):
 
 
 # ---------------------------------------------------------------- lanières
-STRIPS = 44
-STRIP_ROWS = 18
+STRIPS = 40
+STRIP_ROWS = 22
 STRIP_COLS = 3  # sommets en travers d'une lanière (gouttière en V adoucie par le lissage)
+STRIP_FLOOR = GROUND + 0.3  # une lanière se couche en traîne au-dessus du sol, sans le toucher
+# recul maximal derrière la racine (studs) : sans collision, une traîne plus longue passerait à travers un mur dos
+# auquel la Mort se cache et la trahirait dans la pièce voisine
+TRAIL_MAX = 2.6
 
 
 def strip_specs():
-    """Cette méthode permet de tirer les lanières (graine fixe) : angle d'attache, longueur (bien plus longues derrière,
-    certaines très courtes), largeur, torsion."""
+    """Cette méthode permet de tirer les lanières (graine fixe) : angle d'attache, longueur (très inégales : les plus
+    longues derrière, jusqu'à ~4 studs, un quart de lambeaux courts), largeur, torsion, ondulation de coulure."""
     rnd = random.Random(posture.SEED * 7)
     out = []
     for k in range(STRIPS):
-        th = 2 * math.pi * (k + rnd.uniform(-0.35, 0.35)) / STRIPS
+        th = 2 * math.pi * (k + rnd.uniform(-0.4, 0.4)) / STRIPS
         back = 0.5 - 0.5 * math.cos(th)
-        length = 0.9 + 1.4 * back ** 1.3 + rnd.uniform(0.0, 1.0) * (0.4 + back)
-        if rnd.random() < 0.2:
-            length *= 0.45  # quelques lambeaux courts
+        length = 1.0 + 2.0 * back ** 1.2 + rnd.uniform(0.0, 1.0) * (0.5 + 0.9 * back)
+        if rnd.random() < 0.25:
+            length *= rnd.uniform(0.3, 0.5)  # lambeaux courts
         out.append({
             "th": th,
             "length": length,
-            "width": rnd.uniform(0.15, 0.34),
-            "twist": rnd.uniform(-0.6, 0.6),
-            "sway": rnd.uniform(-0.25, 0.25),
+            "width": rnd.uniform(0.12, 0.34),
+            "twist": rnd.uniform(-0.8, 0.8),
+            "sway": rnd.uniform(0.04, 0.12),
+            "waves": rnd.uniform(1.5, 3.0),
             "phase": rnd.uniform(0, 2 * math.pi),
-            "drip": rnd.random() < 0.55,
+            "drip": rnd.random() < 0.6,
         })
     return out
 
@@ -516,24 +557,40 @@ def strip_root(cloak, th):
 
 
 def strip_path(root, spec):
-    """Cette méthode permet de suivre l'axe d'une lanière depuis son attache : elle tombe, s'écarte un peu du corps
-    puis part vers l'arrière en s'allongeant, sans toucher le sol (le spectre flotte) ; renvoie les points."""
+    """Cette méthode permet de suivre l'axe d'une lanière depuis son attache, raccourcie au besoin pour ne pas reculer
+    au-delà de TRAIL_MAX derrière la racine ; renvoie les points."""
+    length = spec["length"]
+    for _ in range(8):
+        pts = _strip_axis(root, spec, length)
+        reach = -min(p.y for p in pts)
+        if reach <= TRAIL_MAX:
+            return pts
+        length *= max(0.2, (TRAIL_MAX + root.y) / max(1e-3, reach + root.y)) * 0.97
+    return pts
+
+
+def _strip_axis(root, spec, length):
+    """Cette méthode permet de tracer l'axe d'une lanière de longueur donnée : elle plonge en diagonale vers l'arrière,
+    de plus en plus couchée, ondule comme une coulure, et son bout se relève au-dessus du sol comme une fumée."""
     out = Vector((math.sin(spec["th"]), math.cos(spec["th"]), 0))
+    side = Vector((math.cos(spec["th"]), -math.sin(spec["th"]), 0))
+    back_k = 0.5 - 0.5 * math.cos(spec["th"])
+    step = length / (STRIP_ROWS - 1)
     pts = []
     p = root.copy()
-    # elle s'arrête au-dessus du sol : longueur bornée par la hauteur disponible (un peu de traîne en plus)
-    length = min(spec["length"], (root.z - (GROUND + 0.35)) * 1.25)
-    step = length / (STRIP_ROWS - 1)
     for k in range(STRIP_ROWS):
         pts.append(p.copy())
         s = k / (STRIP_ROWS - 1)
-        drift_back = 0.1 + 0.9 * s * s
-        d = Vector((0, 0, -1)) + out * (0.04 * (1 - s)) + Vector((0, -1, 0)) * drift_back * 0.45
-        d += Vector((spec["sway"] * math.sin(3 * s + spec["phase"]), 0, 0))
-        # près du sol, la lanière se couche vers l'arrière au lieu de descendre
-        floor = GROUND + 0.3
-        if p.z < floor + 0.5:
-            d.z *= max(0.0, (p.z - floor) / 0.5)
+        # angle à la verticale, vers l'arrière : presque droite à l'attache, couchée au bout
+        ang = 0.1 + 0.4 * back_k ** 1.5 + (0.35 + 0.8 * back_k) * s ** 1.1
+        d = Vector((0, -math.sin(ang), -math.cos(ang))) + out * (0.08 * (1 - s))
+        # coulure : ondule de côté, de plus en plus en descendant
+        d += side * (spec["sway"] * 6 * s * math.cos(2 * math.pi * spec["waves"] * s + spec["phase"]))
+        # près du sol, elle se couche puis se relève un peu
+        if p.z < STRIP_FLOOR + 0.4:
+            k_floor = max(0.0, (p.z - STRIP_FLOOR) / 0.4)
+            d.z = max(d.z * k_floor, 0.2 * (1 - k_floor))
+            d.y = min(d.y, -0.8)
         p = p + d.normalized() * step
     return pts
 

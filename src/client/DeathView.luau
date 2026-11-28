@@ -1,8 +1,9 @@
 -- Rendu de la Mort (client), d'après les attributs du serveur (LightRole, DeathExposed, DeathInBeam) et les règles
 -- pures de Shared.DeathLook (#80) :
--- - pour un mortel : invisible dans l'ombre ; exposée, une ombre pleine (remplissage sombre, contour léger) dont le bas
---   se défait en colonne de fumée, avec volutes et quelques braises claires, sans faux ; dans un faisceau de lampe,
---   l'ombre se déchire (bouffée de fumée) et laisse voir le vrai corps et la faux ;
+-- - pour un mortel : invisible dans l'ombre ; exposée, une ombre pleine (remplissage sombre, contour léger) qui épouse
+--   la silhouette et dont le bas se défait en volutes ondulantes (#90 : une traînée par chaîne d'os de la robe, plus de
+--   nuage rond), avec quelques fumerolles et braises claires, sans faux ; dans un faisceau de lampe, l'ombre se
+--   déchire (bouffée de fumée) et laisse voir le vrai corps et la faux ;
 -- - pour la Mort elle-même : son corps et sa faux restent visibles, voilés dans l'ombre, pleins à la lumière
 --   (l'indicateur « ombre / lumière » est dans le HUD, Client.Hud) ;
 -- - pour tous : la Mort ne fait aucun bruit de pas.
@@ -37,8 +38,14 @@ local OUTLINE_COLOR = Color3.fromRGB(110, 98, 128)
 -- Textures de particules fournies avec Roblox
 local SMOKE_TEXTURE = "rbxasset://textures/particles/smoke_main.dds"
 local EMBER_TEXTURE = "rbxasset://textures/particles/sparkles_main.dds"
--- Débit (particules par seconde) de chaque effet de l'ombre, pleine ombre
-local RATES = { hem = 40, wisps = 14, embers = 6 }
+-- Débit (particules par seconde) de chaque effet de l'ombre, pleine ombre (#90 : plus de colonne de fumée au bas)
+local RATES = { wisps = 8, embers = 4 }
+-- Volutes (#90) : une par chaîne d'os de la robe (Bone « Cxx_2 », « Cxx_3 », Shared.CloakMotion) ; sans os (avatar
+-- d'un bot), une couronne autour du bas du corps
+local TENDRIL_CHAINS = 16
+local TENDRIL_SEGMENTS = 14
+-- Au-delà de cette distance de la caméra (studs), les volutes ne se recalculent plus (figées)
+local TENDRIL_RANGE = 120
 -- Bouffées jouées quand l'ombre se déchire dans le faisceau
 local TEAR_SMOKE = 30
 local TEAR_EMBERS = 8
@@ -139,7 +146,51 @@ local function newVolume(name: string, folder: Instance): BasePart
 	return part
 end
 
--- Cette méthode permet de créer les effets de l'ombre (colonne de fumée du bas, volutes, braises, déchirure) lorsqu'un
+-- Cette méthode permet de créer les volutes du bas de l'ombre (#90) lorsque les effets d'un corps sont créés : une
+-- traînée (Beam) sombre par chaîne de la robe, entre deux attaches posées en coordonnées monde à chaque frame.
+local function newTendrils(folder: Instance): { holder: BasePart, beams: { Beam } }
+	local holder = newVolume("ShadowTendrils", folder)
+	holder.Size = Vector3.new(0.2, 0.2, 0.2)
+	holder.CFrame = CFrame.identity
+	local beams = {}
+	for k = 1, TENDRIL_CHAINS do
+		local a0 = Instance.new("Attachment")
+		a0.Name = "TendrilStart" .. k
+		a0.Parent = holder
+		local a1 = Instance.new("Attachment")
+		a1.Name = "TendrilEnd" .. k
+		a1.Parent = holder
+		local beam = Instance.new("Beam")
+		beam.Name = "Tendril" .. k
+		beam.Attachment0 = a0
+		beam.Attachment1 = a1
+		beam.Color = ColorSequence.new(SHADOW_COLOR)
+		beam.LightInfluence = 0
+		beam.LightEmission = 0
+		beam.FaceCamera = true
+		beam.Segments = TENDRIL_SEGMENTS
+		beam.Width0 = DeathLook.TENDRIL.WIDTH_START
+		beam.Width1 = DeathLook.TENDRIL.WIDTH_END
+		-- pleine (sans texture : la fumée de Roblox est trop transparente pour une ombre), défaite au bout
+		beam.Enabled = false
+		beam.Parent = holder
+		table.insert(beams, beam)
+	end
+	return { holder = holder, beams = beams }
+end
+
+-- Cette méthode permet de donner la transparence d'une volute selon la part d'ombre lorsqu'elle apparaît ou disparaît :
+-- pleine au départ, défaite au bout.
+local function tendrilTransparency(smoke: number): NumberSequence
+	local fade = 1 - smoke
+	return NumberSequence.new({
+		NumberSequenceKeypoint.new(0, fade),
+		NumberSequenceKeypoint.new(0.6, 0.25 + 0.75 * fade),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+end
+
+-- Cette méthode permet de créer les effets de l'ombre (volutes du bas, fumerolles, braises, déchirure) lorsqu'un
 -- mortel voit une Mort pour la première fois ; locaux à ce client, hors du personnage.
 local function newShadowFx(folder: Instance)
 	local hem = newVolume("ShadowHem", folder)
@@ -148,36 +199,15 @@ local function newShadowFx(folder: Instance)
 	return {
 		hem = hem,
 		body = body,
-		-- Nuage épais au bas du corps, qui s'étale autour et traîne derrière la Mort qui glisse. Le remplissage
-		-- (Highlight) se dessine par-dessus les particules : la fumée noie le bas de la silhouette par les côtés et
-		-- derrière, elle ne peut pas le recouvrir (mesuré en jeu, ZOffset sans effet)
-		hemSmoke = newEmitter(hem, {
-			Name = "HemColumn",
-			Texture = SMOKE_TEXTURE,
-			Color = dark,
-			Size = NumberSequence.new({
-				NumberSequenceKeypoint.new(0, 2),
-				NumberSequenceKeypoint.new(0.5, 3.2),
-				NumberSequenceKeypoint.new(1, 4.2),
-			}),
-			Transparency = NumberSequence.new({
-				NumberSequenceKeypoint.new(0, 0.05),
-				NumberSequenceKeypoint.new(0.5, 0.25),
-				NumberSequenceKeypoint.new(1, 1),
-			}),
-			Lifetime = NumberRange.new(1.2, 2),
-			Speed = NumberRange.new(0.6, 1.6),
-			SpreadAngle = Vector2.new(80, 80),
-			Acceleration = Vector3.new(0, 0.3, 0),
-			Drag = 1.2,
-		}),
-		-- Volutes qui s'échappent de toute la silhouette : les bords ne sont jamais nets
+		tendrils = newTendrils(folder),
+		-- Fumerolles qui s'échappent de la silhouette : les bords ne sont jamais nets (petites, pour ne pas en
+		-- brouiller la forme)
 		wisps = newEmitter(body, {
 			Name = "Wisps",
 			Texture = SMOKE_TEXTURE,
 			Color = dark,
-			Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.8), NumberSequenceKeypoint.new(1, 1.8) }),
-			Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.35), NumberSequenceKeypoint.new(1, 1) }),
+			Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.5), NumberSequenceKeypoint.new(1, 1.2) }),
+			Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.4), NumberSequenceKeypoint.new(1, 1) }),
 			Lifetime = NumberRange.new(0.9, 1.4),
 			Speed = NumberRange.new(0.3, 0.8),
 			Acceleration = Vector3.new(0, 1.2, 0),
@@ -212,9 +242,17 @@ local function newShadowFx(folder: Instance)
 end
 
 -- Cette méthode permet d'appliquer la transparence locale au corps et à la faux lorsque leur part visible change ;
--- caché, un morceau ne projette plus d'ombre (qui le trahirait sous une lampe) et ses fumées s'arrêtent. Les valeurs
--- d'origine (CastShadow, ParticleEmitter.Enabled) sont relevées à la première écriture et rétablies ensuite (#78).
-local function applyTransparency(character: Model, state, body: number, scythe: number, tatters: number)
+-- caché, un morceau ne projette plus d'ombre (qui le trahirait sous une lampe) et ses fumées s'arrêtent, comme celles
+-- du modèle tant que l'ombre les remplace (#90). Les valeurs d'origine (CastShadow, ParticleEmitter.Enabled) sont
+-- relevées à la première écriture et rétablies ensuite (#78).
+local function applyTransparency(
+	character: Model,
+	state,
+	body: number,
+	scythe: number,
+	tatters: number,
+	modelSmoke: boolean
+)
 	for _, d in character:GetDescendants() do
 		local value = if within(d, state.scythe) then scythe elseif within(d, state.tatters) then tatters else body
 		if d:IsA("BasePart") then
@@ -229,11 +267,107 @@ local function applyTransparency(character: Model, state, body: number, scythe: 
 			if state.emitters[d] == nil then
 				state.emitters[d] = d.Enabled
 			end
-			d.Enabled = state.emitters[d] and value < 1
+			d.Enabled = state.emitters[d] and value < 1 and modelSmoke
 			if value >= 1 then
+				-- corps disparu : ses fumées en vol aussi ; quand l'ombre les remplace, elles s'éteignent sans couper net
 				d:Clear()
 			end
 		end
+	end
+end
+
+-- Cette méthode permet d'allumer ou d'éteindre toutes les volutes d'un corps lorsque l'ombre apparaît ou disparaît.
+local function setTendrils(tendrils, enabled: boolean)
+	for _, beam in tendrils.beams do
+		beam.Enabled = enabled
+	end
+end
+
+-- Cette méthode permet de donner les départs des volutes (monde) et leur côté extérieur lorsque la frame les place :
+-- bas de chaque chaîne de la robe, prolongé d'un os ; sans os (avatar d'un bot), une couronne au bas du corps.
+local function tendrilStarts(state): { { start: Vector3, outward: Vector3 } }
+	local root = state.root
+	local center = root.Position
+	local out = {}
+	if #state.chains > 0 then
+		for _, chain in state.chains do
+			local a = chain.upper.TransformedWorldCFrame.Position
+			local b = chain.lower.TransformedWorldCFrame.Position
+			-- un peu au-dessus de l'ourlet : la volute sort de sous la robe, sans coupure
+			local start = b + (b - a) * 0.6
+			table.insert(out, { start = start, outward = start - center })
+		end
+		return out
+	end
+	local y = state.bounds.bottom + 0.4
+	for k = 0, TENDRIL_CHAINS - 1 do
+		local th = 2 * math.pi * k / TENDRIL_CHAINS
+		local offset = Vector3.new(math.sin(th), 0, -math.cos(th)) * state.bounds.radius * 0.6
+		local start = root.CFrame:PointToWorldSpace(offset + Vector3.new(0, y, 0))
+		table.insert(out, { start = start, outward = start - center })
+	end
+	return out
+end
+
+-- Cette méthode permet de placer et d'animer les volutes du bas de l'ombre à chaque frame lorsqu'un mortel voit la
+-- Mort (Shared.DeathLook.tendril) ; leur transparence suit la part d'ombre, par paliers.
+local function renderTendrils(state, tendrils, smoke: number)
+	local camera = workspace.CurrentCamera
+	local inRange = not camera or (camera.CFrame.Position - state.root.Position).Magnitude <= TENDRIL_RANGE
+	-- trop loin : éteintes plutôt que figées à l'ancienne place (elles trahiraient où elle était)
+	local on = smoke > 0.01 and inRange
+	setTendrils(tendrils, on)
+	if not on then
+		return
+	end
+	local level = math.floor(smoke * 20 + 0.5) / 20
+	if state.tendrilLevel ~= level then
+		state.tendrilLevel = level
+		local transparency = tendrilTransparency(level)
+		for _, beam in tendrils.beams do
+			beam.Transparency = transparency
+		end
+	end
+	local root = state.root
+	local velocity = root.AssemblyLinearVelocity
+	-- vrai sol sous la Mort (rayon qui ignore son corps et les effets) ; à défaut, le bas du corps
+	local floorY = root.CFrame:PointToWorldSpace(Vector3.new(0, state.bounds.bottom, 0)).Y
+	if not state.floorParams then
+		-- seules les pièces qui portent comptent (pas les ancres invisibles de la maison ni une batterie posée)
+		local params = RaycastParams.new()
+		params.FilterType = Enum.RaycastFilterType.Exclude
+		params.FilterDescendantsInstances = { state.character, tendrils.holder.Parent }
+		params.RespectCanCollide = true
+		state.floorParams = params
+	end
+	local hit = workspace:Raycast(root.Position, Vector3.new(0, -12, 0), state.floorParams)
+	if hit then
+		floorY = hit.Position.Y
+	end
+	local look = root.CFrame.LookVector
+	local t = os.clock()
+	for k, origin in tendrilStarts(state) do
+		local beam = tendrils.beams[k]
+		if not beam then
+			break
+		end
+		local flat = Vector3.new(origin.outward.X, 0, origin.outward.Z)
+		local back = if flat.Magnitude > 1e-6 then (1 - flat.Unit:Dot(look)) / 2 else 0.5
+		local tendril = DeathLook.tendril(
+			origin.start,
+			origin.outward,
+			velocity,
+			t,
+			k * 2.39,
+			DeathLook.tendrilLength(back),
+			floorY
+		)
+		local a0, a1 = beam.Attachment0 :: Attachment, beam.Attachment1 :: Attachment
+		-- l'axe X d'une attache porte le point de contrôle de la courbe du Beam
+		a0.WorldCFrame = CFrame.fromMatrix(tendril.start, tendril.startAxis, tendril.endAxis)
+		a1.WorldCFrame = CFrame.fromMatrix(tendril.finish, tendril.endAxis, tendril.startAxis)
+		beam.CurveSize0 = tendril.startCurve
+		beam.CurveSize1 = tendril.endCurve
 	end
 end
 
@@ -300,6 +434,15 @@ function DeathView.start()
 		state.scytheHighlight = if scythe then newHighlight(scythe, color, outline) else nil
 		local root = character:FindFirstChild("HumanoidRootPart") or character.PrimaryPart
 		state.root = if root and root:IsA("BasePart") then root else nil
+		-- bas des chaînes de la robe, d'où partent les volutes (#90)
+		state.chains = {}
+		for c = 0, TENDRIL_CHAINS - 1 do
+			local upper = character:FindFirstChild(string.format("C%02d_2", c), true)
+			local lower = character:FindFirstChild(string.format("C%02d_3", c), true)
+			if upper and upper:IsA("Bone") and lower and lower:IsA("Bone") then
+				table.insert(state.chains, { upper = upper, lower = lower })
+			end
+		end
 		state.bounds = nil
 		if state.root then
 			local boxes = {}
@@ -329,6 +472,7 @@ function DeathView.start()
 		if state.fx then
 			state.fx.hem:Destroy()
 			state.fx.body:Destroy()
+			state.fx.tendrils.holder:Destroy()
 		end
 		for sound, volume in state.muted do
 			if sound.Parent then
@@ -378,9 +522,9 @@ function DeathView.start()
 		if not state.root or not state.bounds then
 			-- Corps plus mesurable (racine ou pièces disparues) : rien ne doit continuer à fumer à l'ancienne place
 			if state.fx then
-				state.fx.hemSmoke.Enabled = false
 				state.fx.wisps.Enabled = false
 				state.fx.embers.Enabled = false
+				setTendrils(state.fx.tendrils, false)
 			end
 			return
 		end
@@ -396,19 +540,17 @@ function DeathView.start()
 		fx.body.Size = bodySize
 		fx.body.CFrame = rootCFrame * CFrame.new(bodyOffset)
 		local on = smoke > 0.01
-		fx.hemSmoke.Rate = RATES.hem * smoke
 		fx.wisps.Rate = RATES.wisps * smoke
 		fx.embers.Rate = RATES.embers * smoke
-		fx.hemSmoke.Enabled = on
 		fx.wisps.Enabled = on
 		fx.embers.Enabled = on
+		renderTendrils(state, fx.tendrils, smoke)
 		if tearing then
 			fx.tear:Emit(TEAR_SMOKE)
 			fx.embers:Emit(TEAR_EMBERS)
 		end
 		if state.visibility <= 0 and state.fxVisible then
 			-- Disparue (ombre) : les fumées en vol disparaissent avec elle
-			fx.hemSmoke:Clear()
 			fx.wisps:Clear()
 			fx.embers:Clear()
 			fx.tear:Clear()
@@ -423,6 +565,7 @@ function DeathView.start()
 		if not state then
 			state = {
 				view = if subject == localPlayer then View.Self else View.Mortal,
+				character = character,
 				highlights = {},
 				visibility = 0,
 				reveal = 0,
@@ -460,7 +603,7 @@ function DeathView.start()
 			state.visibility, state.reveal, state.revealTarget = 0, 0, 0
 			state.hold = DeathLook.JUMP_HOLD
 			if state.fx then
-				for _, emitter in { state.fx.hemSmoke, state.fx.wisps, state.fx.embers, state.fx.tear } do
+				for _, emitter in { state.fx.wisps, state.fx.embers, state.fx.tear } do
 					emitter:Clear()
 				end
 			end
@@ -498,9 +641,11 @@ function DeathView.start()
 			or applied.body ~= layers.body
 			or applied.scythe ~= layers.scythe
 			or applied.tatters ~= layers.tatters
+			or applied.modelSmoke ~= layers.modelSmoke
 		then
-			state.applied = { body = layers.body, scythe = layers.scythe, tatters = layers.tatters }
-			applyTransparency(character, state, layers.body, layers.scythe, layers.tatters)
+			state.applied =
+				{ body = layers.body, scythe = layers.scythe, tatters = layers.tatters, modelSmoke = layers.modelSmoke }
+			applyTransparency(character, state, layers.body, layers.scythe, layers.tatters, layers.modelSmoke)
 		end
 		local shadowOn = layers.fill < 1
 		for _, highlight in state.highlights do
