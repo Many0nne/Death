@@ -9,7 +9,7 @@ return table.freeze({
 	EndReason = "MatchEndReason", -- Match.EndReason, pendant la phase Ended
 	-- Résultat JSON de la dernière manche (HttpService:JSONDecode) : { reason, death = { userId, name },
 	-- mortals = { { userId, name, state, soul?, cause? } }, saved, reaped, escaped }. `name` est le DisplayName du
-	-- joueur (Name pour un faux joueur), le même texte que la liste des mortels du HUD. Gardé jusqu'à la manche suivante.
+	-- joueur (Name pour un faux joueur), pris au démarrage de la manche (comme la liste des mortels du HUD). Gardé jusqu'à la manche suivante.
 	Result = "MatchResult",
 	-- Objectif de fuite (#7), gardé pendant Ended, nil en Waiting : clés trouvées / à trouver, voiture démarrée (sortie ouverte)
 	KeysFound = "EscapeKeysFound",
