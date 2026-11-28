@@ -62,6 +62,10 @@ accomplir des objectifs pour fuir avant la fin de la nuit, en repérant les pré
 - **Vue** : première personne verrouillée. Elle prépare un piège, coupe le disjoncteur ou grille une ampoule **en le
   regardant** (les invites n'apparaissent que sur la cible dans le cône du regard, environ 37°, ou tout près d'elle) ;
   son corps ne la gêne pas (pas de voile sur ses propres bras, l'indicateur ombre/lumière reste).
+- **Vue dans l'ombre** (#69, `Shared.DeathSight`, pour elle seule) : l'ombre est son milieu. La maison s'y lit
+  nettement, teintée de violet ; les lampes lui paraissent rouge-orangé et plus fortes, la lumière se lit comme un
+  danger ; exposée, sa vue « brûle » (teinte chaude) le temps de l'exposition. Les mortels en jeu (et en agonie)
+  gardent une silhouette pâle, cachée derrière les murs. Captures : `docs/mort/v69/`.
 - **Vision de la Mort** (touche) : écran gris, fils du destin reliant les points fragiles et leurs enchaînements
   possibles. Aide le débutant, récompense l'expert.
 - **Préparer** un point fragile : maintenir une touche (durée selon la taille du piège).
