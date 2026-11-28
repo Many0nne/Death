@@ -90,7 +90,7 @@ export type Layers = {
 	outline: number, -- transparence du contour du corps (1 : aucun)
 	scytheFill: number, -- transparence du remplissage sombre de la faux
 	smoke: number, -- part (0 à 1) des volutes, fumées et braises de l'ombre
-	-- fumées du modèle lui-même (HemSmoke) : coupées tant qu'un mortel voit l'ombre, sinon elles feraient un nuage rond
+	-- fumées du modèle lui-même (HemSmoke...) : coupées tant qu'un mortel voit l'ombre, sinon elles feraient un nuage rond
 	-- autour du bas (#90) ; rendues avec le vrai corps
 	modelSmoke: boolean,
 }

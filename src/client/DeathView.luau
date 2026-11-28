@@ -267,9 +267,9 @@ local function applyTransparency(
 			if state.emitters[d] == nil then
 				state.emitters[d] = d.Enabled
 			end
-			local on = state.emitters[d] and value < 1 and modelSmoke
-			d.Enabled = on
-			if not on then
+			d.Enabled = state.emitters[d] and value < 1 and modelSmoke
+			if value >= 1 then
+				-- corps disparu : ses fumées en vol aussi ; quand l'ombre les remplace, elles s'éteignent sans couper net
 				d:Clear()
 			end
 		end
@@ -312,10 +312,12 @@ end
 -- Cette méthode permet de placer et d'animer les volutes du bas de l'ombre à chaque frame lorsqu'un mortel voit la
 -- Mort (Shared.DeathLook.tendril) ; leur transparence suit la part d'ombre, par paliers.
 local function renderTendrils(state, tendrils, smoke: number)
-	local on = smoke > 0.01
-	setTendrils(tendrils, on)
 	local camera = workspace.CurrentCamera
-	if not on or (camera and (camera.CFrame.Position - state.root.Position).Magnitude > TENDRIL_RANGE) then
+	local inRange = not camera or (camera.CFrame.Position - state.root.Position).Magnitude <= TENDRIL_RANGE
+	-- trop loin : éteintes plutôt que figées à l'ancienne place (elles trahiraient où elle était)
+	local on = smoke > 0.01 and inRange
+	setTendrils(tendrils, on)
+	if not on then
 		return
 	end
 	local level = math.floor(smoke * 20 + 0.5) / 20
@@ -330,10 +332,15 @@ local function renderTendrils(state, tendrils, smoke: number)
 	local velocity = root.AssemblyLinearVelocity
 	-- vrai sol sous la Mort (rayon qui ignore son corps et les effets) ; à défaut, le bas du corps
 	local floorY = root.CFrame:PointToWorldSpace(Vector3.new(0, state.bounds.bottom, 0)).Y
-	local params = RaycastParams.new()
-	params.FilterType = Enum.RaycastFilterType.Exclude
-	params.FilterDescendantsInstances = { state.character, tendrils.holder.Parent }
-	local hit = workspace:Raycast(root.Position, Vector3.new(0, -12, 0), params)
+	if not state.floorParams then
+		-- seules les pièces qui portent comptent (pas les ancres invisibles de la maison ni une batterie posée)
+		local params = RaycastParams.new()
+		params.FilterType = Enum.RaycastFilterType.Exclude
+		params.FilterDescendantsInstances = { state.character, tendrils.holder.Parent }
+		params.RespectCanCollide = true
+		state.floorParams = params
+	end
+	local hit = workspace:Raycast(root.Position, Vector3.new(0, -12, 0), state.floorParams)
 	if hit then
 		floorY = hit.Position.Y
 	end
