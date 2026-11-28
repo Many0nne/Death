@@ -156,8 +156,10 @@ par script Blender (graine fixe, rejouable), avec la bibliothèque `tools/blende
 
 **Chaîne** : `tools/blender/pipeline.py` (construction, contrôles du manifeste et du modèle, cuisson avec `--bake`,
 mesures, export GLB des seules pièces du manifeste). Code 1 si un contrôle échoue. Contrôles propres à la Mort
-(`tools/blender/death/checks.py`) : contact des doigts avec la poignée (écart maximal ≤ 0,005 stud), skinning (aucun
-sommet sans os, 4 os au plus), silhouette (le tissu ne touche pas le sol, hauteur sous 8 studs).
+(`tools/blender/death/checks.py`) : contact des doigts avec la poignée, mesuré sur les maillages réels (appuis ≤ 0,005
+stud, bouts des doigts ≤ 0,012, aucun point hors de la poignée), skinning (aucun sommet sans os, 4 os au plus),
+silhouette (le tissu ne touche pas le sol, hauteur sous 8 studs, lanières à 2,7 studs au plus derrière la racine).
+Le sculpt périmé (base changée) fait aussi échouer la chaîne.
 
 **Cuisson propre (#85)** : les taches de la carte de normales de la cape venaient pour l'essentiel des traits de sculpt
 qui se croisaient dans un pli serré (2 006 pixels, 0,19 % : 553 une fois les traits additionnés puis lissés et les faces
