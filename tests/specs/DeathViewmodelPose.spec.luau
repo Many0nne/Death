@@ -37,6 +37,7 @@ return function(T, Loader)
 	local HEAD = Vector3.new(1.37, 3.95, -1.07)
 	local GRIP = Vector3.new(1.5, 0.5, -1.2)
 	local BLADE_TIP = Vector3.new(-2.0, 2.4, -1.06)
+	local BLADE_CENTER = Vector3.new(-0.4, 2.49, -1.06)
 	local BLADE = {}
 	for _, x in { -2.0, -1.2, -0.4, 0.4, 1.2 } do
 		for _, y in { 1.34, 2.5, 3.64 } do
@@ -347,15 +348,46 @@ return function(T, Loader)
 			local armed = P.frames(State.Reap, { t = 0, moving = 0, progress = 0.7 })
 			local tipArmed = fraction(camera(armed.scythe, BLADE_TIP))
 			T.expect(onScreen(tipArmed) and tipArmed.Y < 0.4, "lame pas armée en haut")
+			-- la descente se lit sur le centre de la lame (la pointe s'éloigne en tranchant)
+			local centerArmed = fraction(camera(armed.scythe, BLADE_CENTER)) :: Vector2
 			local cut = P.frames(State.Reap, { t = 0, moving = 0, progress = 1 })
-			local tipCut = fraction(camera(cut.scythe, BLADE_TIP))
-			T.expect(tipCut ~= nil and tipCut.Y > tipArmed.Y + 0.25, "la lame ne descend pas")
+			local centerCut = fraction(camera(cut.scythe, BLADE_CENTER))
+			T.expect(
+				centerCut ~= nil and centerCut.Y > centerArmed.Y + 0.15,
+				string.format("la lame ne descend pas (%.2f)", centerCut and centerCut.Y - centerArmed.Y or -1)
+			)
 		end)
 		T.it("crochète la lame devant pendant la lutte et ramène la faux vers soi", function()
 			local a = P.frames(State.Pull, { t = 0, moving = 0, pull = 0 })
 			local b = P.frames(State.Pull, { t = 0, moving = 0, pull = 1 })
 			T.expect(onScreen(fraction(camera(a.scythe, BLADE_TIP))), "lame invisible pendant la lutte")
 			T.expect(b.right.Position.Z > a.right.Position.Z + 0.4, "pas de traction")
+		end)
+		T.it("présente la lame de face et assez près, armée, en fin de coupe et pendant la lutte", function()
+			local poses = {
+				{ "fauchage 0,7", P.frames(State.Reap, { t = 0, moving = 0, progress = 0.7 }) },
+				{ "fauchage 1", P.frames(State.Reap, { t = 0, moving = 0, progress = 1 }) },
+				{ "traction 0", P.frames(State.Pull, { t = 0, moving = 0, pull = 0 }) },
+				{ "traction 1", P.frames(State.Pull, { t = 0, moving = 0, pull = 1 }) },
+			}
+			for _, pose in poses do
+				-- normale du plan de la lame (axe Z du modèle) vers la caméra : vue de chant, elle disparaît (constaté)
+				local n = pose[2].scythe:VectorToWorldSpace(Vector3.new(0, 0, 1))
+				T.expect(math.abs(n.Z) >= 0.6, string.format("%s : lame de chant (%.2f)", pose[1], n.Z))
+				local c = camera(pose[2].scythe, BLADE_CENTER)
+				T.expect(-c.Z <= 4.5, string.format("%s : lame à %.1f studs", pose[1], -c.Z))
+				T.expect(onScreen(fraction(c)), pose[1] .. " : centre de la lame hors du cadre")
+			end
+		end)
+		T.it("fait sortir la manche d'ombre droite du cadre dans tous les états", function()
+			local spec = P.SLEEVES.right
+			for _, sample in SAMPLES do
+				local far = camera(sample[2].right, spec.wrist + spec.direction * 3.1)
+				T.expect(
+					-far.Z < NEAR_PLANE or not onScreen(fraction(far)),
+					sample[1] .. " : la manche droite finit dans le cadre"
+				)
+			end
 		end)
 		T.it("tremble pendant la lutte, peu", function()
 			local a = P.frames(State.Pull, { t = 0.1, moving = 0, pull = 0.5 })

@@ -105,26 +105,27 @@ DeathViewmodelPose.BLOW = table.freeze({
 
 -- Fauchage, poses clés du clone droit, rotation de la faux sur son manche (value) et glissement (slide) selon
 -- l'avancée (0 à 1 sur REAP_TIME) : la lame tourne et paraît en haut, armée au-dessus du centre, puis taille vers le
--- bas. La main gauche s'efface un peu vers le bas pendant le geste (REAP_DIP).
+-- bas. La main gauche s'efface un peu vers le bas pendant le geste (REAP_DIP). Armée et pendant la lutte, la lame est
+-- présentée de face, à moins de 4,5 studs (vue de chant, elle disparaît : constaté dans Studio).
 DeathViewmodelPose.REAP_KEYS = table.freeze({
 	{ at = 0, frame = REST.right, value = REST.twist, slide = REST.slide },
 	{
 		at = 0.3,
-		frame = CFrame.new(1.6964, 0.3791, -2.672) * CFrame.fromEulerAnglesYXZ(0.7005, 2.3423, -0.3241),
-		value = 1.0065,
-		slide = 2.8335,
+		frame = CFrame.new(2.003, 0.2631, -2.1932) * CFrame.fromEulerAnglesYXZ(0.5011, 1.0995, -0.3856),
+		value = 4.5419,
+		slide = 2.7903,
 	},
 	{
 		at = 0.7,
-		frame = CFrame.new(1.5348, 0.1626, -2.2813) * CFrame.fromEulerAnglesYXZ(0.1969, 1.5476, -0.5865),
-		value = -1.8276,
-		slide = 2.603,
+		frame = CFrame.new(2.4015, 0.4413, -2.1705) * CFrame.fromEulerAnglesYXZ(0.5574, 1.1302, -0.6375),
+		value = -1.6145,
+		slide = 0.0036,
 	},
 	{
 		at = 1,
-		frame = CFrame.new(1.6499, 0.3735, -2.75) * CFrame.fromEulerAnglesYXZ(0.3468, 1.1688, -1.0019),
-		value = -2.5003,
-		slide = 0.0411,
+		frame = CFrame.new(1.9703, -0.3883, -2.1899) * CFrame.fromEulerAnglesYXZ(0.4306, 1.4866, -0.3844),
+		value = -2.206,
+		slide = 0.2612,
 	},
 })
 DeathViewmodelPose.REAP_DIP = Vector3.new(-0.05, -0.12, 0.05)
@@ -132,10 +133,10 @@ DeathViewmodelPose.REAP_DIP = Vector3.new(-0.05, -0.12, 0.05)
 -- Lutte pour l'âme : faux crochetée devant, ramenée vers soi et relevée à mesure que l'âme sort (part 0 à 1),
 -- tremblement des deux mains
 DeathViewmodelPose.PULL = table.freeze({
-	from = CFrame.new(1.1068, 0.2989, -3.0536) * CFrame.fromEulerAnglesYXZ(0.7385, 1.7223, -0.6565),
-	to = CFrame.new(0.7676, 0.8899, -2.158) * CFrame.fromEulerAnglesYXZ(0.317, 1.5228, -0.2673),
-	twist = -3.3769,
-	slide = 2.146,
+	from = CFrame.new(-0.0173, 2.6691, -3.0548) * CFrame.fromEulerAnglesYXZ(0.5104, 0.1788, -1.8162),
+	to = CFrame.new(1.3886, 2.3436, -2.4815) * CFrame.fromEulerAnglesYXZ(0.3233, 0.273, -0.9764),
+	twist = -3.3963,
+	slide = 0,
 	tremble = 0.012,
 })
 
