@@ -174,4 +174,46 @@ return function(T, Loader)
 			T.expect(count >= 2, "constantes SCYTHE_NAME / TATTERS_NAME introuvables dans DeathView")
 		end)
 	end)
+
+	T.describe("Manifeste de la Mort : sculpt et textures (#89)", function()
+		T.it("chaque pièce sculptée est une pièce du manifeste, et la source du sculpt est versionnée", function()
+			T.expect(measured.sculpt and next(measured.sculpt), "aucun sculpt plaqué dans les mesures")
+			T.expect(fs.isFile(measured.sculptFile), "source du sculpt absente : " .. tostring(measured.sculptFile))
+			for name, info in measured.sculpt do
+				T.expect(manifest.parts[name], "pièce sculptée hors manifeste : " .. name)
+				T.expect(type(info.base) == "string" and #info.base > 0, name .. " : empreinte de base manquante")
+				T.expect((info.levels or 0) >= 1, name .. " : sculpt sans multirésolution")
+			end
+		end)
+
+		T.it("les doigts pressent le cuir de la poignée (contact mesuré sur les maillages réels)", function()
+			local checks = measured.checks
+			T.expect(checks and checks.grip_samples and checks.grip_samples > 0, "contact non mesuré")
+			T.expect(checks.grip_gap_max <= 0.005, string.format("doigt décollé : %.4f stud", checks.grip_gap_max))
+		end)
+
+		T.it("chaque pièce cuite a toutes ses images dans sa SurfaceAppearance", function()
+			for name, part in manifest.parts do
+				local bake = part.bake
+				if not bake then
+					continue
+				end
+				local surface = part.surface or {}
+				local wanted = { "ColorMap", "RoughnessMap" }
+				if bake.normal ~= false then
+					table.insert(wanted, "NormalMap")
+				end
+				if bake.metalness ~= nil then
+					table.insert(wanted, "MetalnessMap")
+				end
+				for _, map in wanted do
+					local id = surface[map]
+					T.expect(
+						type(id) == "string" and string.match(id, "^rbxassetid://%d+$") ~= nil,
+						name .. " : " .. map .. " manquante (texture cuite non envoyée ?)"
+					)
+				end
+			end
+		end)
+	end)
 end

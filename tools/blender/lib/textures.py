@@ -87,9 +87,10 @@ def cc0_material(name, asset, dark, light, rough=(0.7, 1.0), scale=(6.0, 4.0), n
     return mat
 
 
-def flesh_material(name, seed=0):
+def flesh_material(name, seed=0, tone=1.0):
     """Cette méthode permet de créer la matière procédurale de la chair desséchée (cendre marbrée, veines, rides)
-    lorsqu'aucune peau CC0 ne convient ; les faces de `zone` 1 (griffes) prennent une corne jaunie."""
+    lorsqu'aucune peau CC0 ne convient ; les faces de `zone` 1 (griffes) prennent une corne jaunie ; `tone` assombrit
+    la chair (torse vu par les trous de la robe : une peau claire s'écrase sous la lampe)."""
     mat = bpy.data.materials.new(name)
     mat.use_nodes = True
     nt = mat.node_tree
@@ -136,8 +137,13 @@ def flesh_material(name, seed=0):
 
     # chair : cendre grise, taches brunâtres (marbrure large), veines sombres (bruit étiré en crêtes)
     mottle = ramp(noise(3.0).outputs["Fac"], 0.42, 0.68)
-    flesh = mix((0.16, 0.155, 0.145), (0.3, 0.29, 0.265), ramp(noise(9.0).outputs["Fac"], 0.3, 0.7))
-    flesh = mix(flesh, (0.2, 0.15, 0.11), mottle)
+
+    def toned(rgb):
+        """Cette méthode permet d'appliquer le ton de la pièce à une couleur de chair."""
+        return tuple(c * tone for c in rgb)
+
+    flesh = mix(toned((0.16, 0.155, 0.145)), toned((0.3, 0.29, 0.265)), ramp(noise(9.0).outputs["Fac"], 0.3, 0.7))
+    flesh = mix(flesh, toned((0.2, 0.15, 0.11)), mottle)
     vein_src = noise(5.0, detail=3.0, rough=0.4)
     vein = nodes.new("ShaderNodeMath")
     vein.operation = "PINGPONG"
@@ -181,7 +187,7 @@ def flesh_material(name, seed=0):
 
 
 def textured_material(name, maps, metallic=0.0):
-    """Cette méthode permet de poser des textures cuites (chemins PNG color/normal/roughness) sur un matériau, comme
+    """Cette méthode permet de poser des textures cuites (chemins PNG color/normal/roughness/metalness) sur un matériau, comme
     les recevra la SurfaceAppearance de Roblox (rendus de contrôle)."""
     mat = bpy.data.materials.new(name)
     mat.use_nodes = True
@@ -198,6 +204,11 @@ def textured_material(name, maps, metallic=0.0):
         r.image = bpy.data.images.load(maps["roughness"], check_existing=True)
         r.image.colorspace_settings.is_data = True
         links.new(r.outputs["Color"], bsdf.inputs["Roughness"])
+    if maps.get("metalness"):
+        m = nodes.new("ShaderNodeTexImage")
+        m.image = bpy.data.images.load(maps["metalness"], check_existing=True)
+        m.image.colorspace_settings.is_data = True
+        links.new(m.outputs["Color"], bsdf.inputs["Metallic"])
     if maps.get("normal"):
         n = nodes.new("ShaderNodeTexImage")
         n.image = bpy.data.images.load(maps["normal"], check_existing=True)

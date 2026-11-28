@@ -9,19 +9,23 @@ Studio : une modification non réexportée est perdue. La CI fait un checkout LF
 
 | Modèle | Fichier | Utilisé par |
 |---|---|---|
-| La Mort (#73, #76, #81) | `assets/rbx/Characters/Death.rbxm` | `Server.DeathBody` : le joueur Mort le revêt, il retrouve son avatar ensuite ; `Client.CloakAnimator` anime le voile |
+| La Mort (#73, #76, #81, #89) | `assets/rbx/Characters/Death.rbxm` | `Server.DeathBody` : le joueur Mort le revêt, il retrouve son avatar ensuite ; `Client.CloakAnimator` anime le voile |
 
-**La Mort** (#81, après #76 jugé « trop simpliste, un assemblage de formes basiques » ; outillage #79) : un spectre
-décharné de l'archétype « détraqueur » (l'archétype, pas un personnage existant), très grand (7,2 studs sans la faux, 7,57
-avec, sous les portes de 8), sans pieds, qui flotte à 0,2 stud du sol. Suaire tendu sur un crâne sculpté (orbites, arcade, pommettes
-et cavité nasale se devinent), tête penchée, dos voûté, épaules osseuses ; robe lourde trouée sur des côtes
-saillantes ; manches très larges d'où sortent des bras maigres et des mains griffues (la droite serre la faux, la
-gauche se tend) ; le bas se défait en 44 lanières de longueurs très différentes qui traînent vers l'arrière. Avant /
-après : `docs/renders/death/v76/` et `docs/renders/death/` (`textured/` : textures cuites ; `silhouette/` : ombre
-pleine, ce que voit un mortel hors faisceau).
+**La Mort** (#81, après #76 jugé « trop simpliste, un assemblage de formes basiques » ; outillage #79 ; deuxième passe
+sculptée #89) : un spectre décharné de l'archétype « détraqueur » (l'archétype, pas un personnage existant), très
+grand (7,2 studs sans la faux, 7,6 avec, sous les portes de 8), sans pieds, qui flotte à 0,2 stud du sol. Suaire
+d'un seul tenant tendu sur un crâne étroit : arcade, orbites, pommettes, cavité nasale, maxillaire et mâchoire
+tendent le tissu, des plis de tension en tombent vers le cou ; tête penchée, dos voûté, épaules osseuses ; robe
+lourde trouée sur une cage thoracique (côtes et sternum sous une chair desséchée, ventre creusé sous le rebord
+costal) ; manches très larges d'où sortent des bras maigres et des mains griffues (jointures noueuses, tendons,
+griffes qui naissent sur le dos de la dernière phalange ; la droite serre la faux, la gauche se tend) ; le bas se
+défait en 40 lanières de 0,3 à 4 studs qui plongent vers l'arrière en traîne et se relèvent au-dessus du sol. Avant /
+après : `docs/renders/death/v76/`, `v81/` et `docs/renders/death/` (`textured/` : textures cuites ; `silhouette/` :
+ombre pleine, ce que voit un mortel hors faisceau).
 
 Écrite par script Blender (`tools/blender/death_model.py` et ses modules `tools/blender/death/` : `posture`, `veil`,
-`anatomy`, `scythe`, `rig`, `checks` ; rejouable, la source est le script), produite par `tools/blender/pipeline.py`
+`anatomy`, `scythe`, `rig`, `checks` ; rejouable, la source est le script), puis sculptée à la brosse pour la tête,
+le torse, les mains et la faux (section « Sculpt à la brosse »), produite par `tools/blender/pipeline.py`
 (section « Produire un modèle détaillé sans crédits »), exportée en GLB, envoyée par Open Cloud (dossier d'envoi
 approuvé `worktrees/.export` du checkout principal), puis remontée dans Studio par `tools/rbxm/remount.luau` sur le
 rig R15 de #73 :
@@ -40,17 +44,24 @@ rig R15 de #73 :
   `R_UpperArm` sous `RightUpperArm`, etc.) : animer le rig anime les bras (#55, #74). Le corps de la Mort ne reprend
   pas le script `Animate` par défaut (`Server.DeathBody`) : la marche de Roblox balancerait les bras ;
 - **corps** (modèle `Body`) : `Torso` (cage thoracique sous la peau, visible par les trous de la robe) ;
-- **faux** (modèle `Scythe`, soudée à `RightHand` : elle suit la main), une MeshPart par zone de skin : `Blade` (fer
-  battu, gouttière, épaisseur irrégulière), `Edge` (fil ébréché en six endroits), `Engraving`, `ScytheHead` (douille,
-  soie rivetée, éperon), `Gem`, `Rings`, `Shaft` (branche à peine redressée, nœuds), `Grip` (lanières de cuir, un bout
-  libre), `Pommel` ;
+- **faux** (modèle `Scythe`, soudée à `RightHand` : elle suit la main), une MeshPart par zone de skin : `Blade` (lame
+  forgée : dos renforcé, plat, rainure, biseau ; coups de marteau, piqûres de rouille et rayures sculptés), `Edge`
+  (fil, ébréchures franches qui mordent aussi le biseau), `Engraving` (fond de la rainure, acier oxydé),
+  `ScytheHead` (douille à deux colliers, attelles rivetées le long du manche, gemme sertie des deux côtés, soie,
+  éperon), `Gem`, `Rings`, `Shaft` (branche noueuse, moignons de branches coupées, fentes et fil du bois), `Grip`
+  (lanières de cuir, un bout libre), `Pommel` ;
 - toutes les pièces sont sans masse, collision, contact ni requête de rayon, soudées à `HumanoidRootPart` (sauf la
   faux) ; les pièces de #76 (`Hood`, `Void`, `Sleeve`, `BoneArm`, fumée `HoodShadow`) sont retirées par le
   remontage (`studio.remove`).
 - Couleurs et matériaux (l'import GLB les perd) : table `parts` de `tools/models/death.manifest.json`, reposés par le
   remontage ; les textures cuites (`SurfaceAppearance`) portent le détail : lin CC0 pour les tissus, chair procédurale
-  (cendre grise marbrée, veines, rides, griffes de corne jaunie) pour `Hands` et `Torso`, bois CC0 pour `Shaft`.
-- Contact de la main : les phalanges pressent le cuir de 0,006 stud au pire (mesuré sur le maillage, 120 points).
+  (cendre grise marbrée, veines, rides, griffes de corne jaunie) pour `Hands` et `Torso`, bois CC0 pour `Shaft`, métal
+  rouillé CC0 pour `Blade` et `ScytheHead` (avec une carte de métal uniforme, `MetalnessMap` : sans elle la
+  `SurfaceAppearance` rend le fer non métallique).
+- Contact de la main (#89, mesuré sur les maillages réels, main sculptée comprise : un rayon part de l'axe du manche,
+  touche le cuir puis la peau du doigt) : les phalanges pressent le cuir de 0,005 stud au moins (110 points d'appui) ;
+  les deux bouts de chaque doigt, qui ne sont pas des appuis (jointure de base qui quitte la paume, bout arrondi d'où
+  part la griffe), sont à +0,01 stud au plus.
 
 **Preuve `SurfaceAppearance` (#79, cape seule)** : modèle envoyé en asset Model 104750013155394 (#76 :
 112747301669865), textures cuites de la cape en assets Image 90768318909720 (couleur), 75803274684492 (normales),
@@ -68,6 +79,15 @@ rig R15 de #73 :
 écart d'origine 0 ; relancé sur le modèle déjà remonté (second envoi), même résultat, sans avertissement. En jeu :
 sommet à 7,57 studs (faux comprise), bas de l'embout à 0,13 stud du sol.
 
+**Spectre sculpté (#89)**, mesuré dans Studio : modèle asset 72062636211130 (premier envoi 138707365299947, avant
+les côtes approfondies), 22 images neuves (suaire, lanières, mains, torse, manche ; lame et douille avec leur carte
+de métal ; robe et manches inchangées au bit près, non renvoyées). Remontage : 15 pièces remplacées, 65 os de robe,
+37 os du corps, écart d'origine 0, aucun avertissement ; relancé sans import, même résultat. Mémoire des textures
+(clone affiché) : 114,21 Mo avec le modèle #81, 124,55 Mo après le nouveau ; le cache des textures #81 ne se libère
+pas à chaud, la part nette n'est donc pas isolée (estimée à +3,3 Mo d'après le coût mesuré en #81 : la lame en 1024,
+la douille en 512). En jeu, sous la lampe d'un mortel : le crâne se lit sous le suaire (orbites, cavité nasale,
+mâchoire), les côtes par le trou de la robe ![](mort/mortel-tete-lampe.jpg) ![](mort/mortel-torse.jpg).
+
 **Cape vivante** : `Shared.CloakMotion` (règles pures, testées) et `Client.CloakAnimator`, qui écrit `Bone.Transform` en
 `PreSimulation`, car l'Animator du Humanoid remet ces valeurs à zéro à chaque étape d'animation. Ondulation au repos,
 traîne à l'opposé du mouvement ; les lanières suivent les mêmes os. Mesuré en jeu sur le spectre (#81, os du bas
@@ -80,12 +100,15 @@ Pour un mortel, la Mort exposée hors faisceau est une **ombre pleine** sans fau
 dans la fumée (#81) : la forme du voile passe avant le détail des textures, qui ne se voit que dans le faisceau d'une
 lampe. Le rendu ne dépend que des noms `Scythe` (la faux, cachée hors faisceau) et `Tatters`. Rendu vu d'un mortel
 (salon éclairé) : ombre de près ![](mort/mortel-ombre.jpg), à 20 studs ![](mort/mortel-ombre-20-studs.jpg), dans le
-faisceau ![](mort/mortel-faisceau.jpg) et de près ![](mort/mortel-faisceau-pres.jpg) ; la Mort à la lumière (vue
-d'elle-même) ![](mort/mort-lumiere.jpg), en déplacement ![](mort/mort-deplacement.jpg) ; vue du joueur Mort
-![](mort/vue-mort.jpg). Captures de #76 et #80 : `docs/mort/v76/`.
+faisceau ![](mort/mortel-faisceau.jpg) et de près ![](mort/mortel-faisceau-pres.jpg) (spectre sculpté, #89) ; la
+Mort à la lumière (vue d'elle-même) ![](mort/v81/mort-lumiere.jpg), en déplacement
+![](mort/v81/mort-deplacement.jpg) ; vue du joueur Mort ![](mort/v81/vue-mort.jpg) (#81, pas refaites en #89).
+Captures de #76 et #80 : `docs/mort/v76/` ; de #81 : `docs/mort/v81/`.
 
 **Refaire le modèle** (aucune retouche à la main) :
-1. modifier `tools/blender/death_model.py` (ou le manifeste), puis, depuis la racine du worktree :
+1. modifier `tools/blender/death_model.py` (ou le manifeste) ; si une base sculptée change (tête, torse, mains, faux),
+   rejouer les séances de sculpt dans Blender avec interface (`tools/blender/death/sessions/run_all.py`, section
+   « Sculpt à la brosse »), sinon la chaîne refuse le sculpt périmé ; puis, depuis la racine du worktree :
    `blender -b --factory-startup --python tools/blender/pipeline.py -- [--bake] --glb <worktrees/.export>/DeathVeil.glb`
    (contrôles, mesures `tools/models/death.measured.json`, textures si `--bake`) ;
 2. rendre les vues avant et après (`tools/blender/render_views.py`, aussi `--textured` et `--silhouette`) et les
@@ -128,8 +151,39 @@ qui se croisaient dans un pli serré (2 006 pixels, 0,19 % : 553 une fois les tr
 retournées ramenées), le reste des plis de l'ourlet couchés au sol, où un rayon long touche l'autre couche du pli
 (232 avec des rayons courts). Rayons courts par défaut (`cage` du manifeste : extrusion 0,05, portée 0,1) ; la cuisson
 est refusée au-delà de 0,2 % de pixels très inclinés (`spikesMax` par pièce : 2 % pour `Hands`, dont les griffes
-gardées vives demandent de grandes corrections voulues). `Tatters` n'a pas de carte de normales (`"normal": false`) :
+gardées vives demandent de grandes corrections voulues ; pièces dures de la faux, #89 : 0,8 % pour `Blade`, piqûres
+profondes et parois des ébréchures, 1,5 % pour `Shaft`, moignons de branches à 8 facettes, 6 % pour `ScytheHead`,
+rivets à 8 facettes, colliers et sertissures que la carte arrondit ; vérifiés au rendu texturé). Garder vives au
+sculpt les arêtes anguleuses aggravait la mesure (lame 0,48 → 0,67 %, douille 4,2 → 5,4 %) : la pièce jouable est
+lissée à travers elles. `Tatters` n'a pas de carte de normales (`"normal": false`) :
 ses rubans fins se croisent, les rayons touchaient le voisin.
+
+## Sculpt à la brosse (#89)
+
+Les formules ont plafonné sur les détails fins (tête, torse, mains, faux) : ces pièces sont **sculptées avec les vraies
+brosses de Blender** (Draw, Clay Strips, Crease, Inflate, Pinch, Smooth, Flatten…, multirésolution), dans la session
+avec interface (MCP `blender`), chaque geste regardé à l'image.
+
+- **Séances** `tools/blender/death/sessions/` (`head`, `torso`, `hands`, `scythe`) : suites de traits posés en 3D
+  sur la base construite par script (repères tirés de la posture : crâne, côtes, jointures relevées par
+  `anatomy.JOINTS`, profil de la lame). `tools/blender/death/brush.py` projette chaque trait depuis une vue
+  orthographique tournée vers la zone et le joue avec `bpy.ops.sculpt.brush_stroke` (rayon en studs, pression qui
+  effile le trait, symétrie miroir X pour la tête et le torse). Chaque séance repart de la base : elle est rejouable.
+- **Source versionnée** : `assets/sculpt/death_sculpt.blend` (Git LFS), un objet `<Pièce>__sculpt` par pièce (la base et
+  sa multirésolution). `blender -b` ne peut pas rejouer les traits (pas de vue 3D pour les projeter) : la chaîne relit
+  ce fichier (`tools/blender/death/sculpt.py`).
+- **Pièce jouable** : même topologie que la base (poids d'os, UV, attributs gardés), sommets recalés sur le sculpt
+  (« Apply Base » de la multirésolution). **Version détaillée de la cuisson** : le sculpt au niveau le plus fin, au
+  lieu de la subdivision.
+- **Garde-fou** : l'empreinte de la base est gardée avec le sculpt ; si le script construit une autre base, la chaîne
+  échoue (« sculpt périmé »). Rejouer alors toutes les séances dans Blender avec interface, puis relancer la chaîne :
+
+```python
+p = r"<worktree>/tools/blender/death/sessions/run_all.py"
+exec(open(p, encoding="utf-8").read(), {"__name__": "__main__", "__file__": p})
+```
+
+Les lanières (`Tatters`) restent écrites par script : leur base dépend du drapé de la robe.
 
 **Manifeste** `tools/models/death.manifest.json` : noms des pièces et groupes, os, budgets, réglages de cuisson,
 table de remontage (couleurs, matériaux, `SurfaceAppearance`, pièces et fumées ajoutées dans Studio, Humanoid).
@@ -138,10 +192,11 @@ table de remontage (couleurs, matériaux, `SurfaceAppearance`, pièces et fumée
 versionnées (`death.measured.json`) tiennent dans les budgets.
 
 **Budgets** (triangles, mesurés après épaisseur) : au plus **12 000 par pièce** (limite Roblox d'environ 20 000), total
-de la Mort ≤ 70 000 (spectre de #81 : 59 000 environ, détail dans `death.measured.json`). Textures : 1024 pour les grandes pièces, 512 pour les petites (spectre : 1024 pour `Cloak`, `Shroud` et `Hands`,
-ce qu'on voit le plus ; 512 pour `Torso`, visible seulement par les trous de la robe, `Tatters`, rubans fins et
-à demi effacés dans l'ombre, `Sleeves` et `Shaft`) ; une pièce texturée coûte trois
-images (couleur, normales, rugosité).
+de la Mort ≤ 70 000 (spectre de #81 : 59 000 environ ; #89 : 66 392, au plus 10 560 par pièce, détail dans
+`death.measured.json`). Textures : 1024 pour les grandes pièces, 512 pour les petites (spectre : 1024 pour `Cloak`,
+`Shroud`, `Hands` et `Blade`, ce qu'on voit le plus, la lame longue et fine ; 512 pour `Torso`, visible seulement par
+les trous de la robe, `Tatters`, rubans fins et à demi effacés dans l'ombre, `Sleeves`, `Shaft` et `ScytheHead`) ;
+une pièce texturée coûte trois images (couleur, normales, rugosité), quatre pour le fer (métal, 64 px).
 
 **Rendus de contrôle** : `blender -b --factory-startup --python tools/blender/render_views.py -- <dossier>` (8 vues :
 face, 3/4, profil, dos, tête, main sur la faux, main griffue, lame ; Workbench, tissus éclaircis pour lire la forme),

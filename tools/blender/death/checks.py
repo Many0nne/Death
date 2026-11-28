@@ -6,10 +6,12 @@ from mathutils.bvhtree import BVHTree
 
 from lib import mesh
 
-from . import anatomy, posture
+from . import anatomy, posture, scythe
 
 # écart maximal toléré entre une phalange et le cuir (stud) : au-delà, le doigt flotte
 GRIP_TOLERANCE = 0.005
+# profondeur sous le cuir où commence la recherche de la peau d'un doigt (un doigt peut l'enfoncer jusque-là)
+GRIP_SINK_SEARCH = 0.03
 # hauteur maximale du modèle, faux comprise (portes de 8 studs, HouseLayout.DOOR_HEIGHT)
 DOOR_CLEARANCE = 7.9
 # Roblox lit au plus 4 os par sommet
@@ -17,17 +19,39 @@ MAX_INFLUENCES = 4
 
 
 def grip_contact():
-    """Cette méthode permet de mesurer l'écart entre les phalanges qui serrent et le maillage réel de la poignée (studs,
-    point le plus proche) : négatif = le doigt presse le cuir, positif = il flotte ; renvoie (pire, moyen, nombre)."""
+    """Cette méthode permet de mesurer, sur les maillages réels (main sculptée comprise, #89), l'écart entre la peau
+    intérieure des doigts qui serrent et le cuir de la poignée : un rayon part de l'axe du manche vers chaque
+    phalange, touche le cuir puis le doigt ; négatif = le doigt presse le cuir, positif = il flotte. Les deux bouts
+    de chaque doigt (jointure de base qui quitte la paume, bout arrondi d'où part la griffe) ne sont pas des appuis :
+    mesurés à part. Renvoie (pire, moyen, nombre) sur les appuis, puis le pire des bouts."""
     deps = bpy.context.evaluated_depsgraph_get()
-    grip = next(o for o in bpy.data.objects if o.type == "MESH" and o.data.name == "Grip").evaluated_get(deps)
-    tree = BVHTree.FromObject(grip, deps)
-    gaps = []
-    for pts, rs in anatomy.GRIP_PATHS:
-        for p, rf in zip(pts, rs):
-            nearest = tree.find_nearest(p)[0]
-            gaps.append((p - nearest).length - rf)
-    return max(gaps), sum(gaps) / len(gaps), len(gaps)
+
+    def tree(name):
+        """Cette méthode permet de construire l'arbre de recherche d'une pièce évaluée (modificateurs appliqués)."""
+        ob = next(o for o in bpy.data.objects if o.type == "MESH" and o.data.name == name)
+        return BVHTree.FromObject(ob.evaluated_get(deps), deps)
+
+    grip, hands = tree("Grip"), tree("Hands")
+    g = scythe.shaft_point(scythe.GRIP_T)
+    ax = scythe.shaft_axis(scythe.GRIP_T)
+    gaps, ends = [], []
+    for i, (pts, _rs) in enumerate(anatomy.GRIP_PATHS):
+        thumb = i >= 3 * len(anatomy.FINGERS)  # chemins : 3 phalanges par doigt, puis le pouce d'un trait
+        for m, p in enumerate(pts):
+            end = (m == 0 and (thumb or i % 3 == 0)) or (m == len(pts) - 1 and (thumb or i % 3 == 2))
+            axis_pt = g + ax * (p - g).dot(ax)
+            radial = (p - axis_pt).normalized()
+            hit = grip.ray_cast(axis_pt, radial, 1.0)
+            if hit[0] is None:
+                continue
+            r_grip = (hit[0] - axis_pt).length
+            # départ un peu sous le cuir : un doigt qui l'enfonce est aussi trouvé
+            start = axis_pt + radial * (r_grip - GRIP_SINK_SEARCH)
+            skin = hands.ray_cast(start, radial, 0.3)
+            if skin[0] is None:
+                continue
+            (ends if end else gaps).append((skin[0] - axis_pt).length - r_grip)
+    return max(gaps), sum(gaps) / len(gaps), len(gaps), max(ends)
 
 
 def skin_report(name):
@@ -83,8 +107,9 @@ def silhouette():
 
 def run():
     """Cette méthode permet de rendre les mesures et les erreurs des contrôles du spectre pour le rapport."""
-    worst, mean, n = grip_contact()
-    report = {"grip_gap_max": round(worst, 4), "grip_gap_mean": round(mean, 4), "grip_samples": n}
+    worst, mean, n, ends = grip_contact()
+    report = {"grip_gap_max": round(worst, 4), "grip_gap_mean": round(mean, 4), "grip_samples": n,
+              "grip_ends_max": round(ends, 4)}
     errors = []
     if worst > GRIP_TOLERANCE:
         errors.append(f"doigts décollés de la poignée : écart maximal {worst:.3f} stud")

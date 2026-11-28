@@ -235,8 +235,11 @@ def atlas_uv(ob, angle=66.0, margin=0.006):
     réunies) en îlots qui ne se chevauchent pas, pour la cuisson (Smart UV Project, sans interface)."""
     import math as _m
 
+    # objets retirés juste avant (corps de substitution du drapé) : la couche de vue garde des entrées vides
+    bpy.context.view_layer.update()
     for o in bpy.context.view_layer.objects:
-        o.select_set(o is ob)
+        if o is not None:
+            o.select_set(o is ob)
     bpy.context.view_layer.objects.active = ob
     if not ob.data.uv_layers:
         ob.data.uv_layers.new(name="UVMap")

@@ -90,13 +90,14 @@ def bake_part(m, model, name, spec, out_dir):
     if hasattr(model, "bake_strokes"):
         strokes += model.bake_strokes(name, low) or []
     t0 = time.time()
+    sculpted = model.sculpted(name) if hasattr(model, "sculpted") else None
     hi = detail.detailed_copy(
         low, seed, levels=cfg.get("subdiv", 3), strokes=strokes or None, noise=tuple(cfg["noise"]),
-        fine=tuple(cfg["fine"])
+        fine=tuple(cfg["fine"]), sculpted=sculpted
     )
     hi.data.materials.clear()
     if cfg.get("shader") == "flesh":
-        hi.data.materials.append(textures.flesh_material(f"{name}_hi", seed))
+        hi.data.materials.append(textures.flesh_material(f"{name}_hi", seed, tone=cfg.get("tone", 1.0)))
     else:
         hi.data.materials.append(
             textures.cc0_material(
@@ -116,6 +117,8 @@ def bake_part(m, model, name, spec, out_dir):
     maps = bake.bake_maps(hi, low, out_dir, name, size=cfg["size"], extrusion=extrusion, max_ray=max_ray,
                           normal=cfg.get("normal", True))
     t2 = time.time()
+    if cfg.get("metalness") is not None:
+        maps["metalness"] = bake.uniform_map(out_dir, f"{name}_metalness", cfg["metalness"])
     bpy.data.objects.remove(hi, do_unlink=True)
     print(f"BAKE {name}: détail {hi_tris} faces en {t1 - t0:.1f}s, cuisson {cfg['size']}px en {t2 - t1:.1f}s")
     for kind, path in maps.items():
@@ -206,6 +209,8 @@ def main():
             fresh[name] = bake_part(m, model, name, spec, bake_dir)
         else:
             kinds = ("color", "normal", "roughness") if spec["bake"].get("normal", True) else ("color", "roughness")
+            if spec["bake"].get("metalness") is not None:
+                kinds += ("metalness",)
             maps = {k: f"assets/textures/{opts['model']}/{name}_{k}.png" for k in kinds}
             if all(os.path.isfile(os.path.join(ROOT, p)) for p in maps.values()):
                 baked[name] = maps

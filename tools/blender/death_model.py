@@ -7,7 +7,9 @@ Le modèle est découpé en modules (tools/blender/death/) :
 - anatomy : bras et mains griffues (chair desséchée sur les os, d'un seul tenant), torse aux côtes saillantes ;
 - scythe : faux forgée et ébréchée, manche de bois naturel ;
 - rig : armature du corps (os des bras, remontés sur le rig R15 dans Studio) ;
-- checks : contact des doigts, skinning, silhouette.
+- checks : contact des doigts, skinning, silhouette ;
+- sculpt : sculpt à la brosse versionné (assets/sculpt/death_sculpt.blend, #89), plaqué sur les pièces construites ;
+  séances rejouables dans Blender avec interface (death/sessions/, death/brush.py).
 
 Unités : 1 unité Blender = 1 stud. Origine = HumanoidRootPart du rig R15 ; sol à GROUND. Face avant vers +Y (le glTF
 exporte (x, y, z) -> (x, z, -y), donc +Y Blender = -Z Roblox = l'avant). Noms des pièces, budgets et cuisson :
@@ -30,7 +32,7 @@ if HERE not in sys.path:
 for _name in [n for n in sys.modules if n in ("lib", "death") or n.startswith(("lib.", "death."))]:
     del sys.modules[_name]
 
-from death import anatomy, checks as death_checks, posture, rig, scythe, veil  # noqa: E402
+from death import anatomy, checks as death_checks, posture, rig, scythe, sculpt, veil  # noqa: E402
 from lib import mesh  # noqa: E402
 
 GROUND = posture.GROUND
@@ -41,10 +43,12 @@ DRAPE_FRAMES = 70
 BUILT = {}
 
 
-def build_all(drape=True):
+def build_all(drape=True, sculpted=True):
     """Cette méthode permet de reconstruire tout le spectre : corps de substitution, drapés, anatomie, faux, armatures ;
-    les corps de substitution sont retirés à la fin."""
+    les corps de substitution sont retirés à la fin ; `sculpted` plaque le sculpt versionné (False : bases à
+    sculpter, pour les séances)."""
     mesh.clear_scene()
+    sculpt.clear()
     bpy.context.scene.frame_set(1)
     proxies = []
     if drape:
@@ -61,6 +65,19 @@ def build_all(drape=True):
     BUILT["body_rig"] = rig.build_body_rig(bones, [hands, sleeves])
     for ob in bpy.data.objects:
         ob.hide_render = ob.hide_render or ob.name.endswith("Proxy")
+    if sculpted:
+        for ob in [o for o in bpy.data.objects if o.type == "MESH" and o.data.name in SCULPTED]:
+            sculpt.apply(ob)
+
+
+# pièces sculptées à la brosse (#89) : une séance chacune dans death/sessions/
+SCULPTED = ("Shroud", "Torso", "Hands", "Blade", "ScytheHead", "Shaft")
+
+
+def sculpted(name):
+    """Cette méthode permet de donner la version détaillée sculptée d'une pièce (cuisson), ou None : pipeline.py la
+    préfère alors à la subdivision."""
+    return sculpt.detailed(name)
 
 
 def checks():
@@ -76,13 +93,16 @@ def measures():
     out = {"cloakGridVertices": veil.expected_cloak_vertices()}
     if body:
         out["bodyBones"] = rig.joints(body)
+    # sculpts plaqués (#89) : empreinte de la base et niveaux de multirésolution, relus par le test du manifeste
+    out["sculpt"] = {name: {"base": sc.get("base"), "levels": sc.get("levels")} for name, sc in sculpt.LOADED.items()}
+    out["sculptFile"] = os.path.relpath(sculpt.FILE, os.path.join(HERE, "..", "..")).replace("\\", "/")
     return out
 
 
 def bake_strokes(name, low):
     """Cette méthode permet de donner les traits de sculpt propres à une pièce (plis de la chair aux articulations des
     doigts), ou None : pipeline.py les ajoute à la version détaillée avant cuisson."""
-    if name == "Hands":
+    if name == "Hands" and name not in sculpt.LOADED:  # sculptées : les plis sont dans le sculpt
         return anatomy.crease_strokes()
     return None
 

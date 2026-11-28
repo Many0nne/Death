@@ -43,12 +43,13 @@
         "size": 1024, "cc0": "rough_linen", "seed": 82,
         "dark": [0.004, 0.004, 0.005], "light": [0.055, 0.05, 0.055],
         "rough": [0.78, 1.0], "scale": [8, 8], "normalStrength": 1.2, "grime": 0.7,
-        "strokes": 40, "subdiv": 2, "noise": [2.4, 0.02], "fine": [0.1, 0.008]
+        "subdiv": 2, "noise": [2.4, 0.02], "fine": [0.1, 0.008],
+        "_strokes": "pas de traits de plis par script : le suaire est sculpté (#89), plis compris"
       },
       "surface": {
-        "ColorMap": "rbxassetid://93028471194477",
-        "NormalMap": "rbxassetid://113870697726803",
-        "RoughnessMap": "rbxassetid://126262653164355"
+        "ColorMap": "rbxassetid://89982399328869",
+        "NormalMap": "rbxassetid://111141445820573",
+        "RoughnessMap": "rbxassetid://118538546651352"
       }
     },
     "Tatters": {
@@ -61,8 +62,8 @@
         "subdiv": 2, "noise": [3.0, 0.006], "fine": [0.08, 0.003], "cage": [0.012, 0.03], "normal": false
       },
       "surface": {
-        "ColorMap": "rbxassetid://70762299773382",
-        "RoughnessMap": "rbxassetid://128257816035431"
+        "ColorMap": "rbxassetid://135716050555907",
+        "RoughnessMap": "rbxassetid://119965292301473"
       }
     },
     "Sleeves": {
@@ -89,41 +90,72 @@
         "spikesMax": 2.0, "_spikes": "griffes gardées vives et attaches des doigts : grandes corrections de normales voulues (vérifiées au rendu texturé), pas des taches"
       },
       "surface": {
-        "ColorMap": "rbxassetid://104000349263549",
-        "NormalMap": "rbxassetid://89645423226313",
-        "RoughnessMap": "rbxassetid://124605680335503"
+        "ColorMap": "rbxassetid://108725666976376",
+        "NormalMap": "rbxassetid://87893218655350",
+        "RoughnessMap": "rbxassetid://100974134303423"
       }
     },
     "Torso": {
       "group": "Body", "maxTris": 10000, "material": "SmoothPlastic", "color": [82, 78, 72], "castShadow": true,
       "bake": {
-        "size": 512, "shader": "flesh", "seed": 86,
+        "size": 512, "shader": "flesh", "seed": 86, "tone": 0.55,
         "subdiv": 2, "noise": [6.0, 0.008], "fine": [0.05, 0.004]
       },
       "surface": {
-        "ColorMap": "rbxassetid://131074990116468",
-        "NormalMap": "rbxassetid://95620954206207",
-        "RoughnessMap": "rbxassetid://98129171359311"
+        "ColorMap": "rbxassetid://137554112645343",
+        "NormalMap": "rbxassetid://109913751184379",
+        "RoughnessMap": "rbxassetid://81902443936150"
       }
     },
-    "Blade": { "group": "Scythe", "maxTris": 3000, "material": "Metal", "color": [72, 72, 78], "castShadow": true },
-    "Edge": { "group": "Scythe", "maxTris": 3000, "material": "Foil", "color": [168, 170, 176], "castShadow": true },
-    "Engraving": { "group": "Scythe", "maxTris": 1000, "material": "Metal", "color": [40, 40, 44], "castShadow": true },
-    "ScytheHead": { "group": "Scythe", "maxTris": 1500, "material": "Metal", "color": [36, 34, 34], "castShadow": true },
+    "Blade": {
+      "group": "Scythe", "maxTris": 5000, "material": "Metal", "color": [72, 72, 78], "castShadow": true,
+      "bake": {
+        "size": 1024, "cc0": "rusty_metal_02", "seed": 89,
+        "dark": [0.03, 0.03, 0.034], "light": [0.15, 0.14, 0.13],
+        "rough": [0.32, 0.72], "scale": [8, 2], "normalStrength": 1.0, "grime": 0.5,
+        "noise": [14.0, 0.0012], "fine": [0.02, 0.0006], "cage": [0.006, 0.012], "metalness": 0.75,
+        "spikesMax": 0.8, "_spikes": "piqûres profondes et parois des ébréchures : corrections de forme voulues (vérifiées au rendu texturé), pas des taches"
+      },
+      "surface": {
+        "ColorMap": "rbxassetid://139815672897318",
+        "NormalMap": "rbxassetid://79739371903467",
+        "RoughnessMap": "rbxassetid://133342919429039",
+        "MetalnessMap": "rbxassetid://135284666481069"
+      }
+    },
+    "Edge": { "group": "Scythe", "maxTris": 2000, "material": "Foil", "color": [168, 170, 176], "castShadow": true },
+    "Engraving": { "group": "Scythe", "maxTris": 1000, "material": "Metal", "color": [98, 92, 86], "castShadow": true },
+    "ScytheHead": {
+      "group": "Scythe", "maxTris": 2000, "material": "Metal", "color": [36, 34, 34], "castShadow": true,
+      "bake": {
+        "size": 512, "cc0": "rusty_metal_02", "seed": 90,
+        "dark": [0.02, 0.019, 0.018], "light": [0.1, 0.085, 0.07],
+        "rough": [0.45, 0.85], "scale": [3, 3], "normalStrength": 1.0, "grime": 0.6,
+        "noise": [10.0, 0.002], "fine": [0.03, 0.001], "cage": [0.01, 0.02], "metalness": 0.7,
+        "spikesMax": 6.0, "_spikes": "petites pièces dures (rivets à 8 facettes, colliers, sertissures) arrondies par la carte : corrections de forme voulues (vérifiées au rendu texturé), pas des taches"
+      },
+      "surface": {
+        "ColorMap": "rbxassetid://99583342769140",
+        "NormalMap": "rbxassetid://71655582236493",
+        "RoughnessMap": "rbxassetid://73207668584618",
+        "MetalnessMap": "rbxassetid://105514110879454"
+      }
+    },
     "Gem": { "group": "Scythe", "maxTris": 1000, "material": "Neon", "color": [60, 120, 100], "castShadow": true },
     "Rings": { "group": "Scythe", "maxTris": 1000, "material": "Metal", "color": [60, 52, 44], "castShadow": true },
     "Shaft": {
-      "group": "Scythe", "maxTris": 2000, "material": "Wood", "color": [52, 38, 26], "castShadow": true,
+      "group": "Scythe", "maxTris": 3000, "material": "Wood", "color": [52, 38, 26], "castShadow": true,
       "bake": {
         "size": 512, "cc0": "dark_wood", "seed": 88,
         "dark": [0.025, 0.016, 0.01], "light": [0.12, 0.08, 0.05],
         "rough": [0.6, 0.9], "scale": [1, 10], "normalStrength": 1.3, "grime": 0.4,
-        "subdiv": 2, "noise": [10.0, 0.004], "fine": [0.04, 0.002]
+        "subdiv": 2, "noise": [10.0, 0.004], "fine": [0.04, 0.002],
+        "spikesMax": 1.5, "_spikes": "moignons de branches coupées (tubes à 8 facettes) arrondis par la carte, fentes du bois : corrections de forme voulues (vérifiées au rendu texturé)"
       },
       "surface": {
-        "ColorMap": "rbxassetid://137714343604827",
-        "NormalMap": "rbxassetid://84141451533184",
-        "RoughnessMap": "rbxassetid://79054799062317"
+        "ColorMap": "rbxassetid://72120990652315",
+        "NormalMap": "rbxassetid://125537165729882",
+        "RoughnessMap": "rbxassetid://138249908664353"
       }
     },
     "Grip": { "group": "Scythe", "maxTris": 1500, "material": "Leather", "color": [44, 26, 18], "castShadow": true },

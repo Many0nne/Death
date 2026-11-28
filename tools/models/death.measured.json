@@ -22,30 +22,30 @@
     },
     "Shroud": {
       "group": "Veil",
-      "tris": 9600,
+      "tris": 10560,
       "center": [
-        0.0255,
-        2.5123,
-        -0.1858
+        0.032,
+        2.5185,
+        -0.0438
       ],
       "size": [
-        1.9419,
-        2.0554,
-        1.8085
+        1.9748,
+        2.0343,
+        1.6618
       ]
     },
     "Tatters": {
       "group": "Tatters",
-      "tris": 9328,
+      "tris": 10400,
       "center": [
-        -0.0686,
-        -2.0795,
-        0.5915
+        -0.0838,
+        -1.9111,
+        1.8277
       ],
       "size": [
-        1.9748,
-        2.7273,
-        2.8428
+        1.7412,
+        2.3815,
+        5.3425
       ]
     },
     "Sleeves": {
@@ -64,86 +64,86 @@
     },
     "Hands": {
       "group": "Arm",
-      "tris": 6428,
+      "tris": 7948,
       "center": [
-        0.3333,
-        0.808,
-        -1.5615
+        0.3399,
+        0.8192,
+        -1.5595
       ],
       "size": [
-        2.5277,
-        0.8739,
-        2.6698
+        2.5519,
+        0.9079,
+        2.6779
       ]
     },
     "Torso": {
       "group": "Body",
-      "tris": 9280,
+      "tris": 9880,
       "center": [
-        -0.0009,
-        1.3911,
-        -0.0315
+        0.0,
+        1.3901,
+        -0.0211
       ],
       "size": [
-        1.2409,
-        2.7831,
-        0.8645
+        1.2099,
+        2.7803,
+        0.8667
       ]
     },
     "Blade": {
       "group": "Scythe",
-      "tris": 2628,
+      "tris": 4536,
       "center": [
-        -0.4085,
-        2.4897,
+        -0.4033,
+        2.489,
         -1.0638
       ],
       "size": [
-        3.1978,
-        2.281,
-        0.1348
+        3.2117,
+        2.2973,
+        0.1189
       ]
     },
     "Edge": {
       "group": "Scythe",
-      "tris": 2628,
+      "tris": 1296,
       "center": [
-        -0.4479,
-        2.2593,
+        -0.4488,
+        2.2807,
         -1.0638
       ],
       "size": [
-        3.119,
-        1.8201,
-        0.0627
+        3.1172,
+        1.863,
+        0.0408
       ]
     },
     "Engraving": {
       "group": "Scythe",
-      "tris": 448,
+      "tris": 816,
       "center": [
-        -0.3381,
-        2.9624,
+        -0.3113,
+        2.9934,
         -1.0638
       ],
       "size": [
-        2.1901,
-        1.0228,
-        0.1021
+        2.3487,
+        1.1012,
+        0.0567
       ]
     },
     "ScytheHead": {
       "group": "Scythe",
-      "tris": 516,
+      "tris": 1524,
       "center": [
-        1.3633,
-        3.537,
-        -1.0658
+        1.3661,
+        3.2838,
+        -1.0674
       ],
       "size": [
-        0.5297,
-        0.7671,
-        0.2986
+        0.5415,
+        1.3254,
+        0.3018
       ]
     },
     "Gem": {
@@ -164,28 +164,28 @@
       "group": "Scythe",
       "tris": 448,
       "center": [
-        1.4537,
-        0.1716,
-        -1.189
+        1.451,
+        0.1718,
+        -1.1864
       ],
       "size": [
-        0.6163,
-        6.1102,
-        0.3983
+        0.6187,
+        6.1105,
+        0.4006
       ]
     },
     "Shaft": {
       "group": "Scythe",
-      "tris": 1368,
+      "tris": 2524,
       "center": [
-        1.4402,
-        0.2208,
-        -1.1782
+        1.4524,
+        0.22,
+        -1.1838
       ],
       "size": [
-        0.5781,
-        6.8122,
-        0.3941
+        0.6105,
+        6.827,
+        0.4192
       ]
     },
     "Grip": {
@@ -217,7 +217,7 @@
       ]
     }
   },
-  "totalTris": 59132,
+  "totalTris": 66392,
   "bones": [
     "Root",
     "C00_0",
@@ -325,9 +325,10 @@
     "L_Thumb3"
   ],
   "checks": {
-    "grip_gap_max": -0.0058,
-    "grip_gap_mean": -0.0128,
-    "grip_samples": 120,
+    "grip_gap_max": -0.0053,
+    "grip_gap_mean": -0.0119,
+    "grip_samples": 110,
+    "grip_ends_max": 0.0097,
     "skin_Hands": {
       "bones": 34,
       "unweighted": 0,
@@ -349,27 +350,29 @@
       "over4": 0
     },
     "silhouette": {
-      "top": 3.921,
-      "height": 7.571,
-      "clearance": 0.207,
+      "top": 3.947,
+      "height": 7.597,
+      "clearance": 0.548,
       "scytheClearance": 0.13,
-      "trailBack": 2.013
+      "trailBack": 4.499
     }
   },
   "drape": {
     "frames": 70,
     "vertices": 2422,
     "fingerprint": "995cbf268752",
-    "sources": "ead3e4a9fa5c",
+    "sources": "790c20152156",
     "blender": "5.2.3 LTS"
   },
   "bakeSpikesPct": {
     "Cloak": 0.072,
-    "Shroud": 0.001,
+    "Shroud": 0.045,
     "Sleeves": 0.12,
-    "Hands": 0.941,
-    "Torso": 0.0,
-    "Shaft": 0.0
+    "Hands": 0.848,
+    "Torso": 0.011,
+    "Blade": 0.476,
+    "ScytheHead": 4.207,
+    "Shaft": 0.969
   },
   "textures": {
     "Cloak": {
@@ -400,6 +403,18 @@
       "normal": "assets/textures/death/Torso_normal.png",
       "roughness": "assets/textures/death/Torso_roughness.png",
       "color": "assets/textures/death/Torso_color.png"
+    },
+    "Blade": {
+      "normal": "assets/textures/death/Blade_normal.png",
+      "roughness": "assets/textures/death/Blade_roughness.png",
+      "color": "assets/textures/death/Blade_color.png",
+      "metalness": "assets/textures/death/Blade_metalness.png"
+    },
+    "ScytheHead": {
+      "normal": "assets/textures/death/ScytheHead_normal.png",
+      "roughness": "assets/textures/death/ScytheHead_roughness.png",
+      "color": "assets/textures/death/ScytheHead_color.png",
+      "metalness": "assets/textures/death/ScytheHead_metalness.png"
     },
     "Shaft": {
       "normal": "assets/textures/death/Shaft_normal.png",
@@ -853,5 +868,32 @@
         -2.3389
       ]
     }
-  }
+  },
+  "sculpt": {
+    "Blade": {
+      "base": "43d9bd00be22",
+      "levels": 3
+    },
+    "Hands": {
+      "base": "165f1ed22aaf",
+      "levels": 3
+    },
+    "ScytheHead": {
+      "base": "7db4e6decc9e",
+      "levels": 3
+    },
+    "Shaft": {
+      "base": "a5b335f48381",
+      "levels": 3
+    },
+    "Shroud": {
+      "base": "e034ee818dfd",
+      "levels": 3
+    },
+    "Torso": {
+      "base": "6b2d2b21f1dd",
+      "levels": 3
+    }
+  },
+  "sculptFile": "assets/sculpt/death_sculpt.blend"
 }

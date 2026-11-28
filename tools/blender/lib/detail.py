@@ -207,11 +207,15 @@ def displace(ob, size, strength, seed, kind="DISTORTED_NOISE"):
     bpy.data.objects.remove(empty, do_unlink=True)
 
 
-def detailed_copy(ob, seed, levels=3, strokes=None, noise=(1.6, 0.035), fine=(0.12, 0.012)):
+def detailed_copy(ob, seed, levels=3, strokes=None, noise=(1.6, 0.035), fine=(0.12, 0.012), sculpted=None):
     """Cette méthode permet de construire la version détaillée d'une pièce (nom `<pièce>_hi`, cachée au rendu des
-    vues) : subdivision, sculpt par script, bruit Geometry Nodes, déplacement fin ; renvoie l'objet."""
-    hi = copy_geometry(ob, f"{ob.name}_hi")
-    subdivide(hi, levels)
+    vues) : subdivision (ou `sculpted`, la pièce sculptée à la brosse au niveau le plus fin, #89), sculpt par
+    script, bruit Geometry Nodes, déplacement fin ; renvoie l'objet."""
+    if sculpted is not None:
+        hi = sculpted
+    else:
+        hi = copy_geometry(ob, f"{ob.name}_hi")
+        subdivide(hi, levels)
     base_co = [v.co.copy() for v in hi.data.vertices]
     base_normals = [p.normal.copy() for p in hi.data.polygons]
     if strokes:
