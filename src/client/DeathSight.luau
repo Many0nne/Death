@@ -112,13 +112,9 @@ function DeathSight.start()
 
 	-- Cette méthode permet de poser la vue de la Mort lorsque le joueur prend le rôle : valeurs d'origine mémorisées.
 	local function enable()
-		-- Lampes en clés faibles : une lampe détruite pendant le rôle ne reste pas en mémoire
-		local memo: Saved = {
-			lighting = {},
-			atmosphere = nil,
-			colors = {},
-			lamps = setmetatable({}, { __mode = "k" }) :: any,
-		}
+		-- Table forte : en clés faibles, le ramasse-miettes peut perdre la poignée Lua d'une lampe encore en place, qui ne
+		-- serait plus rétablie (et serait renforcée deux fois). Les lampes sont posées une fois, au démarrage du serveur.
+		local memo: Saved = { lighting = {}, atmosphere = nil, colors = {}, lamps = {} }
 		for property, value in Sight.lighting do
 			memo.lighting[property] = (Lighting :: any)[property];
 			(Lighting :: any)[property] = value
