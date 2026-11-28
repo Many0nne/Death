@@ -77,9 +77,10 @@ function DeathSight.active(lightRole: string?): boolean
 end
 
 -- Cette méthode permet de savoir si un personnage est une proie à montrer à la Mort lorsque la vue parcourt les
--- joueurs : un mortel en jeu (rôle de lumière Mortal) ou en agonie, pas un mort, un sauvé ni la Mort.
-function DeathSight.isPrey(lightRole: string?, mortalState: string?): boolean
-	if lightRole == DeathRules.Role.Death then
+-- joueurs : un mortel en jeu (rôle de lumière Mortal) ou en agonie, pas un mort, un sauvé ni la Mort. `deathBody` :
+-- le personnage porte le corps de la Mort (attribut DeathBody), cas d'un faux joueur Mort hors manche, rôle Mortal.
+function DeathSight.isPrey(lightRole: string?, mortalState: string?, deathBody: boolean?): boolean
+	if lightRole == DeathRules.Role.Death or deathBody == true then
 		return false
 	end
 	return lightRole == DeathRules.Role.Mortal or mortalState == Match.MortalState.Agony

@@ -26,6 +26,8 @@ local EFFECT_NAME = "DeathSight"
 local OUTLINE_NAME = "DeathSightPrey"
 -- Surlignage posé par Client.AgonyClient sur un mortel ranimé révélé à la Mort
 local REVEAL_NAME = "AgonyReveal"
+-- Attribut des corps de la Mort (Server.DeathBody.ATTRIBUTE) : un faux joueur Mort hors manche a le rôle Mortal
+local BODY_ATTRIBUTE = "DeathBody"
 
 type Saved = {
 	lighting: { [string]: any },
@@ -57,7 +59,11 @@ local function preys(localPlayer: Player): { [Model]: boolean }
 		if
 			other ~= localPlayer
 			and character
-			and Sight.isPrey(other:GetAttribute(LA.LightRole), other:GetAttribute(MatchAttributes.MortalState))
+			and Sight.isPrey(
+				other:GetAttribute(LA.LightRole),
+				other:GetAttribute(MatchAttributes.MortalState),
+				character:GetAttribute(BODY_ATTRIBUTE) == true
+			)
 		then
 			list[character] = true
 		end
@@ -65,7 +71,11 @@ local function preys(localPlayer: Player): { [Model]: boolean }
 	for _, mannequin in CollectionService:GetTagged(MatchAttributes.BotTag) do
 		if
 			mannequin:IsA("Model")
-			and Sight.isPrey(mannequin:GetAttribute(LA.LightRole), mannequin:GetAttribute(MatchAttributes.MortalState))
+			and Sight.isPrey(
+				mannequin:GetAttribute(LA.LightRole),
+				mannequin:GetAttribute(MatchAttributes.MortalState),
+				mannequin:GetAttribute(BODY_ATTRIBUTE) == true
+			)
 		then
 			list[mannequin] = true
 		end
@@ -102,7 +112,13 @@ function DeathSight.start()
 
 	-- Cette méthode permet de poser la vue de la Mort lorsque le joueur prend le rôle : valeurs d'origine mémorisées.
 	local function enable()
-		local memo: Saved = { lighting = {}, atmosphere = nil, colors = {}, lamps = {} }
+		-- Lampes en clés faibles : une lampe détruite pendant le rôle ne reste pas en mémoire
+		local memo: Saved = {
+			lighting = {},
+			atmosphere = nil,
+			colors = {},
+			lamps = setmetatable({}, { __mode = "k" }) :: any,
+		}
 		for property, value in Sight.lighting do
 			memo.lighting[property] = (Lighting :: any)[property];
 			(Lighting :: any)[property] = value

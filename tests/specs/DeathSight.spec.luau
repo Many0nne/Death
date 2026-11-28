@@ -34,6 +34,11 @@ return function(T, Loader)
 			T.expect(not Sight.isPrey(nil, S.Saved))
 			T.expect(not Sight.isPrey(nil, nil))
 		end)
+
+		T.it("ne montre pas un faux joueur Mort hors manche (rôle Mortal, corps de la Mort)", function()
+			T.expect(not Sight.isPrey("Mortal", nil, true))
+			T.expect(Sight.isPrey("Mortal", nil, false))
+		end)
 	end)
 
 	T.describe("DeathSight.lighting", function()
