@@ -1,10 +1,9 @@
 -- Rendu de la Mort selon qui la regarde (#80, docs/design.md « La Mort ») : règles pures lues à chaque frame par
--- Client.DeathView, indépendantes du modèle (la faux, `Scythe`, et les lanières du bas, `Tatters`, #81, sont retrouvées
--- par leur nom).
--- - Un mortel : invisible dans l'ombre ; exposée (lumière ambiante), une ombre pleine qui épouse la silhouette et dont
---   le bas se défait en volutes ondulantes (#90), sans faux ; tenue dans un faisceau de lampe (attribut public
---   DeathInBeam), l'ombre se déchire et laisse voir le vrai corps et la faux, jusqu'à la dissipation
---   (Server.FlashlightService).
+-- Client.DeathView, indépendantes du modèle (la faux, `Scythe`, est retrouvée par son nom).
+-- - Un mortel : invisible dans l'ombre ; exposée (lumière ambiante), une colonne d'ombre pleine qui avale tout le corps
+--   (#98 : presque informe, pointe de capuche en haut, bas qui lèche le sol et traîne derrière elle), sans faux ; tenue
+--   dans un faisceau de lampe (attribut public DeathInBeam), la colonne se déchire et laisse voir le vrai corps et la
+--   faux, jusqu'à la dissipation (Server.FlashlightService).
 -- - La Mort elle-même : son corps et sa faux toujours visibles, voilés dans l'ombre, pleins à la lumière.
 local DeathLook = {}
 
@@ -18,14 +17,11 @@ DeathLook.Mode = table.freeze({ Hidden = "Hidden", Shadow = "Shadow", Revealed =
 DeathLook.FADE_TIME = 0.2
 DeathLook.REVEAL_TIME = 0.4
 DeathLook.CLOSE_TIME = 0.8
--- Ombre vue d'un mortel : transparence du remplissage (quasi opaque), sans contour (#96 : le liseré, tracé par
--- morceau, détourait aussi les trous du torse et faisait un objet sélectionné plutôt qu'une ombre)
+-- Colonne d'ombre vue d'un mortel : transparence du remplissage (quasi opaque), sans contour (#96 : un liseré faisait
+-- un objet sélectionné plutôt qu'une ombre)
 DeathLook.SHADOW_FILL = 0.04
 -- Voile de la Mort sur son propre corps (transparence du remplissage) : dans l'ombre / à la lumière
 DeathLook.SELF_VEIL = table.freeze({ shadow = 0.6, light = 0.05 })
--- Lanières du bas (#81, pièces à part du modèle) vues d'un mortel : en pleine ombre, sans remplissage et à demi
--- transparentes, elles se défont dans la colonne de fumée au lieu d'arrêter l'ombre sur un bord net (transparence)
-DeathLook.TATTER_FADE = 0.55
 -- Déplacement d'une frame à l'autre au-delà duquel la Mort a été téléportée (dissipation, reformation) : elle glisse
 -- à 20 studs/s au plus, soit moins de 4 studs même à 5 images par seconde ; JUMP_SPEED couvre une frame plus longue
 -- (saccade du client)
@@ -36,10 +32,6 @@ DeathLook.JUMP_SPEED = 40
 DeathLook.JUMP_HOLD = 1
 -- La déchirure ne se rejoue que si l'ombre s'était refermée au moins à ce point (révélation sous ce seuil)
 DeathLook.TEAR_RESET = 0.3
--- Volume au bas du corps d'où montent les braises de l'ombre : part de la hauteur du corps, bornée (studs)
-DeathLook.HEM_SHARE = 0.3
-DeathLook.HEM_MIN = 1
-DeathLook.HEM_MAX = 2.5
 
 -- Cette méthode permet de décider ce que voit un joueur de la Mort lorsque son exposition ou le faisceau change : le
 -- joueur Mort se voit toujours ; un mortel ne la voit qu'exposée, et son vrai corps seulement dans un faisceau.
@@ -84,26 +76,24 @@ export type Layers = {
 	-- touche pas au corps du joueur Mort : la caméra à la première personne s'en charge)
 	body: number,
 	scythe: number,
-	tatters: number, -- transparence locale des lanières du bas (sans remplissage pour un mortel)
-	fill: number, -- transparence du remplissage sombre du corps (1 : aucun)
-	outline: number, -- transparence du contour du corps (1 : aucun)
+	-- transparence du remplissage sombre : pour la Mort, le voile de son corps ; pour un mortel, la colonne d'ombre
+	-- (1 : aucun)
+	fill: number,
+	outline: number, -- transparence du contour (1 : aucun)
 	scytheFill: number, -- transparence du remplissage sombre de la faux
-	smoke: number, -- part (0 à 1) des volutes, fumées et braises de l'ombre
-	-- fumées du modèle lui-même (HemSmoke...) : coupées tant qu'un mortel voit l'ombre, sinon elles feraient un nuage rond
-	-- autour du bas (#90) ; rendues avec le vrai corps
+	smoke: number, -- part (0 à 1) des fumées et braises de la colonne d'ombre
+	-- fumées du modèle lui-même (HemSmoke...) : coupées tant qu'un mortel voit l'ombre, rendues avec le vrai corps
 	modelSmoke: boolean,
 }
 
 -- Cette méthode permet de calculer ce qu'il faut dessiner lorsque visibilité et révélation sont connues : pour un
--- mortel, corps et ombre apparaissent ensemble, puis l'ombre (remplissage sans contour, fumée) cède la place à la faux ;
--- les lanières, à demi effacées dans l'ombre, reprennent corps avec la révélation.
+-- mortel, la colonne d'ombre cache tout le corps (#98), puis cède la place au vrai corps et à la faux dans le faisceau.
 function DeathLook.layers(view: string, visibility: number, reveal: number): Layers
 	if view == DeathLook.View.Self then
 		local veil = DeathLook.SELF_VEIL.shadow + (DeathLook.SELF_VEIL.light - DeathLook.SELF_VEIL.shadow) * visibility
 		return {
 			body = 0,
 			scythe = 0,
-			tatters = 0,
 			fill = veil,
 			outline = 1,
 			scytheFill = veil,
@@ -112,10 +102,10 @@ function DeathLook.layers(view: string, visibility: number, reveal: number): Lay
 		}
 	end
 	local shadow = visibility * (1 - reveal)
+	local revealed = 1 - visibility * reveal
 	return {
-		body = 1 - visibility,
-		scythe = 1 - visibility * reveal,
-		tatters = 1 - visibility * (1 - DeathLook.TATTER_FADE * (1 - reveal)),
+		body = revealed,
+		scythe = revealed,
 		fill = 1 - shadow * (1 - DeathLook.SHADOW_FILL),
 		outline = 1,
 		scytheFill = 1,
@@ -174,96 +164,264 @@ function DeathLook.bounds(root: CFrame, boxes: { Box }): Bounds?
 	return { bottom = bottom, top = top, radius = radius }
 end
 
--- Cette méthode permet de placer le volume des braises au bas du corps lorsque les mesures sont connues : décalage du
--- centre depuis la racine et taille du volume d'émission (pris dans le corps, plus étroit que les lambeaux).
-function DeathLook.hemBox(bounds: Bounds): (Vector3, Vector3)
-	local height = math.clamp((bounds.top - bounds.bottom) * DeathLook.HEM_SHARE, DeathLook.HEM_MIN, DeathLook.HEM_MAX)
-	local width = math.max(bounds.radius * 1.2, 0.5)
-	return Vector3.new(0, bounds.bottom + height / 2, 0), Vector3.new(width, height, width)
-end
-
--- Cette méthode permet de placer le volume des volutes et de la déchirure lorsque les mesures sont connues : tout le
--- corps, un peu rentré pour que la fumée sorte de la silhouette et non de l'air autour.
-function DeathLook.bodyBox(bounds: Bounds): (Vector3, Vector3)
-	local height = math.max(bounds.top - bounds.bottom, 0.5)
-	local width = math.max(bounds.radius * 1.2, 0.5)
-	return Vector3.new(0, (bounds.top + bounds.bottom) / 2, 0), Vector3.new(width, height * 0.9, width)
-end
-
--- Volutes du bas de l'ombre (#90) : une traînée sombre par chaîne d'os de la robe, qui part du bas de la chaîne (elle
--- suit la cape animée, dans le prolongement des lanières), ondule et plonge vers le bas et l'arrière ; en mouvement,
--- elle se couche derrière la Mort. Longueur (studs) devant / derrière, largeur au départ / au bout, ondulation de côté
--- (studs), pulsation (rad/s), recul par stud/s de vitesse et au plus (part de la longueur), marge au-dessus du sol.
-DeathLook.TENDRIL = table.freeze({
-	FRONT_LENGTH = 1.3,
-	BACK_LENGTH = 2.6,
-	WIDTH_START = 0.6,
-	WIDTH_END = 0.05,
-	SWAY = 0.4,
-	WAVE = 1.7,
-	TRAIL = 0.09,
-	TRAIL_MAX = 0.85,
-	FLOOR_GAP = 0.1,
+-- Colonne d'ombre vue d'un mortel (#98) : des ellipsoïdes très recouvrants sous un seul remplissage plat, dont la
+-- réunion donne un flanc lisse (revue : pas de pile de boules). Du sol au centre de la capuche, des couches serrées
+-- (demi-hauteur OVERLAP fois leur écart) dont la largeur suit un profil lissé : évasé vers le sol, régulier, à peine
+-- plus large aux épaules, rétréci vers la capuche ; leur centre suit les anneaux d'os de la robe (le bas ondule et
+-- traîne avec la cape) puis la tête penchée ; une onde lente, différente à gauche et à droite, déforme doucement le
+-- flanc (revue : pas une chaussette régulière). Au sommet, la pointe de capuche ; au sol, une jupe basse pas plus
+-- large que le pied et, en glissant, une langue qui s'effile vers l'arrière (fondues dans la fumée du sol). Le bord
+-- bouillonne par la fumée (Client.DeathView), pas par la géométrie.
+-- Profil : demi-largeur en part de la hauteur sol -> sommet, à des hauteurs (part du sol au centre de la capuche) ;
+-- profondeur (avant-arrière) en part de la largeur (la même partout : une capuche plus creuse que le corps faisait
+-- une bosse de profil) ; dôme de la capuche sous le sommet (part de la hauteur) ; centre de la capuche (part de la
+-- hauteur) ; onde du flanc (part de la largeur, période à droite et à gauche en secondes ; au plus une demi-onde sur
+-- la hauteur) ; pointe (demi-hauteur en part de la hauteur, largeur en part de la capuche, penchée vers l'arrière en
+-- radians) ; jupe (demi-largeur en part de la largeur du bas, demi-hauteur visible en studs) ; hauteur sous laquelle
+-- les couches ne descendent pas (studs : le pied se perd dans la fumée du sol au lieu de toucher le plancher en ellipse
+-- nette) ; langue (demi-longueur
+-- par stud de traîne, demi-largeur en part de la largeur du bas, demi-hauteur en studs) ; recul du bas par stud/s de
+-- vitesse et au plus (studs) ; flancs de fumée (bandes, en part du sol au centre de la capuche : sous les épaules).
+DeathLook.COLUMN = table.freeze({
+	LAYERS = 16,
+	OVERLAP = 3,
+	PROFILE = table.freeze({
+		{ 0, 0.205 },
+		{ 0.1, 0.176 },
+		{ 0.3, 0.152 },
+		{ 0.62, 0.158 },
+		{ 0.82, 0.138 },
+		{ 1, 0.098 },
+	}),
+	DEPTH = 0.8,
+	DOME = 0.08,
+	HEAD_AT = 0.83,
+	WAVE = 0.035,
+	WAVE_RIGHT = 4.1,
+	WAVE_LEFT = 3.4,
+	TIP = 0.1,
+	TIP_WIDTH = 0.42,
+	TIP_TILT = 0.3,
+	SKIRT = 0.8,
+	SKIRT_HEIGHT = 0.15,
+	LIFT = 0.3,
+	TAIL = 1.2,
+	TAIL_WIDTH = 0.55,
+	TAIL_HEIGHT = 0.12,
+	TRAIL = 0.12,
+	TRAIL_MAX = 1.8,
+	FLANK_BANDS = table.freeze({ table.freeze({ 0.04, 0.32 }), table.freeze({ 0.32, 0.55 }) }),
 })
 
-export type Tendril = {
-	start: Vector3, -- point de départ (bas de la chaîne)
-	finish: Vector3, -- bout de la volute
-	startAxis: Vector3, -- direction de départ (le premier point de contrôle suit cet axe)
-	startCurve: number,
-	endAxis: Vector3, -- axe du second point de contrôle (ondulation de côté)
-	endCurve: number,
-}
-
--- Cette méthode permet de donner la longueur d'une volute selon sa place autour de la robe lorsque les volutes sont
--- posées : `back` vaut 0 devant, 1 derrière (les traînes les plus longues derrière, comme les lanières).
-function DeathLook.tendrilLength(back: number): number
-	local T = DeathLook.TENDRIL
-	return T.FRONT_LENGTH + (T.BACK_LENGTH - T.FRONT_LENGTH) * math.clamp(back, 0, 1)
-end
-
--- Cette méthode permet de placer une volute à l'instant t lorsque le client avance d'une frame : elle part de `start`
--- vers le bas, s'écarte un peu de la robe (`outward`, horizontal), ondule de côté (phase propre à la volute) et se
--- couche à l'opposé de la vitesse ; son bout reste au-dessus du sol (`floorY`).
-function DeathLook.tendril(
-	start: Vector3,
-	outward: Vector3,
+export type ColumnInput = {
+	root: CFrame, -- racine du corps (position et cap)
+	floorY: number, -- hauteur du sol sous la Mort
+	top: number, -- hauteur du sommet du corps (capuche)
+	hem: Vector3?, -- centre de l'anneau d'os du bas de la robe (monde), s'il y en a
+	mid: Vector3?, -- centre de l'anneau d'os du milieu de la robe (monde)
+	head: Vector3?, -- centre de la tête (seuls X et Z comptent : la tête penchée)
+	camera: Vector3?, -- position de la caméra : les fumées du bord partent des flancs tels qu'elle les voit
 	velocity: Vector3,
 	t: number,
-	phase: number,
-	length: number,
-	floorY: number
-): Tendril
-	local T = DeathLook.TENDRIL
-	local flat = Vector3.new(velocity.X, 0, velocity.Z)
-	local speed = flat.Magnitude
-	local trailDir = if speed > 0.05 then -flat.Unit else Vector3.zero
-	local trail = math.min(speed * T.TRAIL, T.TRAIL_MAX)
-	local out = Vector3.new(outward.X, 0, outward.Z)
-	out = if out.Magnitude > 1e-6 then out.Unit else Vector3.new(0, 0, 1)
-	local side = Vector3.new(0, 1, 0):Cross(out)
-	local wave = math.sin(T.WAVE * t + phase)
-	local wave2 = math.sin(T.WAVE * 1.37 * t + phase * 1.9)
-	-- immobile, elle tombe et s'écarte à peine ; en mouvement, elle se couche derrière
-	local dir = (Vector3.new(0, -1, 0) * (1 - trail) + trailDir * trail + out * 0.25 + side * (0.12 * wave2)).Unit
-	local finish = start + dir * length + side * (T.SWAY * wave)
-	local lowest = floorY + T.FLOOR_GAP
-	if finish.Y < lowest then
-		-- au sol, elle glisse vers l'arrière (ou vers l'extérieur) en gardant sa longueur, au lieu de s'y enfoncer
-		local drop = math.max(start.Y - lowest, 0)
-		local flatDir = Vector3.new(dir.X, 0, dir.Z)
-		flatDir = if flatDir.Magnitude > 1e-3 then flatDir.Unit else out
-		local reach = math.sqrt(math.max(length * length - drop * drop, 0))
-		finish = Vector3.new(start.X, lowest, start.Z) + flatDir * reach + side * (T.SWAY * wave)
+}
+export type Ellipsoid = { cframe: CFrame, size: Vector3 }
+export type Column = {
+	pieces: { Ellipsoid }, -- toujours le même nombre (DeathLook.columnPieces), dans le même ordre
+	-- volumes des fumées du bord, vus de la caméra : bas gauche, bas droit, haut gauche, haut droit ; l'axe X de chacun
+	-- pointe vers l'extérieur de la silhouette
+	flanks: { Ellipsoid },
+	body: Ellipsoid, -- volume de la colonne, d'où part la déchirure
+	tail: Ellipsoid, -- volume de la langue, d'où part la fumée qui la couvre en glissant
+	floor: Ellipsoid, -- volume au ras du sol (la jupe), d'où partent la fumée qui lèche le sol et les braises
+}
+
+-- Cette méthode permet de donner le nombre de morceaux de la colonne lorsque le rendu les crée : couches, pointe de
+-- capuche, jupe et langue.
+function DeathLook.columnPieces(): number
+	return DeathLook.COLUMN.LAYERS + 3
+end
+
+-- Cette méthode permet de donner la demi-largeur de la colonne (part de la hauteur) à la hauteur u (0 au sol, 1 au
+-- centre de la capuche) lorsque la colonne est posée : profil interpolé en douceur entre ses points (sans angle).
+function DeathLook.columnWidth(u: number): number
+	local profile = DeathLook.COLUMN.PROFILE
+	if u <= profile[1][1] then
+		return profile[1][2]
 	end
+	for k = 2, #profile do
+		local a, b = profile[k - 1], profile[k]
+		if u <= b[1] then
+			local f = (u - a[1]) / (b[1] - a[1])
+			f = f * f * (3 - 2 * f)
+			return a[2] + (b[2] - a[2]) * f
+		end
+	end
+	return profile[#profile][2]
+end
+
+-- Cette méthode permet d'interpoler la position horizontale du centre de la colonne à la hauteur y lorsque la colonne
+-- est posée, entre des points triés du bas vers le haut.
+local function spineAt(points: { Vector3 }, y: number): Vector3
+	if y <= points[1].Y then
+		return Vector3.new(points[1].X, y, points[1].Z)
+	end
+	for k = 2, #points do
+		local a, b = points[k - 1], points[k]
+		if y <= b.Y then
+			local span = b.Y - a.Y
+			local f = if span > 1e-6 then (y - a.Y) / span else 1
+			local p = a:Lerp(b, f)
+			return Vector3.new(p.X, y, p.Z)
+		end
+	end
+	local last = points[#points]
+	return Vector3.new(last.X, y, last.Z)
+end
+
+-- Cette méthode permet de placer la colonne d'ombre à l'instant t lorsqu'un mortel voit la Mort exposée : ellipsoïdes
+-- (repère et taille) et volumes des fumées, en coordonnées monde.
+function DeathLook.column(input: ColumnInput): Column
+	local C = DeathLook.COLUMN
+	local root = input.root
+	local up = Vector3.yAxis
+	local look = Vector3.new(root.LookVector.X, 0, root.LookVector.Z)
+	look = if look.Magnitude > 1e-6 then look.Unit else Vector3.new(0, 0, -1)
+	local right = look:Cross(up)
+	local heading = CFrame.fromMatrix(Vector3.zero, right, up, -look)
+	local floorY = input.floorY
+	local height = math.max(input.top - floorY, 2)
+	local t = input.t
+
+	local flat = Vector3.new(input.velocity.X, 0, input.velocity.Z)
+	local speed = flat.Magnitude
+	local back = if speed > 0.05 then -flat.Unit else -look
+	local trail = math.min(speed * C.TRAIL, C.TRAIL_MAX)
+
+	local center = root.Position
+	local headY = floorY + C.HEAD_AT * height
+	local headFlat = if input.head then input.head else center
+	local head = Vector3.new(headFlat.X, headY, headFlat.Z)
+	local shoulderY = floorY + 0.62 * C.HEAD_AT * height
+	local shoulder = Vector3.new(center.X, shoulderY, center.Z)
+	-- le bas suit l'anneau d'os de l'ourlet (ondulation, traîne de la cape) et recule encore avec la vitesse
+	local hem = input.hem or Vector3.new(center.X, floorY + 0.15 * height, center.Z)
+	local foot = Vector3.new(hem.X, floorY, hem.Z) + back * trail * 0.6
+	local points = { foot }
+	if hem.Y > floorY + 0.05 and hem.Y < shoulderY - 0.05 then
+		table.insert(points, hem)
+	end
+	if input.mid and input.mid.Y > hem.Y + 0.05 and input.mid.Y < shoulderY - 0.05 then
+		table.insert(points, input.mid)
+	end
+	table.insert(points, shoulder)
+	table.insert(points, head)
+
+	local pieces = {}
+	-- Couches du sol au centre de la capuche : écartées de `step`, demi-hauteur OVERLAP step (creux entre deux
+	-- couches : moins de 1,5 % de la largeur), sans dépasser le dôme de la capuche, sous le sommet (la pointe en sort) ;
+	-- onde lente : chaque bord (droite, gauche) avance ou recule de WAVE de la largeur, à son rythme ; la couche se
+	-- décale et s'élargit d'autant (bord droit w0 (1 + aR), bord gauche w0 (1 + aL))
+	local step = (headY - floorY) / (C.LAYERS - 1)
+	for i = 0, C.LAYERS - 1 do
+		local u = i / (C.LAYERS - 1)
+		local w0 = DeathLook.columnWidth(u) * height
+		local aR = C.WAVE * math.sin(2 * math.pi * t / C.WAVE_RIGHT + math.pi * 0.9 * u + 0.4)
+		local aL = C.WAVE * math.sin(2 * math.pi * t / C.WAVE_LEFT + math.pi * u + 2.3)
+		local w = w0 * (1 + (aR + aL) / 2)
+		local depth = w * C.DEPTH
+		local at = spineAt(points, floorY + u * (headY - floorY)) + right * w0 * (aR - aL) / 2
+		local half = math.min(C.OVERLAP * step, input.top - C.DOME * height - at.Y)
+		-- pied relevé : le bas de la couche s'arrête à LIFT du sol, son haut ne bouge pas
+		local low = floorY + C.LIFT
+		if at.Y - half < low then
+			local topY = at.Y + half
+			at = Vector3.new(at.X, (low + topY) / 2, at.Z)
+			half = (topY - low) / 2
+		end
+		table.insert(pieces, {
+			cframe = CFrame.new(at) * heading,
+			size = Vector3.new(2 * w, 2 * half, 2 * depth),
+		})
+	end
+
+	-- Pointe de capuche, un peu en arrière, son sommet au sommet du corps
+	local hoodW = C.PROFILE[#C.PROFILE][2] * height
+	local tipH = C.TIP * height
+	local tipAt = Vector3.new(head.X, input.top - tipH, head.Z) - look * hoodW * 0.25
+	table.insert(pieces, {
+		cframe = CFrame.new(tipAt) * heading * CFrame.Angles(C.TIP_TILT, 0, 0),
+		size = Vector3.new(2 * hoodW * C.TIP_WIDTH, 2 * tipH, 2 * hoodW * C.TIP_WIDTH * 1.2),
+	})
+
+	-- Jupe : basse, pas plus large que le bas, sous la Mort
+	local baseW = C.PROFILE[1][2] * height
+	local skirtW = baseW * C.SKIRT
+	local footAt = Vector3.new(foot.X, floorY, foot.Z)
+	table.insert(pieces, {
+		cframe = CFrame.lookAt(footAt, footAt + back),
+		size = Vector3.new(2 * skirtW, 2 * C.SKIRT_HEIGHT, 2 * skirtW * C.DEPTH),
+	})
+	-- Langue : en glissant, une ellipse longue et étroite qui part de sous la jupe et s'effile en pointe vers l'arrière ;
+	-- immobile, réduite à rien sous le pied
+	local grow = math.clamp(trail / 0.5, 0, 1)
+	local tailHalf = math.max(trail * C.TAIL, 0.025)
+	local tailW = math.max(baseW * C.TAIL_WIDTH * grow, 0.025)
+	local tailAt = footAt + back * (tailHalf + skirtW * C.DEPTH * 0.3)
+	table.insert(pieces, {
+		cframe = CFrame.lookAt(tailAt, tailAt + back),
+		size = Vector3.new(2 * tailW, 2 * C.TAIL_HEIGHT, 2 * tailHalf),
+	})
+
+	-- Flancs vus de la caméra (sans caméra : côtés de la Mort), en deux bandes sous les épaules (revue : pas de fumée
+	-- en cornes autour de la capuche) ; chacun posé juste en deçà du bord de la silhouette, son axe X vers l'extérieur
+	local side = right
+	if input.camera then
+		local view = Vector3.new(center.X - input.camera.X, 0, center.Z - input.camera.Z)
+		if view.Magnitude > 1e-3 then
+			side = view.Unit:Cross(up)
+		end
+	end
+	-- Cette méthode permet de donner le rayon de la silhouette dans la direction `dir` à la hauteur u lorsque les flancs
+	-- sont posés (ellipse de la couche, profondeur comprise).
+	local function radius(dir: Vector3, u: number): number
+		local w = DeathLook.columnWidth(u) * height
+		return w * math.sqrt(dir:Dot(right) ^ 2 + (C.DEPTH * dir:Dot(look)) ^ 2)
+	end
+	local flanks = {}
+	for _, band in C.FLANK_BANDS do
+		local u0, u1 = band[1], band[2]
+		local uMid = (u0 + u1) / 2
+		for _, sign in { -1, 1 } do
+			local out = side * sign
+			local y = floorY + uMid * (headY - floorY)
+			local at = spineAt(points, y) + out * radius(out, uMid) * 0.92
+			table.insert(flanks, {
+				cframe = CFrame.fromMatrix(at, out, up, out:Cross(up)),
+				size = Vector3.new(0.3, (u1 - u0) * (headY - floorY), 0.8),
+			})
+		end
+	end
+
+	local bodyW = 2 * C.PROFILE[4][2] * height
+	local bodyMid = spineAt(points, (floorY + shoulderY) / 2)
 	return {
-		start = start,
-		finish = finish,
-		startAxis = Vector3.new(0, -1, 0),
-		startCurve = length * 0.35,
-		endAxis = side,
-		-- ondulation en S : le second point de contrôle bat à contretemps du bout
-		endCurve = -T.SWAY * 0.9 * math.sin(T.WAVE * t + phase + 1.3),
+		pieces = pieces,
+		flanks = flanks,
+		body = {
+			cframe = CFrame.new(bodyMid) * heading,
+			size = Vector3.new(bodyW, shoulderY - floorY, bodyW * C.DEPTH),
+		},
+		-- disque plus large que le pied, un peu au-dessus du sol : près de la moitié de la fumée qui y naît est hors du
+		-- pied, devant compris, et casse son bord (au ras du sol, le plancher en cachait la moitié basse ; posée sur la
+		-- colonne, elle disparaît sous son remplissage)
+		floor = {
+			cframe = CFrame.new(footAt + up * 0.35) * heading,
+			size = Vector3.new(2 * baseW * 1.35, 0.2, 2 * baseW * C.DEPTH * 1.35),
+		},
+		tail = {
+			cframe = CFrame.lookAt(tailAt + up * 0.15, tailAt + up * 0.15 + back),
+			size = Vector3.new(2 * tailW, 0.3, 2 * tailHalf),
+		},
 	}
 end
 

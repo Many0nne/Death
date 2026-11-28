@@ -171,7 +171,7 @@ return function(T, Loader)
 				T.expect(known[name], "DeathView cherche « " .. name .. " », absent du manifeste")
 				count += 1
 			end
-			T.expect(count >= 2, "constantes SCYTHE_NAME / TATTERS_NAME introuvables dans DeathView")
+			T.expect(count >= 2, "constantes SCYTHE_NAME / SHROUD_NAME introuvables dans DeathView")
 		end)
 	end)
 
