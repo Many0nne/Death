@@ -126,18 +126,20 @@ local function build(): any
 			end
 		end
 	end
-	-- Un seul bloc rigide : maillage des mains, manches d'ombre et pièces du rig (invisibles, gardées avec les os du
-	-- maillage)
-	local rig = collect(LEFT)
-	for _, part in collect(RIGHT) do
-		table.insert(rig, part)
+	-- Un clone du maillage des mains par main (Shared.DeathViewmodelPose : le maillage est rigide, chaque clone est
+	-- posé de sorte que son autre main reste hors du champ), chacun avec sa manche d'ombre. Les pièces du rig
+	-- (invisibles, gardées avec les os du maillage) suivent le clone droit.
+	local rightHands = hands:Clone()
+	rightHands.Name = HANDS_NAME .. "Right"
+	rightHands.Parent = arm
+	hands.Name = HANDS_NAME .. "Left"
+	local left = { hands, sleeve("left") }
+	local right = { rightHands, sleeve("right") }
+	for _, list in { LEFT, RIGHT, CORE } do
+		for _, part in collect(list) do
+			table.insert(right, part)
+		end
 	end
-	for _, part in collect(CORE) do
-		table.insert(rig, part)
-	end
-	table.insert(rig, hands)
-	table.insert(rig, sleeve("left"))
-	table.insert(rig, sleeve("right"))
 	local rightHand = model:FindFirstChild("RightHand")
 	-- ancre : position de la pièce RightHand, orientation du corps (Shared.DeathViewmodelPose.ANCHOR)
 	local anchor = rootFrame
@@ -147,7 +149,8 @@ local function build(): any
 				else DeathViewmodelPose.ANCHOR
 		)
 	return Viewmodel.new(model, {
-		rig = { anchor = anchor, parts = rig },
+		left = { anchor = anchor, parts = left },
+		right = { anchor = anchor, parts = right },
 		scythe = { anchor = anchor, parts = blade },
 	})
 end

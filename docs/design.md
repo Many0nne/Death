@@ -67,14 +67,15 @@ accomplir des objectifs pour fuir avant la fin de la nuit, en repérant les pré
   mortels la voient comme avant), l'indicateur ombre/lumière reste.
 - **Mains et faux en première personne** (#74, viewmodel, `src/shared/DeathViewmodelPose.luau`,
   `Client.DeathViewmodel`) : les mains squelettes et la faux du modèle, collées à la caméra, visibles d'elle seule
-  pendant la manche. Griffes de la main gauche en bas à gauche, faux à droite (manche presque vertical, lame derrière
-  la tête au repos) ; le centre de l'écran, l'indicateur ombre/lumière et le panneau de la lutte restent dégagés. États,
+  pendant la manche. Griffes de la main gauche en bas à gauche, faux tenue par le bas dans le tiers droit (manche
+  penché vers le bord droit en haut, lame au-dessus du cadre au repos) ; le centre de l'écran et l'indicateur
+  ombre/lumière restent dégagés (rien sur le panneau du HUD, dans aucun état). États,
   branchés sur le jeu : **repos** (flottement lent, période 3,6 s, ±0,03 stud) ; **main tendue** vers l'objet tant
   qu'une invite de la Mort est tenue (préparer ou désarmer un piège, griller une ampoule, couper le disjoncteur) ;
   **souffle** (poussée de 0,7 s quand une charge part) ; **fauchage** (4 s, le temps de l'invite : la faux tourne sur
   son manche, la lame paraît, se lève puis tranche) ; **traction** pendant la lutte pour l'âme (faux crochetée, ramenée
-  vers soi à mesure que l'âme sort, tremblement). Les mains bougent ensemble (bloc rigide : le maillage des mains ne
-  suit pas ses os, `docs/assets.md`).
+  vers soi à mesure que l'âme sort, tremblement). Chaque main bouge seule (un clone du maillage des mains par main :
+  le maillage ne suit pas ses os, `docs/assets.md`) ; les doigts restent figés dans la pose du modèle (#101).
 - **Vision de la Mort** (touche) : écran gris, fils du destin reliant les points fragiles et leurs enchaînements
   possibles. Aide le débutant, récompense l'expert.
 - **Préparer** un point fragile : maintenir une touche (durée selon la taille du piège).

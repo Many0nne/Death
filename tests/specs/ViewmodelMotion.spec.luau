@@ -91,6 +91,14 @@ return function(T, Loader)
 		end)
 	end)
 
+	T.describe("ViewmodelMotion.between", function()
+		T.it("amène une direction sur l'autre, identité si elles sont alignées", function()
+			local from, to = Vector3.new(0, 0, -1), Vector3.new(1, 1, -1).Unit
+			T.expectNear(((M.between(from, to) * from) - to).Magnitude, 0, 1e-6)
+			T.expectNear((M.between(from, from) * Vector3.new(1, 2, 3) - Vector3.new(1, 2, 3)).Magnitude, 0, 1e-9)
+		end)
+	end)
+
 	T.describe("ViewmodelMotion.crossfade", function()
 		T.it("part de la pose affichée et arrive à la nouvelle", function()
 			local from = { a = CFrame.new(0, 0, 0) }

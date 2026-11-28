@@ -14,6 +14,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local AgonyAttributes = require(Shared:WaitForChild("AgonyAttributes"))
 local GameConfig = require(Shared:WaitForChild("GameConfig"))
 local HudFormat = require(Shared:WaitForChild("HudFormat"))
+local HudLayout = require(Shared:WaitForChild("HudLayout"))
 local LightAttributes = require(Shared:WaitForChild("LightAttributes"))
 local Match = require(Shared:WaitForChild("Match"))
 local MatchAttributes = require(Shared:WaitForChild("MatchAttributes"))
@@ -46,14 +47,14 @@ local function makePanel(name: string, parent: Instance): Frame
 	corner.CornerRadius = UDim.new(0, 6)
 	corner.Parent = frame
 	local padding = Instance.new("UIPadding")
-	padding.PaddingTop = UDim.new(0, 6)
-	padding.PaddingBottom = UDim.new(0, 6)
+	padding.PaddingTop = UDim.new(0, HudLayout.ROLE_PANEL.padding)
+	padding.PaddingBottom = UDim.new(0, HudLayout.ROLE_PANEL.padding)
 	padding.PaddingLeft = UDim.new(0, 10)
 	padding.PaddingRight = UDim.new(0, 10)
 	padding.Parent = frame
 	local layout = Instance.new("UIListLayout")
 	layout.SortOrder = Enum.SortOrder.LayoutOrder
-	layout.Padding = UDim.new(0, 2)
+	layout.Padding = UDim.new(0, HudLayout.ROLE_PANEL.spacing)
 	layout.Parent = frame
 	frame.Parent = parent
 	return frame
@@ -65,7 +66,7 @@ local function makeLine(name: string, parent: Instance, order: number, size: num
 	label.Name = name
 	label.LayoutOrder = order
 	label.BackgroundTransparency = 1
-	label.Size = UDim2.new(1, 0, 0, (size or 16) + 6)
+	label.Size = UDim2.new(1, 0, 0, (size or 16) + HudLayout.ROLE_PANEL.lineExtra)
 	label.Font = Enum.Font.GothamMedium
 	label.TextSize = size or 16
 	label.TextColor3 = TEXT
@@ -128,14 +129,15 @@ local function makeHud(playerGui: Instance)
 		rows[i] = makeLine("Mortal" .. i, roster, i)
 	end
 
-	-- Bas droite : panneau du rôle
+	-- Bas droite : panneau du rôle (Shared.HudLayout : le viewmodel de la Mort le laisse dégagé)
+	local panel = HudLayout.ROLE_PANEL
 	local side = makePanel("RolePanel", gui)
 	side.AnchorPoint = Vector2.new(1, 1)
-	side.Position = UDim2.new(1, -12, 1, -12)
-	side.Size = UDim2.fromOffset(330, 0)
-	local light = makeLine("Light", side, 1, 17)
-	local breath = makeLine("Breath", side, 2)
-	local traps = makeLine("Traps", side, 3)
+	side.Position = UDim2.new(1, -panel.margin, 1, -panel.margin)
+	side.Size = UDim2.fromOffset(panel.width, 0)
+	local light = makeLine("Light", side, 1, HudLayout.DEATH_LINES[1])
+	local breath = makeLine("Breath", side, 2, HudLayout.DEATH_LINES[2])
+	local traps = makeLine("Traps", side, 3, HudLayout.DEATH_LINES[3])
 	local battery = makeLine("Battery", side, 4)
 
 	gui.Parent = playerGui

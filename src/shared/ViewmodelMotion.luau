@@ -147,6 +147,16 @@ function ViewmodelMotion.aim(position: Vector3, direction: Vector3): CFrame
 	return CFrame.fromMatrix(position, right, right:Cross(look), -look)
 end
 
+-- Cette méthode permet de donner la plus petite rotation qui amène la direction `from` sur `to` lorsqu'un membre
+-- pivote pour suivre un point (vecteurs unitaires ; identité s'ils sont alignés).
+function ViewmodelMotion.between(from: Vector3, to: Vector3): CFrame
+	local axis = from:Cross(to)
+	if axis.Magnitude < 1e-6 then
+		return CFrame.identity
+	end
+	return CFrame.fromAxisAngle(axis.Unit, math.acos(math.clamp(from:Dot(to), -1, 1)))
+end
+
 -- Cette méthode permet de placer une pièce lorsque le viewmodel est rendu : la pose du groupe (espace caméra) mène son
 -- ancre, la pièce garde son écart à l'ancre relevé au repos (`anchorRest`, `partRest` : repères du modèle d'origine).
 function ViewmodelMotion.partFrame(camera: CFrame, pose: CFrame, anchorRest: CFrame, partRest: CFrame): CFrame

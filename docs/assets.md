@@ -168,9 +168,15 @@ groupes de pièces locales, ancrées et inertes, collées à la caméra par `wor
 `Shared.DeathViewmodelPose`, mouvement de `Shared.ViewmodelMotion`). Constaté dans Studio : le maillage `Hands` ne suit
 pas ses os dans un clone (`Bone.Transform` sur `L_Hand`, `L_Forearm`... sans effet, pièces du rig soudées en un seul
 assemblage, `AnimationController` et `Animator` ajoutés, maillage désancré : il reste dans la pose du modèle, rigide
-avec sa pièce). Les deux mains forment donc un **bloc rigide** (gauche tendue, droite serrée sur le manche) ; la faux
-tourne sur l'**axe de son manche** (le manche reste dans la main fermée) : lame derrière la tête au repos, devant pour
-faucher et tirer. Le maillage s'arrête juste derrière les poignets (bout ouvert) : une **manche d'ombre** par bras
+avec sa pièce). Le maillage est donc **cloné deux fois**, un clone par main : chaque clone est posé de sorte que son
+autre main reste hors du champ (au-dessus du cadre pour le clone droit, sous le cadre pour le gauche ; contrôlé par
+les tests Lune, boîte de la main cachée échantillonnée finement), et les deux mains bougent chacune de leur côté. La
+faux, dans la main droite, tourne sur l'**axe de son manche** et y **glisse** (la main fermée reste sur le manche) :
+tenue par le bas au repos (glissement 3,24 studs), lame au-dessus du cadre, ramenée devant pour faucher et tirer.
+Cadrage au repos (tests Lune, capture de 1611 x 759) : rien dans le rectangle x > 0,70, y > 0,80 (panneau du rôle du
+HUD, `Shared.HudLayout`) dans aucun état, manche visible à x > 0,68, penché de 15 à 25 degrés vers la droite en haut,
+70 px de large au plus (0,34 stud, bagues et poignée), griffes gauches sous y 0,62 et manche d'ombre gauche qui entre
+par le bord bas. Le maillage s'arrête juste derrière les poignets (bout ouvert) : une **manche d'ombre** par bras
 (ellipsoïde couleur de la robe, 3,2 x 0,6 studs, du poignet vers le coude) le couvre ; les manches du modèle
 couvraient la moitié de l'écran (constaté). Dans l'ombre : voile noir (`Highlight`, remplissage 0,15) et transparence
 0,35 ; à la lumière : plein. Captures des états : attribut de debug `DebugViewmodel` sur le Player (Studio : `Rest`,
