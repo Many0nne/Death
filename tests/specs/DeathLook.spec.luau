@@ -54,9 +54,9 @@ return function(T, Loader)
 			T.expectEqual(l.smoke, 0)
 		end)
 
-		T.it("ombre : corps couvert d'un remplissage presque opaque, sans contour, fumée, pas de faux", function()
+		T.it("ombre : vrai corps caché sous une colonne presque opaque, sans contour, fumée, pas de faux", function()
 			local l = settled(View.Mortal, true, false)
-			T.expectEqual(l.body, 0)
+			T.expectEqual(l.body, 1, "le vrai corps est caché par la colonne (#98)")
 			T.expectEqual(l.scythe, 1, "faux cachée")
 			T.expectNear(l.fill, DeathLook.SHADOW_FILL)
 			T.expect(l.fill < 0.1, "pleine, pas transparente")
@@ -84,21 +84,10 @@ return function(T, Loader)
 			T.expectEqual(dark.smoke, 0)
 		end)
 
-		T.it(
-			"lanières (#81) : cachées avec le corps, à demi effacées dans l'ombre, pleines révélées et pour la Mort",
-			function()
-				T.expectEqual(settled(View.Mortal, false, false).tatters, 1)
-				T.expectNear(settled(View.Mortal, true, false).tatters, DeathLook.TATTER_FADE)
-				T.expect(DeathLook.TATTER_FADE > 0 and DeathLook.TATTER_FADE < 1, "ni pleines ni invisibles")
-				T.expectEqual(settled(View.Mortal, true, true).tatters, 0)
-				T.expectEqual(settled(View.Self, false, false).tatters, 0)
-				T.expectEqual(settled(View.Self, true, false).tatters, 0)
-			end
-		)
-
-		T.it("à mi-déchirure : la faux apparaît pendant que l'ombre se retire", function()
+		T.it("à mi-déchirure : corps et faux apparaissent pendant que la colonne se retire", function()
 			local l = DeathLook.layers(View.Mortal, 1, 0.5)
 			T.expectNear(l.scythe, 0.5)
+			T.expectNear(l.body, 0.5)
 			T.expectNear(l.smoke, 0.5)
 			T.expect(l.fill > DeathLook.SHADOW_FILL and l.fill < 1)
 		end)
@@ -167,21 +156,9 @@ return function(T, Loader)
 		T.it("aucune pièce : nil", function()
 			T.expectEqual(DeathLook.bounds(CFrame.new(), {}), nil)
 		end)
-
-		T.it("braises au bas du corps, volume borné ; fumerolles sur tout le corps", function()
-			local bounds = { bottom = -4, top = 3, radius = 1.5 }
-			local hemOffset, hemSize = DeathLook.hemBox(bounds)
-			T.expectNear(hemSize.Y, 7 * DeathLook.HEM_SHARE, 1e-6)
-			T.expectNear(hemOffset.Y - hemSize.Y / 2, -4, 1e-6, "part du bas du corps")
-			local _, tall = DeathLook.hemBox({ bottom = -20, top = 20, radius = 1 })
-			T.expectEqual(tall.Y, DeathLook.HEM_MAX)
-			local bodyOffset, bodySize = DeathLook.bodyBox(bounds)
-			T.expectNear(bodyOffset.Y, -0.5, 1e-6)
-			T.expect(bodySize.Y < 7, "rentré dans la silhouette")
-		end)
 	end)
 
-	T.describe("DeathLook : ombre sans nuage, volutes du bas (#90)", function()
+	T.describe("DeathLook.column : colonne d'ombre (#98)", function()
 		-- Cette méthode permet de donner les couches d'un mode, fondus terminés, lorsque le test vérifie les fumées.
 		local function settled(view, exposed, inBeam)
 			local mode = DeathLook.mode(view, exposed, inBeam)
@@ -195,49 +172,158 @@ return function(T, Loader)
 			T.expectEqual(settled(View.Self, true, false).modelSmoke, true)
 		end)
 
-		local start = Vector3.new(0, 1, 0)
-		local out = Vector3.new(0, 0, 1)
-		local floorY = -2
+		-- La Mort de docs/assets.md : racine à 3,65 studs du sol, sommet à 7,4 ; tournée vers -Z
+		local floorY = 0
+		local root = CFrame.new(0, 3.65, 0)
+		-- Cette méthode permet de poser une colonne de test lorsque seuls la vitesse, l'instant et l'ourlet changent.
+		local function column(velocity: Vector3?, t: number?, hem: Vector3?)
+			return DeathLook.column({
+				root = root,
+				floorY = floorY,
+				top = 7.4,
+				hem = hem,
+				velocity = velocity or Vector3.zero,
+				t = t or 0,
+			})
+		end
+		-- Cette méthode permet de donner les points extrêmes d'un ellipsoïde (sommet, bas, et écart horizontal au centre
+		-- de la racine) lorsque le test mesure la silhouette.
+		local function extent(piece)
+			local half = piece.size / 2
+			local top, bottom, reach = -math.huge, math.huge, 0
+			for _, axis in { Vector3.xAxis * half.X, Vector3.yAxis * half.Y, Vector3.zAxis * half.Z } do
+				for _, sign in { -1, 1 } do
+					local p = piece.cframe:PointToWorldSpace(axis * sign)
+					top = math.max(top, p.Y)
+					bottom = math.min(bottom, p.Y)
+					reach = math.max(reach, Vector3.new(p.X, 0, p.Z).Magnitude)
+				end
+			end
+			return top, bottom, reach
+		end
+		-- Cette méthode permet de mesurer le recul moyen des lobes au sol (vers +Z, derrière une Mort tournée vers -Z)
+		-- lorsque le test compare des vitesses.
+		local function lobesBack(c)
+			local sum, n = 0, 0
+			for k = DeathLook.COLUMN.LAYERS + 4, DeathLook.COLUMN.LAYERS + 3 + DeathLook.COLUMN.LOBES do
+				sum += c.pieces[k].cframe.Position.Z
+				n += 1
+			end
+			return sum / n
+		end
 
-		T.it("immobile : la volute tombe sous son départ, s'écarte un peu de la robe, au-dessus du sol", function()
-			local tendril = DeathLook.tendril(start, out, Vector3.zero, 0, 0, 2, floorY)
-			T.expect(tendril.finish.Y < start.Y - 1, "elle tombe")
-			T.expect(tendril.finish.Y >= floorY + DeathLook.TENDRIL.FLOOR_GAP - 1e-6, "au-dessus du sol")
-			T.expect((tendril.finish - start).Magnitude <= 2 + DeathLook.TENDRIL.SWAY + 1e-6, "longueur bornée")
-			T.expect(tendril.startCurve > 0, "elle part vers le bas")
+		T.it("toujours le même nombre de morceaux, dans le même ordre", function()
+			T.expectEqual(#column().pieces, DeathLook.columnPieces())
+			T.expectEqual(#column(Vector3.new(0, 0, -16), 3.7).pieces, DeathLook.columnPieces())
 		end)
 
-		T.it("en mouvement : elle se couche derrière, d'autant plus que la Mort va vite", function()
-			local still = DeathLook.tendril(start, out, Vector3.zero, 0, 0, 2, floorY)
-			local slow = DeathLook.tendril(start, out, Vector3.new(5, 0, 0), 0, 0, 2, floorY)
-			local fast = DeathLook.tendril(start, out, Vector3.new(16, 0, 0), 0, 0, 2, floorY)
-			T.expect(slow.finish.X < still.finish.X, "derrière la Mort qui avance en +X")
-			T.expect(fast.finish.X < slow.finish.X, "plus loin derrière à pleine vitesse")
-			T.expect(fast.finish.Y > still.finish.Y, "moins tombante : elle traîne")
+		T.it("une colonne continue du sol au sommet, chaque morceau recouvre le précédent", function()
+			local c = column()
+			local L = DeathLook.COLUMN.LAYERS
+			local _, bottom = extent(c.pieces[1])
+			T.expect(bottom <= floorY, "elle part du sol")
+			for k = 2, L + 3 do
+				local _, low = extent(c.pieces[k])
+				local high = extent(c.pieces[k - 1])
+				T.expect(low < high - 0.3, "le morceau " .. k .. " chevauche le précédent")
+			end
+			local tipTop = extent(c.pieces[L + 3])
+			T.expectNear(tipTop, 7.4, 0.15, "pointe de capuche au sommet du corps")
 		end)
 
-		T.it("elle ondule avec le temps, sans dépasser l'amplitude", function()
-			local a = DeathLook.tendril(start, out, Vector3.zero, 0, 0, 2, floorY)
-			local b = DeathLook.tendril(start, out, Vector3.zero, 1, 0, 2, floorY)
-			T.expect((a.finish - b.finish).Magnitude > 0.05, "elle bouge")
-			for k = 0, 20 do
-				local c = DeathLook.tendril(start, out, Vector3.zero, k * 0.37, 1.1, 2, floorY)
-				T.expect(math.abs(c.endCurve) <= DeathLook.TENDRIL.SWAY + 1e-6)
+		T.it("presque informe : largeur à peu près régulière, sans bras qui dépasse", function()
+			local c = column()
+			local widths = {}
+			for k = 2, DeathLook.COLUMN.LAYERS do
+				table.insert(widths, c.pieces[k].size.X)
+			end
+			local lo, hi = math.min(table.unpack(widths)), math.max(table.unpack(widths))
+			T.expect(hi / lo < 1.35, "pas de bosse d'épaule ou de bras")
+			T.expect(lo > 0.25 * 7.4, "assez large pour avaler le corps")
+			local headW = c.pieces[DeathLook.COLUMN.LAYERS + 2].size.X
+			T.expect(headW < lo, "la capuche plus étroite que le corps")
+			T.expect(c.pieces[DeathLook.COLUMN.LAYERS + 3].size.X < headW * 0.6, "une pointe, pas une boule")
+		end)
+
+		T.it("au sol : les lobes débordent un peu, sans flaque ronde", function()
+			local c = column()
+			local reaches = {}
+			for k = DeathLook.COLUMN.LAYERS + 4, DeathLook.COLUMN.LAYERS + 3 + DeathLook.COLUMN.LOBES do
+				local piece = c.pieces[k]
+				T.expectNear(piece.cframe.Position.Y, floorY, 1e-6, "posé au ras du sol")
+				local _, _, reach = extent(piece)
+				table.insert(reaches, reach)
+			end
+			local baseHalf = c.pieces[1].size.X / 2
+			local lo, hi = math.min(table.unpack(reaches)), math.max(table.unpack(reaches))
+			T.expect(hi > baseHalf, "déborde autour du bas")
+			T.expect(hi < baseHalf + 2, "un peu seulement")
+			T.expect(hi - lo > 0.2, "lobes inégaux, pas un disque")
+		end)
+
+		T.it("en glissant, le bas recule et traîne derrière, d'autant plus qu'elle va vite", function()
+			local still = lobesBack(column())
+			local slow = lobesBack(column(Vector3.new(0, 0, -5)))
+			local fast = lobesBack(column(Vector3.new(0, 0, -16)))
+			T.expect(slow > still, "derrière la Mort qui avance vers -Z")
+			T.expect(fast > slow + 0.5, "plus loin à pleine vitesse")
+			local trainAt = DeathLook.COLUMN.LAYERS + 4 + DeathLook.COLUMN.LOBES
+			local train = column(Vector3.new(0, 0, -16)).pieces[trainAt]
+			T.expect(train.size.Z > column().pieces[trainAt].size.Z + 1, "la traîne s'allonge")
+			local _, _, reach = extent(train)
+			T.expect(reach < 6, "traîne bornée")
+		end)
+
+		T.it("le bas suit l'ourlet de la cape (os de la robe), les épaules restent sur la racine", function()
+			local base = column().pieces[1].cframe.Position
+			local swayed = column(nil, nil, Vector3.new(0.6, 1, 0.4))
+			local foot = swayed.pieces[1].cframe.Position
+			T.expectNear(foot.X - base.X, 0.6, 1e-6)
+			T.expectNear(foot.Z - base.Z, 0.4, 1e-6)
+			T.expectNear(swayed.pieces[DeathLook.COLUMN.LAYERS].cframe.Position.X, 0, 1e-6)
+		end)
+
+		T.it("elle respire avec le temps, sans changer de forme générale", function()
+			local a, b = column(nil, 0), column(nil, 1.1)
+			T.expect(math.abs(a.pieces[3].size.X - b.pieces[3].size.X) > 0.01, "elle bouge")
+			for k = 1, DeathLook.COLUMN.LAYERS do
+				T.expectNear(a.pieces[k].size.X, b.pieces[k].size.X, 0.2 * a.pieces[k].size.X)
 			end
 		end)
 
-		T.it("au ras du sol, elle glisse en gardant sa longueur au lieu de s'y enfoncer", function()
-			local from = Vector3.new(0, -1.8, 0)
-			local low = DeathLook.tendril(from, out, Vector3.zero, 0, 0, 2, floorY)
-			T.expectNear(low.finish.Y, floorY + DeathLook.TENDRIL.FLOOR_GAP, 1e-6)
-			local flat = Vector3.new(low.finish.X - from.X, 0, low.finish.Z - from.Z)
-			T.expect(flat.Magnitude > 1.5, "elle s'étire le long du sol")
-		end)
+		T.it(
+			"le bord bouillonne : des bouffées naissent au bord, surtout en bas, s'écartent et se résorbent",
+			function()
+				local first = DeathLook.columnPieces() - DeathLook.COLUMN.PUFFS + 1
+				local low, total, moved = 0, 0, 0
+				for step = 0, 40 do
+					local t = step * 0.37
+					local a, b = column(nil, t), column(nil, t + 0.1)
+					for k = first, DeathLook.columnPieces() do
+						local piece = a.pieces[k]
+						local top, _, reach = extent(piece)
+						T.expect(reach < 0.19 * 7.4 + 0.9 + 1.2, "près du bord, pas loin dans la pièce")
+						T.expect(top < 7.4, "sous le sommet")
+						T.expect(piece.size.X <= 2 * DeathLook.COLUMN.PUFF_SIZE * 1.3 + 1e-6, "petites")
+						total += 1
+						if piece.cframe.Position.Y < 1 then
+							low += 1
+						end
+						if (b.pieces[k].cframe.Position - piece.cframe.Position).Magnitude > 0.01 then
+							moved += 1
+						end
+					end
+				end
+				T.expect(low / total > 0.4, "surtout en bas")
+				T.expect(moved / total > 0.9, "elles bougent sans cesse")
+			end
+		)
 
-		T.it("les volutes de derrière sont les plus longues", function()
-			T.expect(DeathLook.tendrilLength(1) > DeathLook.tendrilLength(0))
-			T.expectNear(DeathLook.tendrilLength(0), DeathLook.TENDRIL.FRONT_LENGTH, 1e-6)
-			T.expectNear(DeathLook.tendrilLength(2), DeathLook.TENDRIL.BACK_LENGTH, 1e-6, "bornée")
+		T.it("les volumes des fumées couvrent le corps et le ras du sol", function()
+			local c = column()
+			T.expect(c.body.size.Y > 4, "le bord de toute la colonne")
+			T.expect(c.floor.cframe.Position.Y < 1, "au ras du sol")
+			T.expect(c.floor.size.X > c.pieces[1].size.X, "plus large que le bas")
 		end)
 	end)
 end

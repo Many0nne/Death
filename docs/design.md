@@ -44,12 +44,14 @@ accomplir des objectifs pour fuir avant la fin de la nuit, en repérant les pré
   revêt ce modèle pendant la manche et retrouve son avatar ensuite (`docs/assets.md`).
 - **Ce que voit un mortel** (#80, règles `src/shared/DeathLook.luau`, rendu `Client.DeathView`) :
   - **dans l'ombre** : rien (ni corps, ni ombre portée, ni fumée) ;
-  - **à la lumière ambiante** : une **ombre**, pas une figure transparente. Une masse sombre et pleine (noir bleuté,
-    sans contour : un liseré faisait un objet sélectionné, #96) qui **épouse la silhouette** (suaire, épaules, manches, bras tendu), sans nuage ni
-    disque autour du bas (#90) : le bas se défait en **volutes** sombres, une par pli de la robe, qui ondulent et
-    s'étirent vers le bas et l'arrière dans le prolongement des lanières, et se couchent derrière elle quand elle
-    glisse ; quelques fumerolles sur les bords et quelques braises claires. **Pas de faux** ;
-  - **dans le faisceau d'une lampe** (les 3 s avant la dissipation) : l'ombre se déchire (bouffée de fumée, 0,4 s) et
+  - **à la lumière ambiante** : une **colonne d'ombre pleine** qui avale toute la Mort (#98, après « épouse la
+    silhouette » de #80/#90, qui laissait voir des taches d'ombre et des mains). **Presque informe** : une colonne à
+    peu près régulière, juste une pointe de capuche en haut, ni bras, ni mains, ni manches. **Cœur plein** : noir
+    bleuté opaque, sans contour (un liseré faisait un objet sélectionné, #96), le vrai corps caché dessous. **Bords qui
+    bouillonnent** : des bouffées d'ombre se détachent sans cesse du bord, surtout en bas, et une fumée sombre en
+    déborde. **Bas qui lèche le sol** : une masse inégale (pas une flaque ronde) qui déborde un peu autour, roule au
+    ras du plancher et traîne derrière elle quand elle glisse ; quelques braises claires. **Pas de faux** ;
+  - **dans le faisceau d'une lampe** (les 3 s avant la dissipation) : la colonne se déchire (bouffée de fumée, 0,4 s) et
     laisse voir le **vrai corps** et la **faux** ; hors du faisceau, elle se referme en 0,8 s. Puis la dissipation se
     joue comme avant.
   - **Le joueur Mort** voit toujours sa faux, son corps voilé dans l'ombre et plein à la lumière.
