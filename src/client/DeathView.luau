@@ -37,14 +37,17 @@ local SELF_COLOR = Color3.fromRGB(0, 0, 0)
 local SHADOW_COLOR = Color3.fromRGB(9, 8, 13)
 -- Textures de particules fournies avec Roblox
 local SMOKE_TEXTURE = "rbxasset://textures/particles/smoke_main.dds"
--- Fumée de l'ombre (#98) : bouffée dense au cœur, bords effilochés (assets/textures/death/shadow_smoke.png, script
+-- Fumée de l'ombre (#98) : bouffée ronde, dense au cœur, bord vaporeux (assets/textures/death/shadow_smoke.png, script
 -- tools/blender/shadow_smoke.py, asset Image envoyé par Open Cloud) ; celles de Roblox sont trop pâles (smoke_main) ou
 -- rondes (explosion01)
-local SHADOW_SMOKE_TEXTURE = "rbxassetid://80745440503887"
+local SHADOW_SMOKE_TEXTURE = "rbxassetid://105518246295498"
 local EMBER_TEXTURE = "rbxasset://textures/particles/sparkles_main.dds"
 -- Débit (particules par seconde) de chaque effet de la colonne, pleine ombre : chaque flanc bas, chaque flanc haut
--- (capuche), fumée qui lèche le sol, braises ; en vol : 2 x 12 x 1,15 + 2 x 6 x 1,15 + 14 x 1,5 + 4 x 2,1 = 71
-local RATES = { flankLow = 12, flankHigh = 6, lick = 14, embers = 4 }
+-- (sous les épaules), fumée qui lèche le sol, fumée laissée derrière en glissant (à pleine vitesse), braises ; en vol :
+-- 2 x 12 x 0,75 + 2 x 6 x 0,75 + 18 x 1,15 + 24 x 0,65 + 4 x 2,1 = 72
+local RATES = { flankLow = 12, flankHigh = 6, lick = 18, trail = 24, embers = 4 }
+-- Vitesse (studs/s) à laquelle la fumée laissée derrière coule à plein débit : celle de la Mort exposée
+local TRAIL_SPEED = DeathRules.SPEED_LIGHT
 -- Bouffées jouées quand l'ombre se déchire dans le faisceau
 local TEAR_SMOKE = 30
 local TEAR_EMBERS = 8
@@ -169,8 +172,9 @@ local function newColumn(folder: Instance)
 	return { model = model, parts = parts, highlight = newHighlight(model, SHADOW_COLOR) }
 end
 
--- Cette méthode permet de créer une fumée de flanc lorsque les effets d'un corps sont créés : langues sombres qui
--- naissent sur le bord de la silhouette (axe X de leur volume), s'en détachent de 0,3 à 0,8 stud et se défont.
+-- Cette méthode permet de créer une fumée de flanc lorsque les effets d'un corps sont créés : bouffées sombres qui
+-- naissent à cheval sur le bord de la silhouette (axe X de leur volume), s'en écartent de quelques dixièmes de stud
+-- et se défont ; accrochées à leur volume, elles suivent la Mort qui glisse au lieu de rester en arrière.
 local function newFlank(folder: Instance, name: string): (BasePart, ParticleEmitter)
 	local part = newPart(name, folder)
 	local emitter = newEmitter(part, {
@@ -178,21 +182,21 @@ local function newFlank(folder: Instance, name: string): (BasePart, ParticleEmit
 		Texture = SHADOW_SMOKE_TEXTURE,
 		Color = ColorSequence.new(SHADOW_COLOR),
 		EmissionDirection = Enum.NormalId.Right,
-		-- étirées dans le sens de leur vitesse : des langues, pas des boules
-		Orientation = Enum.ParticleOrientation.VelocityParallel,
-		Squash = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.4), NumberSequenceKeypoint.new(1, 1.2) }),
-		Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.45), NumberSequenceKeypoint.new(1, 1.1) }),
+		LockedToPart = true,
+		-- presque rondes (revue : des lames étirées faisaient des feuilles de palmier), opaques au départ (presque noires)
+		Squash = NumberSequence.new(0.1),
+		Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.5), NumberSequenceKeypoint.new(1, 0.9) }),
 		Transparency = NumberSequence.new({
-			NumberSequenceKeypoint.new(0, 0.3),
-			NumberSequenceKeypoint.new(0.5, 0.6),
+			NumberSequenceKeypoint.new(0, 0.05),
+			NumberSequenceKeypoint.new(0.5, 0.3),
 			NumberSequenceKeypoint.new(1, 1),
 		}),
-		Lifetime = NumberRange.new(0.9, 1.4),
-		Speed = NumberRange.new(0.5, 1.1),
-		Drag = 2,
-		SpreadAngle = Vector2.new(30, 45),
-		Acceleration = Vector3.new(0, 0.5, 0),
-		Rotation = NumberRange.new(0, 0),
+		Lifetime = NumberRange.new(0.6, 0.9),
+		Speed = NumberRange.new(0.3, 0.7),
+		Drag = 3,
+		SpreadAngle = Vector2.new(25, 35),
+		Acceleration = Vector3.new(0, 0.2, 0),
+		Rotation = NumberRange.new(0, 360),
 		RotSpeed = NumberRange.new(-40, 40),
 	})
 	return part, emitter
@@ -203,6 +207,7 @@ end
 local function newShadowFx(folder: Instance)
 	local body = newPart("ShadowBody", folder)
 	local floor = newPart("ShadowFloor", folder)
+	local tail = newPart("ShadowTail", folder)
 	local dark = ColorSequence.new(SHADOW_COLOR)
 	local flankParts, flankEmitters = {}, {}
 	for k = 1, 4 do
@@ -212,30 +217,50 @@ local function newShadowFx(folder: Instance)
 	return {
 		body = body,
 		floor = floor,
+		tail = tail,
 		column = newColumn(folder),
 		flankParts = flankParts,
 		-- bas gauche, bas droit, haut gauche, haut droit (Shared.DeathLook.column)
 		flanks = flankEmitters,
-		-- Bas qui lèche le sol : fumée épaisse et aplatie qui roule au ras du plancher depuis le bord de la jupe ; laissée
-		-- en place (monde), elle fait une langue derrière la Mort qui glisse
+		-- Bas qui lèche le sol : fumée épaisse et aplatie qui naît dans un disque plus large que le pied, tout autour
+		-- (devant compris), et roule au ras du plancher ; accrochée au pied, elle ne reste pas en arrière (forme Disc :
+		-- un Cylinder n'émettait que vers l'avant et l'arrière de la Mort, constaté)
 		lick = newEmitter(floor, {
 			Name = "Lick",
-			Shape = Enum.ParticleEmitterShape.Cylinder,
-			ShapeStyle = Enum.ParticleEmitterShapeStyle.Surface,
-			ShapeInOut = Enum.ParticleEmitterShapeInOut.Outward,
+			Shape = Enum.ParticleEmitterShape.Disc,
+			ShapeStyle = Enum.ParticleEmitterShapeStyle.Volume,
+			LockedToPart = true,
 			Texture = SHADOW_SMOKE_TEXTURE,
 			Color = dark,
 			Squash = NumberSequence.new(-0.3),
-			Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1.6), NumberSequenceKeypoint.new(1, 3) }),
+			Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1.2), NumberSequenceKeypoint.new(1, 2.2) }),
 			Transparency = NumberSequence.new({
 				NumberSequenceKeypoint.new(0, 0),
-				NumberSequenceKeypoint.new(0.5, 0.3),
+				NumberSequenceKeypoint.new(0.5, 0.25),
 				NumberSequenceKeypoint.new(1, 1),
 			}),
-			Lifetime = NumberRange.new(1.2, 1.8),
-			Speed = NumberRange.new(0.6, 1.4),
-			Drag = 1.5,
-			Acceleration = Vector3.new(0, 0.15, 0),
+			Lifetime = NumberRange.new(0.9, 1.4),
+			Speed = NumberRange.new(0.1, 0.4),
+			Drag = 2,
+			Acceleration = Vector3.new(0, 0.1, 0),
+		}),
+		-- Fumée de la langue en glissant : elle naît sur la langue et y reste accrochée, donc jamais plus loin que son
+		-- bout (4 studs derrière à pleine vitesse) ; immobile, elle ne coule pas
+		trail = newEmitter(tail, {
+			Name = "Trail",
+			LockedToPart = true,
+			Texture = SHADOW_SMOKE_TEXTURE,
+			Color = dark,
+			Squash = NumberSequence.new(-0.3),
+			Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(1, 1.8) }),
+			Transparency = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 0.1),
+				NumberSequenceKeypoint.new(0.5, 0.4),
+				NumberSequenceKeypoint.new(1, 1),
+			}),
+			Lifetime = NumberRange.new(0.5, 0.8),
+			Speed = NumberRange.new(0, 0.3),
+			Drag = 2,
 		}),
 		-- Quelques braises claires qui montent de la fumée : un repère dans le noir
 		embers = newEmitter(floor, {
@@ -365,6 +390,8 @@ local function placeColumn(state, fx)
 	fx.body.CFrame = column.body.cframe
 	fx.floor.Size = column.floor.size
 	fx.floor.CFrame = column.floor.cframe
+	fx.tail.Size = column.tail.size
+	fx.tail.CFrame = column.tail.cframe
 	for k, flank in column.flanks do
 		fx.flankParts[k].Size = flank.size
 		fx.flankParts[k].CFrame = flank.cframe
@@ -470,6 +497,7 @@ function DeathView.start()
 		if state.fx then
 			state.fx.body:Destroy()
 			state.fx.floor:Destroy()
+			state.fx.tail:Destroy()
 			state.fx.column.model:Destroy()
 			for _, part in state.fx.flankParts do
 				part:Destroy()
@@ -525,11 +553,11 @@ function DeathView.start()
 			return
 		end
 		setColumnFill(state, fx.column, 1)
-		for _, emitter in { fx.lick, fx.embers, table.unpack(fx.flanks) } do
+		for _, emitter in { fx.lick, fx.trail, fx.embers, table.unpack(fx.flanks) } do
 			emitter.Enabled = false
 		end
 		if clear then
-			for _, emitter in { fx.lick, fx.embers, fx.tear, table.unpack(fx.flanks) } do
+			for _, emitter in { fx.lick, fx.trail, fx.embers, fx.tear, table.unpack(fx.flanks) } do
 				emitter:Clear()
 			end
 		end
@@ -557,6 +585,10 @@ function DeathView.start()
 			flank.Enabled = on
 		end
 		fx.lick.Rate = RATES.lick * smoke
+		local velocity = state.root.AssemblyLinearVelocity
+		local speed = Vector3.new(velocity.X, 0, velocity.Z).Magnitude
+		fx.trail.Rate = RATES.trail * smoke * math.clamp(speed / TRAIL_SPEED, 0, 1)
+		fx.trail.Enabled = on and speed > 0.5
 		fx.embers.Rate = RATES.embers * smoke
 		fx.lick.Enabled = on
 		fx.embers.Enabled = on

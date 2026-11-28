@@ -47,11 +47,11 @@ def smoke(size):
     r = np.sqrt(u * u + v * v)
     angle = np.arctan2(v, u)
     warp = fbm(size, rng, octaves=5, base=3)
-    # langues : lobes angulaires inégaux (deux fréquences, phases tordues par le bruit), pas une étoile régulière
+    # bord : lobes angulaires inégaux et doux (deux fréquences, phases tordues par le bruit), vaporeux, sans lames
     tongues = 0.5 + 0.25 * np.sin(3 * angle + 7 * warp + 1.3) + 0.25 * np.sin(7 * angle - 5 * warp)
     wisp = fbm(size, rng, octaves=6, base=6)
-    edge = 0.55 + 0.3 * tongues ** 2 + 0.34 * (wisp - 0.5)
-    alpha = np.clip((edge - r) / 0.27, 0, 1)
+    edge = 0.62 + 0.12 * tongues ** 2 + 0.22 * (wisp - 0.5)
+    alpha = np.clip((edge - r) / 0.4, 0, 1)
     alpha = alpha * alpha * (3 - 2 * alpha)
     detail = fbm(size, rng, octaves=4, base=8)
     alpha *= 0.85 + 0.15 * detail
