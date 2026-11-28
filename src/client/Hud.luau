@@ -247,7 +247,7 @@ function Hud.start()
 				local bot = not source:IsA("Player")
 				table.insert(roster, {
 					source = source,
-					name = source.Name,
+					name = HudFormat.displayName(if bot then nil else (source :: Player).DisplayName, source.Name),
 					bot = bot,
 					-- Faux joueur : numéro du nom (« Bot Mortel 2 »), qui croît comme son UserId décroît
 					order = if bot then -(tonumber(source.Name:match("(%d+)$")) or 0) else (source :: Player).UserId,

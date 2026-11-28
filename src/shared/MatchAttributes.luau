@@ -8,7 +8,8 @@ return table.freeze({
 	Duration = "MatchDuration", -- durée totale du sablier en secondes ; gardée pendant Ended, nil en Waiting
 	EndReason = "MatchEndReason", -- Match.EndReason, pendant la phase Ended
 	-- Résultat JSON de la dernière manche (HttpService:JSONDecode) : { reason, death = { userId, name },
-	-- mortals = { { userId, name, state, soul?, cause? } }, saved, reaped, escaped }. Gardé jusqu'à la manche suivante.
+	-- mortals = { { userId, name, state, soul?, cause? } }, saved, reaped, escaped }. `name` est le DisplayName du
+	-- joueur (Name pour un faux joueur), le même texte que la liste des mortels du HUD. Gardé jusqu'à la manche suivante.
 	Result = "MatchResult",
 	-- Objectif de fuite (#7), gardé pendant Ended, nil en Waiting : clés trouvées / à trouver, voiture démarrée (sortie ouverte)
 	KeysFound = "EscapeKeysFound",

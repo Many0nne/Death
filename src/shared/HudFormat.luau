@@ -30,6 +30,15 @@ export type SummaryRow = { name: string, verdict: string, isLocal: boolean }
 -- involved : le joueur local a joué la manche (la Mort ou l'un des mortels)
 export type Summary = { title: string, rows: { SummaryRow }, souls: string, isDeath: boolean, involved: boolean }
 
+-- Cette méthode permet de choisir le nom affiché d'un participant lorsque le HUD ou le bilan le nomme : son
+-- DisplayName, ou son Name s'il n'en a pas (faux joueur de debug) ou s'il est vide.
+function HudFormat.displayName(displayName: string?, name: string): string
+	if displayName == nil or displayName == "" then
+		return name
+	end
+	return displayName
+end
+
 -- Cette méthode permet d'écrire une durée en minutes et secondes (« 4:05 ») lorsque le HUD affiche un temps restant ;
 -- arrondie à la seconde au-dessus, jamais négative.
 function HudFormat.clock(seconds: number): string
