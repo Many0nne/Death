@@ -58,10 +58,23 @@ accomplir des objectifs pour fuir avant la fin de la nuit, en repérant les pré
   - **dans le faisceau d'une lampe** (les 3 s avant la dissipation) : la colonne se déchire (bouffée de fumée, 0,4 s) et
     laisse voir le **vrai corps** et la **faux** ; hors du faisceau, elle se referme en 0,8 s. Puis la dissipation se
     joue comme avant.
-  - **Le joueur Mort** voit toujours sa faux, son corps voilé dans l'ombre et plein à la lumière.
-- **Vue** : première personne verrouillée. Elle prépare un piège, coupe le disjoncteur ou grille une ampoule **en le
+  - **Le joueur Mort** voit toujours ses mains et sa faux, voilées dans l'ombre et pleines à la lumière (en première
+    personne : le viewmodel, ci-dessous).
+- **Vue** : première personne verrouillée, **aux yeux du spectre** (#91 : 6,3 studs au-dessus du sol, contre 5,8
+  avant, à hauteur de poitrine). Elle prépare un piège, coupe le disjoncteur ou grille une ampoule **en le
   regardant** (les invites n'apparaissent que sur la cible dans le cône du regard, environ 37°, ou tout près d'elle) ;
-  son corps ne la gêne pas (pas de voile sur ses propres bras, l'indicateur ombre/lumière reste).
+  son corps ne la gêne pas : il est caché pour elle seule (voile, suaire, manches, mains, faux, fumée du modèle ; les
+  mortels la voient comme avant), l'indicateur ombre/lumière reste.
+- **Mains et faux en première personne** (#74, viewmodel, `src/shared/DeathViewmodelPose.luau`,
+  `Client.DeathViewmodel`) : les mains squelettes et la faux du modèle, collées à la caméra, visibles d'elle seule
+  pendant la manche. Griffes de la main gauche en bas à gauche, faux à droite (manche presque vertical, lame derrière
+  la tête au repos) ; le centre de l'écran, l'indicateur ombre/lumière et le panneau de la lutte restent dégagés. États,
+  branchés sur le jeu : **repos** (flottement lent, période 3,6 s, ±0,03 stud) ; **main tendue** vers l'objet tant
+  qu'une invite de la Mort est tenue (préparer ou désarmer un piège, griller une ampoule, couper le disjoncteur) ;
+  **souffle** (poussée de 0,7 s quand une charge part) ; **fauchage** (4 s, le temps de l'invite : la faux tourne sur
+  son manche, la lame paraît, se lève puis tranche) ; **traction** pendant la lutte pour l'âme (faux crochetée, ramenée
+  vers soi à mesure que l'âme sort, tremblement). Les mains bougent ensemble (bloc rigide : le maillage des mains ne
+  suit pas ses os, `docs/assets.md`).
 - **Vision de la Mort** (touche) : écran gris, fils du destin reliant les points fragiles et leurs enchaînements
   possibles. Aide le débutant, récompense l'expert.
 - **Préparer** un point fragile : maintenir une touche (durée selon la taille du piège).

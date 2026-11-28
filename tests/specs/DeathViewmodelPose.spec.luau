@@ -1,24 +1,16 @@
 -- DeathViewmodelPose (#74) : choix de l'état d'après les événements, poses et cadrage des mains et de la faux de la
--- Mort en première personne, rendu selon la lumière.
+-- Mort en première personne (bloc rigide et faux tournée sur son manche), rendu selon la lumière.
 return function(T, Loader)
 	local P = Loader.new():require("src/shared/DeathViewmodelPose")
 	local M = Loader.new():require("src/shared/ViewmodelMotion")
 	local GameConfig = Loader.new():require("src/shared/GameConfig")
 	local State = P.State
 
-	-- Points du modèle de la Mort (repère de la racine, mesurés dans Studio sur ReplicatedStorage.Characters.Death) :
-	-- ancres (pièces LeftHand, RightHand du rig) et points à cadrer
-	local ANCHOR = {
-		left = Vector3.new(-0.76, 1.2, -2.32),
-		right = Vector3.new(1.27, 0.5, -0.97),
-		scythe = Vector3.new(1.27, 0.5, -0.97),
-	}
+	-- Points du modèle de la Mort à cadrer (repère de la racine, mesurés dans Studio sur ReplicatedStorage.Characters.Death)
 	local POINTS = {
-		leftHand = { "left", Vector3.new(-0.76, 1.2, -2.32) },
-		leftClaw = { "left", Vector3.new(-0.8, 1.2, -2.9) },
-		leftElbow = { "left", Vector3.new(-0.87, 1.14, -1.1) },
-		grip = { "right", Vector3.new(1.5, 0.5, -1.2) },
-		rightElbow = { "right", Vector3.new(1.19, 0.7, -0.1) },
+		claw = { "rig", P.CLAW },
+		leftWrist = { "rig", Vector3.new(-0.78, 1.2, -2.12) },
+		grip = { "rig", Vector3.new(1.5, 0.5, -1.2) },
 		head = { "scythe", Vector3.new(1.37, 3.95, -1.07) },
 		pommel = { "scythe", Vector3.new(1.63, -3.52, -1.28) },
 		bladeTip = { "scythe", Vector3.new(-2.0, 2.4, -1.06) },
@@ -27,8 +19,7 @@ return function(T, Loader)
 	-- Cette méthode permet de projeter un point du modèle à l'écran lorsque le cadrage d'un état est contrôlé.
 	local function screen(frames, name: string): Vector2?
 		local spec = POINTS[name]
-		local cam = frames[spec[1]] * (spec[2] - ANCHOR[spec[1]])
-		return M.project(cam, P.FOV, P.ASPECT)
+		return M.project(frames[spec[1]] * (spec[2] - P.ANCHOR), P.FOV, P.ASPECT)
 	end
 
 	-- Cette méthode permet de savoir si un point projeté est dans un rectangle de l'écran lorsque le cadrage est
@@ -37,6 +28,7 @@ return function(T, Loader)
 		return s ~= nil and s.X >= x0 and s.X <= x1 and s.Y >= y0 and s.Y <= y1
 	end
 
+	-- Cette méthode permet de savoir si un point projeté est hors de l'écran lorsque le cadrage est contrôlé.
 	local function offscreen(s: Vector2?): boolean
 		return s == nil or math.abs(s.X) > 1 or math.abs(s.Y) > 1
 	end
@@ -82,9 +74,9 @@ return function(T, Loader)
 
 	T.describe("DeathViewmodelPose.frames : cadrage au repos", function()
 		local f = P.frames(State.Rest, base)
-		T.it("pose la main gauche en bas à gauche et la prise de la faux à droite", function()
-			T.expect(inside(screen(f, "leftHand"), -0.7, -0.15, -0.8, -0.3), "main gauche")
-			T.expect(inside(screen(f, "grip"), 0.2, 0.6, -0.8, -0.3), "main droite")
+		T.it("pose les griffes gauches en bas à gauche et la prise de la faux à droite", function()
+			T.expect(inside(screen(f, "claw"), -0.7, -0.25, -0.7, -0.2), "griffes")
+			T.expect(inside(screen(f, "grip"), 0.25, 0.47, -0.6, -0.3), "prise de la faux")
 		end)
 		T.it("laisse le centre de l'écran libre", function()
 			for name in POINTS do
@@ -95,6 +87,14 @@ return function(T, Loader)
 			for name in POINTS do
 				T.expect(not inside(screen(f, name), 0.47, 1, -1, -0.66), name .. " sous l'indicateur")
 			end
+		end)
+		T.it("garde la lame et le haut du manche hors du champ, le manche presque vertical à droite", function()
+			T.expect(offscreen(screen(f, "bladeTip")), "pointe de la lame visible")
+			T.expect(offscreen(screen(f, "head")), "douille visible")
+			-- le manche traverse l'écran à droite du centre, en haut comme en bas
+			local grip, head, pommel = screen(f, "grip"), screen(f, "head"), screen(f, "pommel")
+			T.expect(head ~= nil and head.X > 0.2 and pommel ~= nil and pommel.X > 0.2, "manche vers le centre")
+			T.expect(math.abs(head.X - grip.X) < 0.15 and math.abs(pommel.X - grip.X) < 0.15, "manche trop penché")
 		end)
 		T.it("couvre le bout ouvert de chaque avant-bras par sa manche d'ombre, qui sort du champ", function()
 			for _, side in { "left", "right" } do
@@ -109,84 +109,62 @@ return function(T, Loader)
 				T.expect(across > 0.12, string.format("%s : manche de %.2f stud au bout de l'avant-bras", side, across))
 				-- l'autre bout de la manche est hors de l'écran
 				local far = spec.wrist + spec.direction * (P.SLEEVE.length - P.SLEEVE.lead)
-				local cam = f[side] * far
-				T.expect(offscreen(M.project(cam, P.FOV, P.ASPECT)), side .. " : bout de la manche dans le champ")
+				T.expect(
+					offscreen(M.project(f.rig * (far - P.ANCHOR), P.FOV, P.ASPECT)),
+					side .. " : bout dans le champ"
+				)
 			end
 		end)
-		T.it("garde la lame hors du champ, derrière la tête, et le haut du manche au-dessus de l'écran", function()
-			T.expect(offscreen(screen(f, "bladeTip")), "pointe de la lame visible")
-			T.expect(offscreen(screen(f, "head")), "douille visible")
-		end)
-		T.it("fait du groupe faux la pose du bras droit tournée sur le manche", function()
-			local turned = f.right * P.twist(P.REST.twist)
-			T.expectNear((turned.Position - f.scythe.Position).Magnitude, 0, 1e-9)
-			-- un point de l'axe du manche ne bouge pas
+		T.it("fait du groupe faux le bloc tourné sur l'axe du manche", function()
 			local onAxis = P.SCYTHE_AXIS.point + P.SCYTHE_AXIS.direction * 1.5
-			T.expectNear(((f.right * onAxis) - (f.scythe * onAxis)).Magnitude, 0, 1e-6)
-		end)
-		T.it("tourne la lame vers l'arrière au repos", function()
-			local blade = P.twist(P.REST.twist) * Vector3.new(-1, 0, 0)
-			T.expect(blade.Z > 0.9, "lame vers l'arrière")
+			T.expectNear(((f.rig * onAxis) - (f.scythe * onAxis)).Magnitude, 0, 1e-6)
+			T.expect((P.twist(P.REST.twist) * Vector3.new(-1, 0, 0)).Z > 0.9, "lame vers l'arrière au repos")
 		end)
 	end)
 
 	T.describe("DeathViewmodelPose.frames : états", function()
-		T.it("tend la main vers une cible au centre, sous le centre", function()
+		T.it("amène les griffes vers une cible au centre, sous le centre", function()
 			local f = P.frames(State.Reach, { t = 0, moving = 0, target = Vector3.new(0, 0, -1) })
-			local hand = screen(f, "leftHand")
-			T.expect(hand ~= nil and hand.Y <= P.REACH.maxY + 0.01, "main au-dessus de sa zone")
-			T.expect(hand ~= nil and hand.X > screen(P.frames(State.Rest, base), "leftHand").X, "main pas tendue")
+			local claw = screen(f, "claw")
+			T.expect(claw ~= nil and claw.Y <= P.REACH.maxY + 0.01, "griffes au-dessus de leur zone")
+			T.expect(claw.X > screen(P.frames(State.Rest, base), "claw").X + 0.2, "main pas tendue")
 		end)
-		T.it("garde la main tendue dans sa zone même vers une cible de côté ou derrière", function()
+		T.it("garde les griffes dans leur zone même vers une cible de côté ou derrière", function()
 			for _, dir in { Vector3.new(1, 0, 0), Vector3.new(0, 0, 1), Vector3.new(-1, 1, -0.1), Vector3.zero } do
-				local s = screen(P.frames(State.Reach, { t = 0, moving = 0, target = dir }), "leftHand")
-				T.expect(
-					inside(s, P.REACH.minX - 0.01, P.REACH.maxX + 0.01, P.REACH.minY - 0.01, P.REACH.maxY + 0.01),
-					"hors zone"
-				)
+				local s = screen(P.frames(State.Reach, { t = 0, moving = 0, target = dir }), "claw")
+				local r = P.REACH
+				T.expect(inside(s, r.minX - 0.01, r.maxX + 0.01, r.minY - 0.01, r.maxY + 0.01), "hors zone")
 			end
 		end)
-		T.it("pousse la main gauche au milieu du souffle et la ramène à la fin", function()
+		T.it("pousse les mains au milieu du souffle et les ramène à la fin", function()
 			local mid = P.frames(State.Blow, { t = 0, moving = 0, blowAge = P.BLOW_TIME / 2 })
 			local done = P.frames(State.Blow, { t = 0, moving = 0, blowAge = P.BLOW_TIME })
 			local rest = P.frames(State.Rest, base)
-			T.expect((mid.left.Position - rest.left.Position).Magnitude > 0.4, "geste trop faible")
-			T.expectNear((done.left.Position - rest.left.Position).Magnitude, 0, 1e-6)
+			T.expect((mid.rig.Position - rest.rig.Position).Magnitude > 0.35, "geste trop faible")
+			T.expectNear((done.rig.Position - rest.rig.Position).Magnitude, 0, 1e-6)
 		end)
-		T.it("fait passer la lame devant pendant le fauchage, du repos à la taille", function()
+		T.it("fait paraître la lame puis la fait descendre pendant le fauchage", function()
 			local start = P.frames(State.Reap, { t = 0, moving = 0, progress = 0 })
 			local rest = P.frames(State.Rest, base)
 			T.expectNear((start.scythe.Position - rest.scythe.Position).Magnitude, 0, 1e-6)
+			T.expect(offscreen(screen(start, "bladeTip")), "lame visible au départ")
 			local armed = P.frames(State.Reap, { t = 0, moving = 0, progress = 0.7 })
-			T.expect(not offscreen(screen(armed, "bladeTip")), "lame invisible au fauchage")
+			local tipArmed = screen(armed, "bladeTip")
+			T.expect(not offscreen(tipArmed) and tipArmed.Y > 0.2, "lame pas armée en haut")
 			local cut = P.frames(State.Reap, { t = 0, moving = 0, progress = 1 })
-			T.expect(screen(cut, "bladeTip").Y < screen(armed, "bladeTip").Y, "la lame ne descend pas")
+			T.expect(screen(cut, "bladeTip").Y < tipArmed.Y - 0.5, "la lame ne descend pas")
 		end)
-		T.it("amène la main gauche sur le manche pendant le fauchage et la lutte", function()
-			for _, frames in
-				{
-					P.frames(State.Reap, { t = 0, moving = 0, progress = 1 }),
-					P.frames(State.Pull, { t = 0, moving = 0, pull = 0.5 }),
-				}
-			do
-				local grip = frames.right * P.LEFT_GRIP
-				T.expectNear((frames.left.Position - grip.Position).Magnitude, 0, 1e-6)
-			end
-		end)
-		T.it("ramène la faux vers soi à mesure que l'âme sort", function()
+		T.it("crochète la lame devant pendant la lutte et ramène la faux vers soi", function()
 			local a = P.frames(State.Pull, { t = 0, moving = 0, pull = 0 })
 			local b = P.frames(State.Pull, { t = 0, moving = 0, pull = 1 })
-			T.expect(b.right.Position.Z > a.right.Position.Z + 0.4, "pas de traction")
+			T.expect(not offscreen(screen(a, "bladeTip")), "lame invisible pendant la lutte")
+			T.expect(b.rig.Position.Z > a.rig.Position.Z + 0.4, "pas de traction")
 		end)
 		T.it("tremble pendant la lutte, peu", function()
 			local a = P.frames(State.Pull, { t = 0.1, moving = 0, pull = 0.5 })
 			local b = P.frames(State.Pull, { t = 0.13, moving = 0, pull = 0.5 })
-			local d = (a.right.Position - b.right.Position).Magnitude
+			local d = (a.rig.Position - b.rig.Position).Magnitude
 			T.expect(d > 0.001 and d < 0.08, string.format("tremblement de %.3f", d))
-		end)
-		T.it("pose le maillage des mains entre les deux mains", function()
-			local f = P.frames(State.Rest, base)
-			T.expectNear((f.core.Position - f.left.Position:Lerp(f.right.Position, 0.5)).Magnitude, 0, 1e-9)
 		end)
 	end)
 

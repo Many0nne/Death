@@ -28,9 +28,8 @@ local Viewmodel = require(script.Parent:WaitForChild("Viewmodel"))
 
 local State = DeathViewmodelPose.State
 
--- Pièces du modèle de la Mort gardées (docs/assets.md) : bras du rig (leurs os mènent le maillage des mains), torse
--- du rig (os Spine), maillage des mains, faux ; le reste (voile, robe, lanières, manches, torse, jambes, tête) est
--- retiré du clone
+-- Pièces du modèle de la Mort gardées (docs/assets.md) : maillage des mains, faux, et les pièces du rig qui portent
+-- les os du maillage (invisibles) ; le reste (voile, robe, lanières, manches, torse, jambes, tête) est retiré du clone
 local LEFT = { "LeftUpperArm", "LeftLowerArm", "LeftHand" }
 local RIGHT = { "RightUpperArm", "RightLowerArm", "RightHand" }
 local CORE = { "UpperTorso" }
@@ -60,8 +59,9 @@ local function build(): any
 	local model = template:Clone()
 	model.Name = "DeathViewmodel"
 	local root = model:FindFirstChild("HumanoidRootPart")
-	-- repère du corps : les poses de repos gardent l'orientation naturelle des bras par rapport au corps
-	local body = if root and root:IsA("BasePart") then root.CFrame.Rotation else CFrame.identity
+	-- repère de la racine : les mesures du modèle (Shared.DeathViewmodelPose) y sont exprimées, et une pose sans
+	-- rotation garde l'orientation naturelle des bras par rapport au corps
+	local rootFrame = if root and root:IsA("BasePart") then root.CFrame else CFrame.identity
 	local keep = { [SCYTHE_NAME] = true, [ARM_NAME] = true }
 	for _, list in { LEFT, RIGHT, CORE } do
 		for _, name in list do
@@ -101,36 +101,16 @@ local function build(): any
 		return parts
 	end
 
-	-- Cette méthode permet de relever les os rangés directement sous les pièces d'un bras lorsque le viewmodel est
-	-- construit (les phalanges, enfants de l'os de la main, suivent).
-	local function bonesOf(parts: { BasePart }): { Bone }
-		local bones = {}
-		for _, part in parts do
-			for _, child in part:GetChildren() do
-				if child:IsA("Bone") then
-					table.insert(bones, child)
-				end
-			end
-		end
-		return bones
-	end
-
-	-- Cette méthode permet de donner le repère d'ancre d'un groupe lorsque le viewmodel est construit : position de la
-	-- pièce d'ancre, orientation du corps.
-	local function anchorOf(part: BasePart?): CFrame
-		return if part then CFrame.new(part.Position) * body else CFrame.identity
-	end
-
 	-- Cette méthode permet de créer la manche d'ombre d'un bras lorsque le viewmodel est construit, posée au repos dans
-	-- le repère de l'ancre du bras.
-	local function sleeve(side: string, anchor: CFrame): BasePart
+	-- le repère de la racine du modèle.
+	local function sleeve(side: string): BasePart
 		local frame, size = DeathViewmodelPose.sleeve(side)
 		local part = Instance.new("Part")
 		part.Name = "ShadowSleeve" .. side
 		part.Material = Enum.Material.Fabric
 		part.Color = SLEEVE_COLOR
 		part.Size = size
-		part.CFrame = anchor * frame
+		part.CFrame = rootFrame * frame
 		local mesh = Instance.new("SpecialMesh")
 		mesh.MeshType = Enum.MeshType.Sphere
 		mesh.Parent = part
@@ -146,19 +126,29 @@ local function build(): any
 			end
 		end
 	end
-	-- Maillage des mains et pièces qui portent ses os : un seul bloc rigide, les bras bougent par leurs os
-	local leftParts, rightParts = collect(LEFT), collect(RIGHT)
-	local core = collect(CORE)
-	table.insert(core, hands)
-	table.move(leftParts, 1, #leftParts, #core + 1, core)
-	table.move(rightParts, 1, #rightParts, #core + 1, core)
-	local leftAnchor = anchorOf(model:FindFirstChild("LeftHand") :: BasePart?)
-	local rightAnchor = anchorOf(model:FindFirstChild("RightHand") :: BasePart?)
+	-- Un seul bloc rigide : maillage des mains, manches d'ombre et pièces du rig (invisibles, gardées avec les os du
+	-- maillage)
+	local rig = collect(LEFT)
+	for _, part in collect(RIGHT) do
+		table.insert(rig, part)
+	end
+	for _, part in collect(CORE) do
+		table.insert(rig, part)
+	end
+	table.insert(rig, hands)
+	table.insert(rig, sleeve("left"))
+	table.insert(rig, sleeve("right"))
+	local rightHand = model:FindFirstChild("RightHand")
+	-- ancre : position de la pièce RightHand, orientation du corps (Shared.DeathViewmodelPose.ANCHOR)
+	local anchor = rootFrame
+		* CFrame.new(
+			if rightHand and rightHand:IsA("BasePart")
+				then rootFrame:PointToObjectSpace(rightHand.Position)
+				else DeathViewmodelPose.ANCHOR
+		)
 	return Viewmodel.new(model, {
-		core = { anchor = anchorOf(hands), parts = core },
-		left = { anchor = leftAnchor, bones = bonesOf(leftParts), parts = { sleeve("left", leftAnchor) } },
-		right = { anchor = rightAnchor, bones = bonesOf(rightParts), parts = { sleeve("right", rightAnchor) } },
-		scythe = { anchor = rightAnchor, parts = blade },
+		rig = { anchor = anchor, parts = rig },
+		scythe = { anchor = anchor, parts = blade },
 	})
 end
 

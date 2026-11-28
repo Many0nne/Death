@@ -147,12 +147,6 @@ function ViewmodelMotion.aim(position: Vector3, direction: Vector3): CFrame
 	return CFrame.fromMatrix(position, right, right:Cross(look), -look)
 end
 
--- Cette méthode permet de donner le Bone.Transform qui amène un os à un repère voulu lorsque sa pièce est déjà placée
--- (`parent` : repère de la pièce, `local_` : Bone.CFrame) ; le repère de l'os vaut parent * local_ * Transform.
-function ViewmodelMotion.boneTransform(parent: CFrame, local_: CFrame, wanted: CFrame): CFrame
-	return (parent * local_):ToObjectSpace(wanted)
-end
-
 -- Cette méthode permet de placer une pièce lorsque le viewmodel est rendu : la pose du groupe (espace caméra) mène son
 -- ancre, la pièce garde son écart à l'ancre relevé au repos (`anchorRest`, `partRest` : repères du modèle d'origine).
 function ViewmodelMotion.partFrame(camera: CFrame, pose: CFrame, anchorRest: CFrame, partRest: CFrame): CFrame
