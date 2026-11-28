@@ -2,6 +2,16 @@
 return function(T, Loader)
 	local HudFormat = Loader.new():require("src/shared/HudFormat")
 
+	T.describe("HudFormat.displayName", function()
+		T.it("préfère le DisplayName", function()
+			T.expectEqual(HudFormat.displayName("Léa", "lea_2007"), "Léa")
+		end)
+		T.it("retombe sur le Name sans DisplayName (faux joueur) ou s'il est vide", function()
+			T.expectEqual(HudFormat.displayName(nil, "Bot Mortel 1"), "Bot Mortel 1")
+			T.expectEqual(HudFormat.displayName("", "lea_2007"), "lea_2007")
+		end)
+	end)
+
 	T.describe("HudFormat.clock", function()
 		T.it("écrit minutes et secondes, arrondi au-dessus", function()
 			T.expectEqual(HudFormat.clock(245), "4:05")

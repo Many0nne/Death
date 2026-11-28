@@ -15,6 +15,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local GameConfig = require(Shared.GameConfig)
+local HudFormat = require(Shared.HudFormat)
 local Match = require(Shared.Match)
 local MatchAttributes = require(Shared.MatchAttributes)
 local Signal = require(Shared.Signal)
@@ -268,7 +269,10 @@ function MatchService:startMatch(options: { test: boolean? }?): (boolean, string
 	self.participants = byId
 	self.names = {}
 	for id, player in byId do
-		self.names[id] = player.Name
+		-- Un faux joueur (mannequin) n'a pas de DisplayName : repli sur son Name
+		-- (les faux joueurs des tests sont de simples tables, sans IsA : même repli)
+		local real = typeof(player) == "Instance" and player:IsA("Player")
+		self.names[id] = HudFormat.displayName(if real then (player :: Player).DisplayName else nil, player.Name)
 		local role = self.match:roleOf(id)
 		player:SetAttribute(A.Role, role)
 		player:SetAttribute(A.MortalState, self.match:stateOf(id))
