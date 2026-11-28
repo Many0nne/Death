@@ -144,9 +144,50 @@ en (16 ; 24)) ![](mort/mortel-ombre-mouvement.jpg), à 20,2 studs (Mort en (4,5 
 faisceau ![](mort/mortel-faisceau.jpg) (#89) et de près (`DebugFlashlight = "beam"`, joueur en (9 ; 27))
 ![](mort/mortel-faisceau-pres.jpg). Prises en Play Solo avec un bot Mort (`DebugAddBot = "Death"`, revêtu du modèle)
 et rien de sélectionné ; la Mort à la lumière (vue d'elle-même) ![](mort/v81/mort-lumiere.jpg), en déplacement
-![](mort/v81/mort-deplacement.jpg) ; vue du joueur Mort ![](mort/v81/vue-mort.jpg) (#81, pas refaites depuis).
-Captures de #76 et #80 : `docs/mort/v76/` ; de #81 : `docs/mort/v81/` ; de #90 et #96 (ombre qui épouse la
-silhouette, volutes) : `docs/mort/v90/`.
+![](mort/v81/mort-deplacement.jpg) ; vue du joueur Mort ![](mort/v81/vue-mort.jpg) (#81) puis avant #91 et #74
+(`docs/mort/v98/`, ci-dessous). Captures de #76 et #80 : `docs/mort/v76/` ; de #81 : `docs/mort/v81/` ; de #90 et #96
+(ombre qui épouse la silhouette, volutes) : `docs/mort/v90/`.
+
+**Vue du joueur Mort (#91)** : caméra aux yeux du spectre par `Humanoid.CameraOffset` posé par le client
+(`Shared.CameraRules.DEATH_CAMERA_OFFSET`, (0 ; 0,68 ; -0,62) dans le repère de la racine) : le point visé du rig R15
+sans mise à l'échelle est la racine + 2 studs, les yeux (rendu de profil `docs/renders/death/side.png`) sont 2,68 studs
+au-dessus de la racine et 0,62 devant. Mesuré dans Studio, regard à l'horizontale, salon : caméra à **6,33 studs** du
+sol (5,78 avant), sous les lustres (bas du plus bas à 7,75). Le corps, la faux et la fumée du modèle (`HemSmoke`) sont
+cachés pour la Mort seule en première personne (`Client.DeathView`, transparence locale) ; la vue d'un mortel face à
+un bot Mort est inchangée (colonne d'ombre, contrôlé dans Studio). La « bande claire » de la capture de #81 n'était
+pas le modèle : la caméra, alors vers 8 studs, était dans le lustre du salon (`LivingChandelier`, bloc néon de 7,75 à
+9,25, invisible de l'intérieur) ; la bande était son bras de métal `LivingChandelierArmZ` vu dans sa longueur, la
+boîte au bout sa coupelle de tissu `LivingChandelierCup3` (reproduit dans Studio, caméra en (12 ; 8 ; 19,4)). Avant :
+![](mort/v98/vue-mort.jpg) ![](mort/v98/vue-mort-bas.jpg) ![](mort/v98/vue-mort-haut.jpg)
+![](mort/v98/vue-mort-sombre.jpg) (déjà sans corps visible en manche à 5,78 studs : la caméra de Roblox rendait le
+corps transparent ; #91 le garantit et y ajoute la fumée).
+
+**Viewmodel de la Mort (#74)** : `Client.Viewmodel` (montage générique, réutilisable pour la lampe torche #67 :
+groupes de pièces locales, ancrées et inertes, collées à la caméra par `workspace:BulkMoveTo`) et `Client.DeathViewmodel`
+(clone de `ReplicatedStorage.Characters.Death` réduit au maillage `Hands`, à la faux et aux pièces du rig, poses de
+`Shared.DeathViewmodelPose`, mouvement de `Shared.ViewmodelMotion`). Constaté dans Studio : le maillage `Hands` ne suit
+pas ses os dans un clone (`Bone.Transform` sur `L_Hand`, `L_Forearm`... sans effet, pièces du rig soudées en un seul
+assemblage, `AnimationController` et `Animator` ajoutés, maillage désancré : il reste dans la pose du modèle, rigide
+avec sa pièce). Le maillage est donc **cloné deux fois**, un clone par main : chaque clone est posé de sorte que son
+autre main reste hors du champ (au-dessus du cadre pour le clone droit, sous le cadre pour le gauche ; contrôlé par
+les tests Lune, boîte de la main cachée échantillonnée finement), et les deux mains bougent chacune de leur côté. La
+faux, dans la main droite, tourne sur l'**axe de son manche** et y **glisse** (la main fermée reste sur le manche) :
+tenue par le bas au repos (glissement 3,24 studs), lame au-dessus du cadre, ramenée devant pour faucher et tirer.
+Cadrage au repos (tests Lune, capture de 1611 x 759) : rien dans le rectangle x > 0,70, y > 0,80 (panneau du rôle du
+HUD, `Shared.HudLayout`) dans aucun état, manche visible à x > 0,68, penché de 15 à 25 degrés vers la droite en haut,
+70 px de large au plus (0,34 stud, bagues et poignée), griffes gauches sous y 0,62 et manche d'ombre gauche qui entre
+par le bord bas. Le maillage s'arrête juste derrière les poignets (bout ouvert) : une **manche d'ombre** par bras
+(ellipsoïde couleur de la robe, 3,2 x 0,6 studs, du poignet vers le coude) le couvre ; les manches du modèle
+couvraient la moitié de l'écran (constaté). Dans l'ombre : voile noir (`Highlight`, remplissage 0,15) et transparence
+0,35 ; à la lumière : plein. Captures des états : attribut de debug `DebugViewmodel` sur le Player (Studio : `Rest`,
+`Reach`, `Blow:<âge>`, `Reap:<avancée>`, `Pull:<part>`) ; l'état affiché est l'attribut `State` du modèle
+`DeathViewmodel` sous la caméra. Armée et pendant la lutte, la lame est présentée de face (vue de chant, elle
+disparaît : constaté). Mesuré dans Studio (salon éclairé, 1611 x 759, différence de captures viewmodel affiché /
+caché) : 7,5 % de l'écran au repos, 0 % au centre ; 10,8 % main tendue. Après (#91, #74) : repos
+![](mort/vue-mort.jpg), regard en bas ![](mort/vue-mort-bas.jpg), en haut ![](mort/vue-mort-haut.jpg), pièce sombre
+![](mort/vue-mort-sombre.jpg), main tendue vers la bibliothèque (vraie invite) ![](mort/vue-mort-piege.jpg), souffle
+![](mort/vue-mort-souffle.jpg), fin du fauchage ![](mort/vue-mort-fauchage.jpg), lutte
+![](mort/vue-mort-traction.jpg).
 
 **Refaire le modèle** (aucune retouche à la main) :
 1. modifier `tools/blender/death_model.py` (ou le manifeste) ; si une base sculptée change (tête, torse, mains, faux),

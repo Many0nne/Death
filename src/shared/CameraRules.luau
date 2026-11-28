@@ -14,6 +14,12 @@ CameraRules.FOV_FREE = 70
 CameraRules.FREE_ZOOM_DISTANCE = 12
 CameraRules.DEFAULT_MIN_ZOOM = 0.5 -- zoom minimal par défaut de Roblox
 
+-- Caméra de la Mort (#91) : Humanoid.CameraOffset (repère de la racine) qui mène le point visé par la caméra du
+-- rig R15 sans mise à l'échelle (racine + 2 studs, PlayerModule de Roblox) aux yeux du spectre, mesurés sur le modèle
+-- (rendu de profil docs/renders/death/side.png) : 2,68 studs au-dessus de la racine et 0,62 devant, soit 6,3 studs
+-- au-dessus du sol (racine à 3,65). Sans ce décalage, la caméra était à 5,78 studs, à hauteur de poitrine.
+CameraRules.DEATH_CAMERA_OFFSET = Vector3.new(0, 0.68, -0.62)
+
 -- Invites en première personne : cosinus minimal entre le regard et la direction de la cible (environ 37 degrés),
 -- et distance en dessous de laquelle la cible compte comme regardée (grosse pièce collée à soi).
 CameraRules.LOOK_MIN_DOT = 0.8
@@ -36,6 +42,12 @@ function CameraRules.modeFor(phase: string?, role: string?, mortalState: string?
 		return CameraRules.Mode.FirstPerson
 	end
 	return CameraRules.Mode.Free
+end
+
+-- Cette méthode permet de donner le décalage de caméra d'un personnage lorsqu'il apparaît ou change de corps : aux
+-- yeux du spectre pour le corps de la Mort, aucun pour un avatar.
+function CameraRules.cameraOffsetFor(isDeathBody: boolean): Vector3
+	return if isDeathBody then CameraRules.DEATH_CAMERA_OFFSET else Vector3.zero
 end
 
 -- Cette méthode permet de savoir si une cible est regardée lorsque la caméra est à la première personne : dans le

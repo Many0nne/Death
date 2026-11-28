@@ -4,8 +4,9 @@
 --   vrai corps est caché, une masse presque informe, pointe de capuche en haut, cœur noir sans contour, bord qui
 --   bouillonne de fumée sombre, bas qui lèche le sol et traîne derrière elle), avec quelques braises claires, sans
 --   faux ; dans un faisceau de lampe, la colonne se déchire (bouffée de fumée) et laisse voir le vrai corps et la faux ;
--- - pour la Mort elle-même : son corps et sa faux restent visibles, voilés dans l'ombre, pleins à la lumière
---   (l'indicateur « ombre / lumière » est dans le HUD, Client.Hud) ;
+-- - pour la Mort elle-même : en première personne (manche), son corps et sa faux sont cachés pour elle seule, ses mains
+--   et sa faux sont celles du viewmodel (#91, #74, Client.DeathViewmodel) ; en vue libre, ils restent visibles, voilés
+--   dans l'ombre, pleins à la lumière (l'indicateur « ombre / lumière » est dans le HUD, Client.Hud) ;
 -- - pour tous : la Mort ne fait aucun bruit de pas.
 -- Indépendant du modèle : la faux (`Scythe`) et le suaire (`Shroud`, tête penchée) sont retrouvés par leur nom, les
 -- anneaux d'os de la robe (`Cxx_1`, `Cxx_3`) par Shared.CloakMotion ; sans eux, la colonne se pose d'après la boîte du
@@ -480,6 +481,8 @@ function DeathView.start()
 		end
 		state.dirty = false
 		state.applied = nil
+		-- une pièce ajoutée reçoit le masquage de la Mort sur elle-même au prochain passage
+		state.selfHidden = nil
 	end
 
 	-- Cette méthode permet de rendre au personnage son apparence et ses sons lorsqu'il n'est plus la Mort : valeurs
@@ -664,9 +667,16 @@ function DeathView.start()
 		local layers = DeathLook.layers(state.view, state.visibility, state.reveal)
 
 		if state.view == View.Self then
-			-- Première personne verrouillée (#24) : pas de voile sur ses propres bras, le HUD l'indique ; la
-			-- transparence de son corps reste à la caméra
+			-- Première personne verrouillée (#24) : pas de voile sur ses propres bras, le HUD l'indique. Son corps est
+			-- caché pour elle seule (#91 : voile, suaire, manches, mains, faux et fumée du modèle, que la caméra aux yeux du
+			-- spectre traverserait) ; ses mains et sa faux sont celles du viewmodel (Client.DeathViewmodel). Rendu en
+			-- quittant la première personne ; les mortels ne sont pas concernés (transparence locale à ce client).
 			local veiled = localPlayer.CameraMode ~= Enum.CameraMode.LockFirstPerson
+			if state.selfHidden ~= not veiled then
+				state.selfHidden = not veiled
+				local value = if veiled then 0 else 1
+				applyTransparency(character, state, value, value, veiled)
+			end
 			for _, highlight in state.highlights do
 				highlight.Enabled = veiled
 				highlight.FillTransparency = layers.fill
