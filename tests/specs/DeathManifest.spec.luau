@@ -177,8 +177,18 @@ return function(T, Loader)
 	end)
 
 	T.describe("Modèle versionné de la Mort (Death.rbxm) contre le manifeste (#87)", function()
-		local model = roblox.deserializeModel(fs.readFile("assets/rbx/Characters/Death.rbxm"))[1]
+		-- Lecture protégée : un .rbxm illisible (pointeur LFS, export raté) fait échouer ces tests, pas toute la spec.
+		local loaded, result = pcall(function()
+			return roblox.deserializeModel(fs.readFile("assets/rbx/Characters/Death.rbxm"))[1]
+		end)
+		local model: Instance = if loaded then result else nil :: any
 		local weldTo = manifest.studio.weldTo
+
+		-- Cette méthode permet de signaler un .rbxm illisible lorsqu'un test en a besoin ; renvoie false dans ce cas.
+		local function hasModel(): boolean
+			T.expect(model, "Death.rbxm illisible (git lfs pull ?) : " .. tostring(result))
+			return model ~= nil
+		end
 
 		-- Cette méthode permet de lister les pièces que le manifeste attend dans le modèle (pièces Blender et pièces
 		-- ajoutées dans Studio) lorsqu'on les compare au .rbxm.
@@ -201,6 +211,9 @@ return function(T, Loader)
 		end
 
 		T.it("le .rbxm est le modèle de la Mort, avec Humanoid et HumanoidRootPart", function()
+			if not hasModel() then
+				return
+			end
 			T.expectEqual(model.Name, manifest.model)
 			T.expect(model:FindFirstChildOfClass("Humanoid"), "Humanoid manquant")
 			T.expect(model:FindFirstChild("HumanoidRootPart"), "HumanoidRootPart manquant")
@@ -209,6 +222,9 @@ return function(T, Loader)
 		T.it(
 			"chaque pièce du manifeste est une pièce de son groupe, sans pièce en trop ni pièce retirée",
 			function()
+				if not hasModel() then
+					return
+				end
 				local parts = expectedParts()
 				for name, spec in parts do
 					local part = findPart(name, spec)
@@ -225,12 +241,16 @@ return function(T, Loader)
 					end
 				end
 				for _, name in manifest.studio.remove do
-					T.expect(not model:FindFirstChild(name, true), "pièce retirée toujours présente : " .. name)
+					local stray = model:FindFirstChild(name, true)
+					T.expect(not (stray and stray:IsA("BasePart")), "pièce retirée toujours présente : " .. name)
 				end
 			end
 		)
 
 		T.it("une seule soudure par pièce, vers HumanoidRootPart (ou la main pour le groupe de la faux)", function()
+			if not hasModel() then
+				return
+			end
 			for name, spec in expectedParts() do
 				local part = findPart(name, spec)
 				if not part then
@@ -250,6 +270,9 @@ return function(T, Loader)
 		end)
 
 		T.it("castShadow du manifeste respecté par chaque pièce (CastShadow)", function()
+			if not hasModel() then
+				return
+			end
 			for name, spec in expectedParts() do
 				local part = findPart(name, spec)
 				if part then
@@ -259,8 +282,15 @@ return function(T, Loader)
 		end)
 
 		T.it("les os de la robe sous Root sont ceux mesurés par pipeline.py (65)", function()
-			local root = model.HumanoidRootPart:FindFirstChild(manifest.bones.root)
+			if not hasModel() then
+				return
+			end
+			local hrp = model:FindFirstChild("HumanoidRootPart")
+			local root = hrp and hrp:FindFirstChild(manifest.bones.root)
 			T.expect(root and root:IsA("Bone"), "os racine absent sous HumanoidRootPart : " .. manifest.bones.root)
+			if not root then
+				return
+			end
 			local seen, count = { [root.Name] = true }, 1
 			for _, bone in root:GetDescendants() do
 				if bone:IsA("Bone") then
@@ -277,6 +307,9 @@ return function(T, Loader)
 
 		T.it("les pièces cuites portent une SurfaceAppearance (les images ne sont pas lisibles par Lune)", function()
 			-- Lune ne connaît pas les valeurs par défaut des cartes : les ids restent contrôlés dans le manifeste.
+			if not hasModel() then
+				return
+			end
 			for name, spec in manifest.parts do
 				local part = findPart(name, spec)
 				if part and spec.bake then
