@@ -37,13 +37,14 @@ local SELF_COLOR = Color3.fromRGB(0, 0, 0)
 local SHADOW_COLOR = Color3.fromRGB(9, 8, 13)
 -- Textures de particules fournies avec Roblox
 local SMOKE_TEXTURE = "rbxasset://textures/particles/smoke_main.dds"
--- Fumées plus denses (smoke_main, trop pâle, ne se voit pas en sombre) : bord de la colonne, ras du sol
-local BOIL_TEXTURE = "rbxasset://textures/particles/explosion01_smoke_main.dds"
-local LICK_TEXTURE = "rbxasset://textures/particles/explosion01_core_main.dds"
+-- Fumée de l'ombre (#98) : bouffée dense au cœur, bords effilochés (assets/textures/death/shadow_smoke.png, script
+-- tools/blender/shadow_smoke.py, asset Image envoyé par Open Cloud) ; celles de Roblox sont trop pâles (smoke_main) ou
+-- rondes (explosion01)
+local SHADOW_SMOKE_TEXTURE = "rbxassetid://80745440503887"
 local EMBER_TEXTURE = "rbxasset://textures/particles/sparkles_main.dds"
--- Débit (particules par seconde) de chaque effet de la colonne, pleine ombre : fumée du bord, fumée qui lèche le sol,
--- braises
-local RATES = { boil = 22, lick = 16, embers = 4 }
+-- Débit (particules par seconde) de chaque effet de la colonne, pleine ombre : chaque flanc bas, chaque flanc haut
+-- (capuche), fumée qui lèche le sol, braises ; en vol : 2 x 12 x 1,15 + 2 x 6 x 1,15 + 14 x 1,5 + 4 x 2,1 = 71
+local RATES = { flankLow = 12, flankHigh = 6, lick = 14, embers = 4 }
 -- Bouffées jouées quand l'ombre se déchire dans le faisceau
 local TEAR_SMOKE = 30
 local TEAR_EMBERS = 8
@@ -51,9 +52,6 @@ local TEAR_EMBERS = 8
 local MAX_GROUPS = 8
 -- Rang des os de la robe qui donnent le centre de la colonne : milieu et bas de chaque chaîne (Shared.CloakMotion)
 local MID_BONE, HEM_BONE = 1, 3
--- Fumées du bord et du sol reculées vers l'arrière (studs) : moins de fumée devant la colonne, que l'atmosphère grise au
--- loin et qui brouillait la forme à 20 studs
-local SMOKE_BEHIND = -1.5
 -- Pas de transparence de la colonne : elle n'est réécrite que quand elle change d'un pas
 local FILL_STEP = 0.05
 
@@ -150,8 +148,8 @@ local function newPart(name: string, parent: Instance): BasePart
 end
 
 -- Cette méthode permet de créer la colonne d'ombre (#98) lorsque les effets d'un corps sont créés : un ellipsoïde par
--- morceau (Shared.DeathLook.column : corps, capuche, lobes, bouffées du bord), tous sous un seul remplissage plat et
--- sans contour, d'où une masse continue.
+-- morceau (Shared.DeathLook.column : couches serrées, pointe de capuche, jupe), tous sous un seul remplissage plat et
+-- sans contour, d'où une masse continue au flanc lisse.
 local function newColumn(folder: Instance)
 	local model = Instance.new("Model")
 	model.Name = "ShadowColumn"
@@ -171,56 +169,73 @@ local function newColumn(folder: Instance)
 	return { model = model, parts = parts, highlight = newHighlight(model, SHADOW_COLOR) }
 end
 
--- Cette méthode permet de créer la colonne et ses fumées (bord qui bouillonne, bas qui lèche le sol, braises,
+-- Cette méthode permet de créer une fumée de flanc lorsque les effets d'un corps sont créés : langues sombres qui
+-- naissent sur le bord de la silhouette (axe X de leur volume), s'en détachent de 0,3 à 0,8 stud et se défont.
+local function newFlank(folder: Instance, name: string): (BasePart, ParticleEmitter)
+	local part = newPart(name, folder)
+	local emitter = newEmitter(part, {
+		Name = "Smoke",
+		Texture = SHADOW_SMOKE_TEXTURE,
+		Color = ColorSequence.new(SHADOW_COLOR),
+		EmissionDirection = Enum.NormalId.Right,
+		-- étirées dans le sens de leur vitesse : des langues, pas des boules
+		Orientation = Enum.ParticleOrientation.VelocityParallel,
+		Squash = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.4), NumberSequenceKeypoint.new(1, 1.2) }),
+		Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.45), NumberSequenceKeypoint.new(1, 1.1) }),
+		Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.3),
+			NumberSequenceKeypoint.new(0.5, 0.6),
+			NumberSequenceKeypoint.new(1, 1),
+		}),
+		Lifetime = NumberRange.new(0.9, 1.4),
+		Speed = NumberRange.new(0.5, 1.1),
+		Drag = 2,
+		SpreadAngle = Vector2.new(30, 45),
+		Acceleration = Vector3.new(0, 0.5, 0),
+		Rotation = NumberRange.new(0, 0),
+		RotSpeed = NumberRange.new(-40, 40),
+	})
+	return part, emitter
+end
+
+-- Cette méthode permet de créer la colonne et ses fumées (flancs qui bouillonnent, bas qui lèche le sol, braises,
 -- déchirure) lorsqu'un mortel voit une Mort pour la première fois ; locales à ce client, hors du personnage.
 local function newShadowFx(folder: Instance)
 	local body = newPart("ShadowBody", folder)
 	local floor = newPart("ShadowFloor", folder)
 	local dark = ColorSequence.new(SHADOW_COLOR)
+	local flankParts, flankEmitters = {}, {}
+	for k = 1, 4 do
+		local part, emitter = newFlank(folder, "ShadowFlank" .. k)
+		flankParts[k], flankEmitters[k] = part, emitter
+	end
 	return {
 		body = body,
 		floor = floor,
 		column = newColumn(folder),
-		-- Bord qui bouillonne : fumée sombre qui naît sur le pourtour de la colonne et s'en détache vers l'extérieur
-		boil = newEmitter(body, {
-			Name = "Boil",
-			ZOffset = SMOKE_BEHIND,
-			Shape = Enum.ParticleEmitterShape.Cylinder,
-			ShapeStyle = Enum.ParticleEmitterShapeStyle.Surface,
-			ShapeInOut = Enum.ParticleEmitterShapeInOut.Outward,
-			Texture = BOIL_TEXTURE,
-			Color = dark,
-			Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1.2), NumberSequenceKeypoint.new(1, 2.4) }),
-			Transparency = NumberSequence.new({
-				NumberSequenceKeypoint.new(0, 0.35),
-				NumberSequenceKeypoint.new(0.4, 0.5),
-				NumberSequenceKeypoint.new(1, 1),
-			}),
-			Lifetime = NumberRange.new(1, 1.5),
-			Speed = NumberRange.new(1.2, 2),
-			Drag = 1.5,
-			Acceleration = Vector3.new(0, 0.8, 0),
-		}),
-		-- Bas qui lèche le sol : fumée épaisse qui roule au ras du plancher ; laissée en place (monde), elle traîne
-		-- derrière la Mort qui glisse
+		flankParts = flankParts,
+		-- bas gauche, bas droit, haut gauche, haut droit (Shared.DeathLook.column)
+		flanks = flankEmitters,
+		-- Bas qui lèche le sol : fumée épaisse et aplatie qui roule au ras du plancher depuis le bord de la jupe ; laissée
+		-- en place (monde), elle fait une langue derrière la Mort qui glisse
 		lick = newEmitter(floor, {
 			Name = "Lick",
-			ZOffset = SMOKE_BEHIND,
 			Shape = Enum.ParticleEmitterShape.Cylinder,
 			ShapeStyle = Enum.ParticleEmitterShapeStyle.Surface,
 			ShapeInOut = Enum.ParticleEmitterShapeInOut.Outward,
-			Texture = LICK_TEXTURE,
+			Texture = SHADOW_SMOKE_TEXTURE,
 			Color = dark,
+			Squash = NumberSequence.new(-0.3),
 			Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1.6), NumberSequenceKeypoint.new(1, 3) }),
 			Transparency = NumberSequence.new({
 				NumberSequenceKeypoint.new(0, 0),
-				NumberSequenceKeypoint.new(0.5, 0.25),
+				NumberSequenceKeypoint.new(0.5, 0.3),
 				NumberSequenceKeypoint.new(1, 1),
 			}),
-			Lifetime = NumberRange.new(1.1, 1.8),
-			Speed = NumberRange.new(1.2, 2.2),
+			Lifetime = NumberRange.new(1.2, 1.8),
+			Speed = NumberRange.new(0.6, 1.4),
 			Drag = 1.5,
-			Acceleration = Vector3.new(0, 0.25, 0),
+			Acceleration = Vector3.new(0, 0.15, 0),
 		}),
 		-- Quelques braises claires qui montent de la fumée : un repère dans le noir
 		embers = newEmitter(floor, {
@@ -336,20 +351,24 @@ local function placeColumn(state, fx)
 		hem = ringCenter(state.rings.hem),
 		mid = ringCenter(state.rings.mid),
 		head = if shroud and shroud.Parent then shroud.Position else nil,
+		camera = if workspace.CurrentCamera then workspace.CurrentCamera.CFrame.Position else nil,
 		velocity = root.AssemblyLinearVelocity,
 		t = os.clock(),
 	})
 	local frames = table.create(#column.pieces)
 	for k, piece in column.pieces do
 		frames[k] = piece.cframe
-		-- taille minimale de Roblox : une bouffée résorbée garde 0,05 stud, cachée dans la colonne
-		fx.column.parts[k].Size = piece.size:Max(Vector3.one * 0.05)
+		fx.column.parts[k].Size = piece.size
 	end
 	workspace:BulkMoveTo(fx.column.parts, frames, Enum.BulkMoveMode.FireCFrameChanged)
 	fx.body.Size = column.body.size
 	fx.body.CFrame = column.body.cframe
 	fx.floor.Size = column.floor.size
 	fx.floor.CFrame = column.floor.cframe
+	for k, flank in column.flanks do
+		fx.flankParts[k].Size = flank.size
+		fx.flankParts[k].CFrame = flank.cframe
+	end
 end
 
 -- Cette méthode permet de lister les Morts à rendre lorsque la frame commence : les joueurs de rôle Mort (attributs sur
@@ -452,6 +471,9 @@ function DeathView.start()
 			state.fx.body:Destroy()
 			state.fx.floor:Destroy()
 			state.fx.column.model:Destroy()
+			for _, part in state.fx.flankParts do
+				part:Destroy()
+			end
 		end
 		for sound, volume in state.muted do
 			if sound.Parent then
@@ -503,11 +525,11 @@ function DeathView.start()
 			return
 		end
 		setColumnFill(state, fx.column, 1)
-		for _, emitter in { fx.boil, fx.lick, fx.embers } do
+		for _, emitter in { fx.lick, fx.embers, table.unpack(fx.flanks) } do
 			emitter.Enabled = false
 		end
 		if clear then
-			for _, emitter in { fx.boil, fx.lick, fx.embers, fx.tear } do
+			for _, emitter in { fx.lick, fx.embers, fx.tear, table.unpack(fx.flanks) } do
 				emitter:Clear()
 			end
 		end
@@ -530,10 +552,12 @@ function DeathView.start()
 		if on or tearing then
 			placeColumn(state, fx)
 		end
-		fx.boil.Rate = RATES.boil * smoke
+		for k, flank in fx.flanks do
+			flank.Rate = (if k <= 2 then RATES.flankLow else RATES.flankHigh) * smoke
+			flank.Enabled = on
+		end
 		fx.lick.Rate = RATES.lick * smoke
 		fx.embers.Rate = RATES.embers * smoke
-		fx.boil.Enabled = on
 		fx.lick.Enabled = on
 		fx.embers.Enabled = on
 		if tearing then

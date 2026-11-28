@@ -164,38 +164,45 @@ function DeathLook.bounds(root: CFrame, boxes: { Box }): Bounds?
 	return { bottom = bottom, top = top, radius = radius }
 end
 
--- Colonne d'ombre vue d'un mortel (#98) : des ellipsoïdes qui se recouvrent sous un seul remplissage plat, de sorte
--- qu'on ne voit qu'une masse continue. Du sol aux épaules, des couches empilées qui suivent le centre des anneaux d'os
--- de la robe (le bas ondule et traîne avec la cape) ; au-dessus, une pèlerine, la capuche et sa pointe ; au sol, des
--- lobes inégaux qui débordent un peu et traînent derrière la Mort qui glisse ; sur le bord, des bouffées pleines qui
--- se détachent sans cesse, surtout en bas, s'écartent et se résorbent (le bord bouillonne).
--- Demi-largeurs en part de la hauteur sol -> sommet : au bas, au milieu, aux épaules, de la capuche ; profondeur
--- (avant-arrière) en part de la largeur ; hauteur des épaules ; gonflement des couches (part, pulsation rad/s) ;
--- lobes (nombre, éloignement en part de la largeur du bas, longueur, largeur, hauteur visible en studs) ; recul du bas
--- par stud/s de vitesse et au plus (studs) ; bouffées (nombre, rayon en studs pour une Mort de 7,4 studs, durée de vie
--- moyenne en secondes, distance parcourue en studs, part de celles qui naissent au ras du sol).
+-- Colonne d'ombre vue d'un mortel (#98) : des ellipsoïdes très recouvrants sous un seul remplissage plat, dont la
+-- réunion donne un flanc lisse (revue : pas de pile de boules). Du sol au centre de la capuche, des couches serrées
+-- (demi-hauteur OVERLAP fois leur écart) dont la largeur suit un profil lissé : évasé vers le sol, régulier, à peine
+-- plus large aux épaules, rétréci vers la capuche ; leur centre suit les anneaux d'os de la robe (le bas ondule et
+-- traîne avec la cape) puis la tête penchée. Au sommet, la pointe de capuche ; au sol, une jupe basse d'un seul tenant
+-- qui s'étire en langue derrière la Mort qui glisse (fondue dans la fumée du sol). Le bord bouillonne par la fumée
+-- (Client.DeathView), pas par la géométrie.
+-- Profil : demi-largeur en part de la hauteur sol -> sommet, à des hauteurs (part du sol au centre de la capuche) ;
+-- profondeur (avant-arrière) en part de la largeur (la même partout : une capuche plus creuse que le corps faisait
+-- une bosse de profil) ; dôme de la capuche sous le sommet (part de la hauteur) ; centre de la capuche (part de la
+-- hauteur) ; gonflement des couches (part, pulsation rad/s, décalage de phase d'une couche à l'autre) ; pointe
+-- (demi-hauteur en part de la hauteur, largeur en part de la capuche, penchée vers l'arrière en radians) ; jupe
+-- (demi-largeur en part de la largeur du bas, demi-hauteur visible en studs, allongement par stud de traîne) ; recul
+-- du bas par stud/s de vitesse et au plus (studs).
 DeathLook.COLUMN = table.freeze({
-	LAYERS = 10,
-	BASE = 0.19,
-	WAIST = 0.15,
-	SHOULDER = 0.165,
-	HOOD = 0.095,
+	LAYERS = 16,
+	OVERLAP = 3,
+	PROFILE = table.freeze({
+		{ 0, 0.205 },
+		{ 0.1, 0.176 },
+		{ 0.3, 0.152 },
+		{ 0.62, 0.158 },
+		{ 0.82, 0.138 },
+		{ 1, 0.098 },
+	}),
 	DEPTH = 0.8,
-	SHOULDER_AT = 0.74,
-	BREATH = 0.02,
+	DOME = 0.08,
+	HEAD_AT = 0.83,
+	BREATH = 0.012,
 	BREATH_WAVE = 1.3,
-	LOBES = 9,
-	LOBE_REACH = 0.8,
-	LOBE_LENGTH = 1.5,
-	LOBE_WIDTH = 0.8,
-	LOBE_HEIGHT = 0.3,
+	BREATH_SPREAD = 0.35,
+	TIP = 0.1,
+	TIP_WIDTH = 0.42,
+	TIP_TILT = 0.3,
+	SKIRT = 1.12,
+	SKIRT_HEIGHT = 0.28,
+	TRAIN = 0.8,
 	TRAIL = 0.12,
 	TRAIL_MAX = 1.8,
-	PUFFS = 12,
-	PUFF_SIZE = 0.42,
-	PUFF_PERIOD = 1.3,
-	PUFF_DRIFT = 0.9,
-	PUFF_LOW = 0.6,
 })
 
 export type ColumnInput = {
@@ -205,27 +212,42 @@ export type ColumnInput = {
 	hem: Vector3?, -- centre de l'anneau d'os du bas de la robe (monde), s'il y en a
 	mid: Vector3?, -- centre de l'anneau d'os du milieu de la robe (monde)
 	head: Vector3?, -- centre de la tête (seuls X et Z comptent : la tête penchée)
+	camera: Vector3?, -- position de la caméra : les fumées du bord partent des flancs tels qu'elle les voit
 	velocity: Vector3,
 	t: number,
 }
 export type Ellipsoid = { cframe: CFrame, size: Vector3 }
 export type Column = {
 	pieces: { Ellipsoid }, -- toujours le même nombre (DeathLook.columnPieces), dans le même ordre
-	body: Ellipsoid, -- volume de la colonne, d'où partent les fumées du bord et la déchirure
-	floor: Ellipsoid, -- volume au ras du sol, d'où partent la fumée qui lèche le sol et les braises
+	-- volumes des fumées du bord, vus de la caméra : bas gauche, bas droit, haut gauche, haut droit ; l'axe X de chacun
+	-- pointe vers l'extérieur de la silhouette
+	flanks: { Ellipsoid },
+	body: Ellipsoid, -- volume de la colonne, d'où part la déchirure
+	floor: Ellipsoid, -- volume au ras du sol (la jupe), d'où partent la fumée qui lèche le sol et les braises
 }
 
--- Cette méthode permet de donner le nombre de morceaux de la colonne lorsque le rendu les crée : couches, pèlerine,
--- capuche, pointe, lobes, traîne et bouffées.
+-- Cette méthode permet de donner le nombre de morceaux de la colonne lorsque le rendu les crée : couches, pointe de
+-- capuche et jupe.
 function DeathLook.columnPieces(): number
-	return DeathLook.COLUMN.LAYERS + 3 + DeathLook.COLUMN.LOBES + 1 + DeathLook.COLUMN.PUFFS
+	return DeathLook.COLUMN.LAYERS + 2
 end
 
--- Cette méthode permet de donner une valeur fixe entre 0 et 1 tirée de k lorsque la colonne est posée (lobes et
--- bouffées inégaux, mais stables d'une frame à l'autre).
-local function hash(k: number): number
-	local x = math.sin(k * 12.9898 + 4.1414) * 43758.5453
-	return x - math.floor(x)
+-- Cette méthode permet de donner la demi-largeur de la colonne (part de la hauteur) à la hauteur u (0 au sol, 1 au
+-- centre de la capuche) lorsque la colonne est posée : profil interpolé en douceur entre ses points (sans angle).
+function DeathLook.columnWidth(u: number): number
+	local profile = DeathLook.COLUMN.PROFILE
+	if u <= profile[1][1] then
+		return profile[1][2]
+	end
+	for k = 2, #profile do
+		local a, b = profile[k - 1], profile[k]
+		if u <= b[1] then
+			local f = (u - a[1]) / (b[1] - a[1])
+			f = f * f * (3 - 2 * f)
+			return a[2] + (b[2] - a[2]) * f
+		end
+	end
+	return profile[#profile][2]
 end
 
 -- Cette méthode permet d'interpoler la position horizontale du centre de la colonne à la hauteur y lorsque la colonne
@@ -263,12 +285,14 @@ function DeathLook.column(input: ColumnInput): Column
 
 	local flat = Vector3.new(input.velocity.X, 0, input.velocity.Z)
 	local speed = flat.Magnitude
-	local moveDir = if speed > 0.05 then flat.Unit else Vector3.zero
-	local back = if speed > 0.05 then -moveDir else -look
+	local back = if speed > 0.05 then -flat.Unit else -look
 	local trail = math.min(speed * C.TRAIL, C.TRAIL_MAX)
 
 	local center = root.Position
-	local shoulderY = floorY + C.SHOULDER_AT * height
+	local headY = floorY + C.HEAD_AT * height
+	local headFlat = if input.head then input.head else center
+	local head = Vector3.new(headFlat.X, headY, headFlat.Z)
+	local shoulderY = floorY + 0.62 * C.HEAD_AT * height
 	local shoulder = Vector3.new(center.X, shoulderY, center.Z)
 	-- le bas suit l'anneau d'os de l'ourlet (ondulation, traîne de la cape) et recule encore avec la vitesse
 	local hem = input.hem or Vector3.new(center.X, floorY + 0.15 * height, center.Z)
@@ -281,120 +305,88 @@ function DeathLook.column(input: ColumnInput): Column
 		table.insert(points, input.mid)
 	end
 	table.insert(points, shoulder)
+	table.insert(points, head)
 
 	local pieces = {}
-	-- Cette méthode permet d'ajouter un ellipsoïde de demi-largeur w, demi-hauteur h et demi-profondeur d lorsque la
-	-- colonne est posée, tourné vers le cap de la Mort (et penché de `tilt` radians vers l'arrière).
-	local function add(at: Vector3, w: number, h: number, d: number, tilt: number?)
-		local frame = CFrame.new(at) * heading
-		if tilt then
-			frame *= CFrame.Angles(tilt, 0, 0)
-		end
-		table.insert(pieces, { cframe = frame, size = Vector3.new(2 * w, 2 * h, 2 * d) })
-	end
-
-	-- Cette méthode permet de donner la demi-largeur du corps à la hauteur s (0 au sol, 1 aux épaules) lorsque la
-	-- colonne est posée : évasé au bas, régulier ensuite.
-	local function widthAt(s: number): number
-		local share = if s < 0.35
-			then C.BASE + (C.WAIST - C.BASE) * (s / 0.35)
-			else C.WAIST + (C.SHOULDER - C.WAIST) * ((s - 0.35) / 0.65)
-		return share * height
-	end
-
-	-- Corps : couches du sol aux épaules ; écartées de `step`, demi-hauteur 1,7 step : le bord reste presque droit, sans
-	-- bourrelets ; la dernière, plus basse, ne déborde pas sur la capuche
-	local step = (shoulderY - floorY) / (C.LAYERS - 1)
+	-- Couches du sol au centre de la capuche : écartées de `step`, demi-hauteur OVERLAP step (creux entre deux
+	-- couches : moins de 1,5 % de la largeur), sans dépasser le dôme de la capuche, sous le sommet (la pointe en sort) ;
+	-- gonflement lent qui monte d'une couche à l'autre sans les décaler
+	local step = (headY - floorY) / (C.LAYERS - 1)
 	for i = 0, C.LAYERS - 1 do
-		local s = i / (C.LAYERS - 1)
-		local w = widthAt(s) * (1 + C.BREATH * math.sin(C.BREATH_WAVE * t + 2.1 * i))
-		local half = if i == C.LAYERS - 1 then step * 1.2 else step * 1.7
-		add(spineAt(points, floorY + s * (shoulderY - floorY)), w, half, w * C.DEPTH)
-	end
-
-	-- Pèlerine, capuche (penchée comme la tête) et pointe de capuche, un peu en arrière, sous le sommet
-	local headFlat = if input.head
-		then Vector3.new(input.head.X, 0, input.head.Z)
-		else Vector3.new(center.X, 0, center.Z)
-	local hoodW = C.HOOD * height
-	local headY = input.top - 0.17 * height
-	local headAt = Vector3.new(headFlat.X, headY, headFlat.Z)
-	add(shoulder:Lerp(headAt, 0.45), (C.SHOULDER * 0.62) * height, (headY - shoulderY) * 0.75, hoodW * 1.15)
-	add(headAt, hoodW, 0.11 * height, hoodW * 1.1)
-	local tipH = 0.1 * height
-	add(Vector3.new(headAt.X, input.top - tipH, headAt.Z) - look * hoodW * 0.25, hoodW * 0.42, tipH, hoodW * 0.5, 0.3)
-
-	-- Lobes au sol : inégaux, posés au ras du sol (la moitié basse passe sous le plancher), ceux de derrière reculent et
-	-- s'étirent quand la Mort glisse
-	local baseW = C.BASE * height
-	for k = 0, C.LOBES - 1 do
-		local h = hash(k)
-		local th = 2 * math.pi * (k + 0.35 * (h - 0.5)) / C.LOBES
-		local dir = look * math.cos(th) + right * math.sin(th)
-		local behind = if speed > 0.05 then (1 - dir:Dot(moveDir)) / 2 else (1 - dir:Dot(look)) / 2
-		local reach = baseW * C.LOBE_REACH * (0.75 + 0.35 * h) * (1 + 0.12 * math.sin(0.9 * t + 1.7 * k))
-		local offset = dir * reach + back * trail * (0.3 + 0.9 * behind)
-		local length = C.LOBE_LENGTH * (0.8 + 0.4 * h) + trail * behind
-		local along = if offset.Magnitude > 1e-6 then offset.Unit else dir
-		local at = Vector3.new(foot.X, floorY, foot.Z) + offset
+		local u = i / (C.LAYERS - 1)
+		local w = DeathLook.columnWidth(u) * height * (1 + C.BREATH * math.sin(C.BREATH_WAVE * t - C.BREATH_SPREAD * i))
+		local depth = w * C.DEPTH
+		local at = spineAt(points, floorY + u * (headY - floorY))
+		local half = math.min(C.OVERLAP * step, input.top - C.DOME * height - at.Y)
 		table.insert(pieces, {
-			cframe = CFrame.lookAt(at, at + along),
-			size = Vector3.new(C.LOBE_WIDTH * (0.85 + 0.3 * h), 2 * C.LOBE_HEIGHT, length),
+			cframe = CFrame.new(at) * heading,
+			size = Vector3.new(2 * w, 2 * half, 2 * depth),
 		})
 	end
-	-- Traîne : une langue d'ombre derrière, d'autant plus longue que la Mort va vite
-	local trainLength = C.LOBE_LENGTH + trail * 1.6
-	local trainAt = Vector3.new(foot.X, floorY, foot.Z) + back * (baseW * 0.4 + trail * 0.8)
+
+	-- Pointe de capuche, un peu en arrière, son sommet au sommet du corps
+	local hoodW = C.PROFILE[#C.PROFILE][2] * height
+	local tipH = C.TIP * height
+	local tipAt = Vector3.new(head.X, input.top - tipH, head.Z) - look * hoodW * 0.25
 	table.insert(pieces, {
-		cframe = CFrame.lookAt(trainAt, trainAt + back),
-		size = Vector3.new(baseW * 1.3, 2 * C.LOBE_HEIGHT * 1.2, trainLength),
+		cframe = CFrame.new(tipAt) * heading * CFrame.Angles(C.TIP_TILT, 0, 0),
+		size = Vector3.new(2 * hoodW * C.TIP_WIDTH, 2 * tipH, 2 * hoodW * C.TIP_WIDTH * 1.2),
 	})
 
-	-- Bouffées : chacune naît à moitié dans le bord, grandit vite, s'écarte en se résorbant, puis renaît ailleurs (tirage
-	-- propre à chaque cycle) ; la plupart au ras du sol, où elles roulent vers l'extérieur et restent en arrière
-	local scale = height / 7.4
-	for k = 0, C.PUFFS - 1 do
-		local period = C.PUFF_PERIOD * (0.8 + 0.4 * hash(k + 0.5))
-		local phase = t / period + hash(k + 0.25)
-		local cycle = math.floor(phase)
-		local f = phase - cycle
-		local seed = cycle * 7.31 + k * 1.93
-		local low = hash(seed) < C.PUFF_LOW
-		local s = if low then 0.1 * hash(seed + 0.1) else 0.1 + 0.9 * hash(seed + 0.1)
-		local th = 2 * math.pi * hash(seed + 0.2)
-		local dir = look * math.cos(th) + right * math.sin(th)
-		if low and speed > 0.05 then
-			dir = (dir + back * 0.8).Unit
+	-- Jupe : basse, à peine plus large que le bas, d'un seul tenant ; en glissant, elle s'allonge vers l'arrière en
+	-- langue, son avant reste sous la Mort
+	local baseW = C.PROFILE[1][2] * height
+	local skirtW = baseW * C.SKIRT
+	local skirtLength = skirtW * C.DEPTH + trail * C.TRAIN
+	local skirtAt = Vector3.new(foot.X, floorY, foot.Z) + back * trail * C.TRAIN
+	table.insert(pieces, {
+		cframe = CFrame.lookAt(skirtAt, skirtAt + back),
+		size = Vector3.new(2 * skirtW, 2 * C.SKIRT_HEIGHT, 2 * skirtLength),
+	})
+
+	-- Flancs vus de la caméra (sans caméra : côtés de la Mort) : en bas, du sol aux épaules ; en haut, des épaules au
+	-- sommet ; chacun posé sur le bord de la silhouette, son axe X vers l'extérieur
+	local side = right
+	if input.camera then
+		local view = Vector3.new(center.X - input.camera.X, 0, center.Z - input.camera.Z)
+		if view.Magnitude > 1e-3 then
+			side = view.Unit:Cross(up)
 		end
-		local w = widthAt(s)
-		-- rayon de l'ellipse du corps dans cette direction (profondeur DEPTH)
-		local radial = w * math.sqrt(dir:Dot(right) ^ 2 + (C.DEPTH * dir:Dot(look)) ^ 2)
-		local r = C.PUFF_SIZE * scale * (0.7 + 0.6 * hash(seed + 0.3)) * math.min(f / 0.15, 1) * (1 - f) ^ 0.8
-		local drift = C.PUFF_DRIFT * scale * f
-		local at = spineAt(points, floorY + s * (shoulderY - floorY)) + dir * (radial * 0.85 + drift)
-		if low then
-			at = Vector3.new(at.X, floorY + r * 0.5, at.Z) + back * trail * f
-		else
-			at += up * drift * 0.6
+	end
+	-- Cette méthode permet de donner le rayon de la silhouette dans la direction `dir` à la hauteur u lorsque les flancs
+	-- sont posés (ellipse de la couche, profondeur comprise).
+	local function radius(dir: Vector3, u: number): number
+		local w = DeathLook.columnWidth(u) * height
+		return w * math.sqrt(dir:Dot(right) ^ 2 + (C.DEPTH * dir:Dot(look)) ^ 2)
+	end
+	local flanks = {}
+	local bands = { { 0.04, 0.62 }, { 0.62, 1.08 } }
+	for _, band in bands do
+		local u0, u1 = band[1], band[2]
+		local uMid = (u0 + u1) / 2
+		for _, sign in { -1, 1 } do
+			local out = side * sign
+			local y = floorY + uMid * (headY - floorY)
+			local at = spineAt(points, y) + out * radius(out, math.min(uMid, 1))
+			table.insert(flanks, {
+				cframe = CFrame.fromMatrix(at, out, up, out:Cross(up)),
+				size = Vector3.new(0.3, (u1 - u0) * (headY - floorY), 0.8),
+			})
 		end
-		table.insert(pieces, {
-			cframe = CFrame.lookAt(at, at + dir),
-			size = Vector3.new(2 * r, 1.6 * r, 2.6 * r),
-		})
 	end
 
-	local bodyW = 2 * C.SHOULDER * height
+	local bodyW = 2 * C.PROFILE[4][2] * height
 	local bodyMid = spineAt(points, (floorY + shoulderY) / 2)
-	local floorAt = Vector3.new(foot.X, floorY + 0.3, foot.Z) + back * trail * 0.5
 	return {
 		pieces = pieces,
+		flanks = flanks,
 		body = {
 			cframe = CFrame.new(bodyMid) * heading,
 			size = Vector3.new(bodyW, shoulderY - floorY, bodyW * C.DEPTH),
 		},
 		floor = {
-			cframe = CFrame.new(floorAt) * heading,
-			size = Vector3.new(baseW * 2.4, 0.6, baseW * 2.4 * C.DEPTH + trail),
+			cframe = CFrame.lookAt(skirtAt + up * 0.2, skirtAt + up * 0.2 + back),
+			size = Vector3.new(2 * skirtW, 0.4, 2 * skirtLength),
 		},
 	}
 end

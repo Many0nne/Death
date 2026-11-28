@@ -99,28 +99,40 @@ studs/s (+20°), 38° entre 17,5 et 20 studs/s (+30°, pointes à 55°). Sur le 
 Pour un mortel, la Mort exposée hors faisceau est une **colonne d'ombre pleine** sans faux (#98, `Client.DeathView`,
 géométrie `Shared.DeathLook.column`, réglages `DeathLook.COLUMN`) ; elle remplace l'ombre qui « épousait la
 silhouette » (#80 : un `Highlight` par morceau du corps ; #90 : volutes `Beam` au bas), qui laissait voir des taches
-d'ombre et des mains. Le vrai corps est caché tant qu'elle est affichée. Elle est faite de 35 ellipsoïdes locaux (pièces
-dont la sphère remplit la taille) sous **un seul** `Highlight` plat et sans contour, d'où une masse continue : 10
-couches du sol aux épaules, centrées sur les anneaux d'os du milieu et du bas de la robe (`Cxx_1`, `Cxx_3` : le bas
-ondule et traîne avec la cape), une pèlerine, la capuche (penchée comme le suaire, `Shroud`) et sa pointe ; au sol, 9
-lobes inégaux et une traîne qui débordent un peu et reculent quand la Mort glisse ; sur le bord, 12 bouffées qui
-naissent à moitié dans la colonne, surtout au ras du sol, s'écartent et se résorbent en 1 à 1,6 s. Fumées : bord
-(`explosion01_smoke_main`, la fumée `smoke_main` est trop pâle pour se voir en sombre) et ras du sol
-(`explosion01_core_main`), reculées vers l'arrière (`ZOffset`) ; braises claires ; la fumée du modèle (`HemSmoke`)
-reste coupée tant que la colonne la remplace. Deux pièges mesurés en jeu : une pièce de 1 stud agrandie par son seul
-maillage n'est plus dessinée au loin (la colonne disparaissait à 20 studs), et une pièce opaque prend le voile de
-l'atmosphère (bleu-gris à 20 studs, même sous le remplissage) : les pièces gardent 0,05 de transparence. Mesuré en
-jeu (#98, salon éclairé) : une seule masse noire à 5,6 et 11 studs, de face et de profil, sans main ni trou ;
-repérable nettement à 29,4 studs en diagonale du salon (#90 : 28,7) ; à 9 studs/s (Mort exposée), le bout du bas
-traîne à 4,7 studs derrière la racine (1,6 à 2 studs à l'arrêt), lobes au ras du sol ; particules en vol en pleine
-ombre, débit × durée de vie : 59 (bord 22/s × 1,25 s, sol 16/s × 1,45 s, braises 4/s × 2,1 s) contre 18 en #90, et
-plus aucune traînée (16 `Beam` en #90). Coût par image non mesuré. Le rendu ne dépend que des noms `Scythe` (la faux,
-cachée hors faisceau), `Shroud` et des os `Cxx_1`, `Cxx_3` (sans eux, la colonne se pose d'après la boîte du corps).
-Rendu vu d'un mortel (salon éclairé ; positions de la racine du joueur, caméra à la première personne tournée vers
-la Mort) : de face, Mort en (3,5 ; 27,5) devant la bibliothèque, joueur en (14 ; 27) ![](mort/mortel-ombre.jpg), à
-5,6 studs, joueur en (8,5 ; 27,5) ![](mort/mortel-ombre-5-studs.jpg), de profil (Mort tournée vers −Z)
-![](mort/mortel-ombre-profil.jpg), en déplacement (de z = 33 vers z = 6, joueur en (16 ; 24))
-![](mort/mortel-ombre-mouvement.jpg), à 20,7 studs (Mort en (4,5 ; 6), joueur en (7 ; 26))
+d'ombre et des mains. Le vrai corps est caché tant qu'elle est affichée. Elle est faite de 18 ellipsoïdes locaux (pièces
+dont la sphère remplit la taille) sous **un seul** `Highlight` plat et sans contour : 16 couches serrées du sol au
+centre de la capuche (demi-hauteur 3 fois leur écart, d'où un flanc lisse : creux de moins de 0,05 stud, testé en
+Lune), larges selon un profil lissé (`PROFILE` : évasé vers le sol, régulier, rétréci vers la capuche), centrées sur
+les anneaux d'os du milieu et du bas de la robe (`Cxx_1`, `Cxx_3` : le bas ondule et traîne avec la cape) puis sur la
+tête penchée (`Shroud`) ; la pointe de capuche ; au sol, une jupe basse d'un seul tenant qui s'étire en langue
+derrière la Mort qui glisse. La première version (itération 1 de #98 : couches espacées, 12 bouffées pleines, 9 lobes
+au sol) se lisait comme une pile de boules : captures au commit `97fb72b`. Le bord bouillonne par la fumée : 4
+émetteurs posés sur les flancs de la silhouette **tels que la caméra les voit** (bas et haut, de chaque côté, recalculés
+à chaque frame) lancent vers l'extérieur des langues sombres (particules étirées dans le sens de leur vitesse,
+`VelocityParallel` et `Squash`) qui s'écartent de quelques dixièmes de stud et se défont ; au sol, une fumée épaisse et
+aplatie roule depuis le bord de la jupe et reste en arrière quand la Mort glisse ; braises claires ; la fumée du modèle
+(`HemSmoke`) reste coupée tant que la colonne la remplace. **Texture de fumée** dédiée : bouffée dense au cœur, bords
+déchirés en langues, blanche (la couleur vient de l'émetteur), écrite par `tools/blender/shadow_smoke.py` (graine
+fixe, `blender -b --factory-startup --python tools/blender/shadow_smoke.py -- <sortie.png> 256 [aperçu.png]`), source
+`assets/textures/death/shadow_smoke.png`, envoyée par Open Cloud (type Image, asset **80745440503887**, modération
+approuvée en moins d'une minute) ; `smoke_main` de Roblox est trop pâle pour se voir en sombre et `explosion01` fait
+des boules. Trois pièges mesurés en jeu : une pièce de 1 stud agrandie par son seul maillage n'est plus dessinée au
+loin (la colonne disparaissait à 20 studs) ; une pièce opaque prend le voile de l'atmosphère (bleu-gris à 20 studs,
+même sous le remplissage) : les pièces gardent 0,05 de transparence ; une fumée diffuse posée devant la colonne la
+grisait au loin, d'où des émetteurs sur les seuls flancs vus de la caméra. Mesuré en jeu (#98, salon éclairé) : une
+seule masse noire au flanc lisse à 5,6 et 11 studs, de face et de profil, sans main ni trou ; repérable nettement à
+29,4 studs en diagonale du salon (#90 : 28,7) ; à 9 studs/s (Mort exposée), le bout de la langue au sol traîne à
+3,95 studs derrière la racine (1,4 à l'arrêt, calculé) ; particules en vol en pleine ombre, débit × durée de vie :
+71 (flancs bas 2 × 12/s × 1,15 s, flancs hauts 2 × 6/s × 1,15 s, sol 14/s × 1,5 s, braises 4/s × 2,1 s) contre 18 en
+#90, et plus aucune traînée (16 `Beam` en #90). Coût par image non mesuré. Le rendu ne dépend que des noms `Scythe`
+(la faux, cachée hors faisceau), `Shroud` et des os `Cxx_1`, `Cxx_3` (sans eux, la colonne se pose d'après la boîte du
+corps). Rendu vu d'un mortel (salon éclairé ; positions de la racine du joueur, caméra à la première personne tournée
+vers la Mort ; racine du bot posée et ancrée pour les vues fixes, son pivot n'est pas la racine) : de face, Mort en
+(3,5 ; 27,5) devant la bibliothèque, joueur en (14 ; 27) ![](mort/mortel-ombre.jpg), à 5,6 studs, joueur en
+(8,5 ; 27,5) ![](mort/mortel-ombre-5-studs.jpg), de profil (Mort tournée vers −Z)
+![](mort/mortel-ombre-profil.jpg), de profil contre le mur beige, où la fumée des flancs se lit (Mort en
+(3,5 ; 21,5), joueur en (11 ; 21,5)) ![](mort/mortel-ombre-mur.jpg), en déplacement (de z = 33 vers z = 6, joueur en
+(16 ; 24)) ![](mort/mortel-ombre-mouvement.jpg), à 20,2 studs (Mort en (4,5 ; 6), joueur en (7 ; 26))
 ![](mort/mortel-ombre-20-studs.jpg), à 29,4 studs (joueur en (19 ; 31)) ![](mort/mortel-ombre-29-studs.jpg), dans le
 faisceau ![](mort/mortel-faisceau.jpg) (#89) et de près (`DebugFlashlight = "beam"`, joueur en (9 ; 27))
 ![](mort/mortel-faisceau-pres.jpg). Prises en Play Solo avec un bot Mort (`DebugAddBot = "Death"`, revêtu du modèle)

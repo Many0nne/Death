@@ -46,11 +46,13 @@ accomplir des objectifs pour fuir avant la fin de la nuit, en repérant les pré
   - **dans l'ombre** : rien (ni corps, ni ombre portée, ni fumée) ;
   - **à la lumière ambiante** : une **colonne d'ombre pleine** qui avale toute la Mort (#98, après « épouse la
     silhouette » de #80/#90, qui laissait voir des taches d'ombre et des mains). **Presque informe** : une colonne à
-    peu près régulière, juste une pointe de capuche en haut, ni bras, ni mains, ni manches. **Cœur plein** : noir
-    bleuté opaque, sans contour (un liseré faisait un objet sélectionné, #96), le vrai corps caché dessous. **Bords qui
-    bouillonnent** : des bouffées d'ombre se détachent sans cesse du bord, surtout en bas, et une fumée sombre en
-    déborde. **Bas qui lèche le sol** : une masse inégale (pas une flaque ronde) qui déborde un peu autour, roule au
-    ras du plancher et traîne derrière elle quand elle glisse ; quelques braises claires. **Pas de faux** ;
+    peu près régulière au flanc lisse (pas de pile de boules), évasée progressivement vers le sol, juste une pointe
+    de capuche en haut, ni bras, ni mains, ni manches. **Cœur plein** : noir bleuté opaque, sans contour (un liseré
+    faisait un objet sélectionné, #96), le vrai corps caché dessous. **Bords qui bouillonnent** : de la capuche au
+    pied, des langues de fumée sombre sortent du flanc, s'en écartent de quelques dixièmes de stud et se défont, plus
+    denses en bas. **Bas qui lèche le sol** : la base évasée se fond dans une fumée épaisse qui roule au ras du
+    plancher ; quand elle glisse, le bas s'étire en langue derrière elle et la fumée reste en arrière ; quelques
+    braises claires. **Pas de faux** ;
   - **dans le faisceau d'une lampe** (les 3 s avant la dissipation) : la colonne se déchire (bouffée de fumée, 0,4 s) et
     laisse voir le **vrai corps** et la **faux** ; hors du faisceau, elle se referme en 0,8 s. Puis la dissipation se
     joue comme avant.
