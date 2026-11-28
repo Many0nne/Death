@@ -33,7 +33,7 @@ export type Deps = {
 	replicated: any, -- Instance qui porte les attributs de la manche (ReplicatedStorage)
 	heartbeat: any, -- signal appelé à chaque frame avec dt (RunService.Heartbeat)
 	isStudio: boolean, -- active le mode test et les attributs de debug
-	createMannequin: ((string) -> any)?, -- fabrique le mannequin d'un faux joueur (DebugBots.createMannequin par défaut)
+	createMannequin: ((string, string) -> any)?, -- fabrique le mannequin d'un faux joueur (DebugBots.createMannequin par défaut)
 	pick: (number) -> number, -- tirage d'un index de 1 à n
 	encode: (any) -> string, -- encodage JSON du résultat
 	log: (string) -> (),

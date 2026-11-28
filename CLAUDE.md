@@ -65,8 +65,8 @@ toujours avec lui.
   retire tous les bots (comme un départ de joueur). Pièges, lumière, lampe torche, Mort et agonie parcourent
   `MatchService:roster()` (joueurs + bots, API de `Players`) : un bot mortel est touché par un piège, porte une lampe
   (`DebugFlashlight = "on"` sur le mannequin), un bot Mort est exposé par la lumière (attribut `DeathExposed` sur le
-  mannequin). `Client.DeathView` rend un bot Mort comme un joueur (ombre, faisceau : `DebugFlashlight = "beam"` sur le
-  mannequin), mais sur son mannequin, pas sur le modèle de la Mort. Limites : `Client.AgonyClient` parcourt encore
+  mannequin). Un bot Mort porte le vrai modèle de la Mort (cape animée) : `Client.DeathView` le rend comme un joueur
+  (ombre, faisceau : `DebugFlashlight = "beam"` sur le mannequin), de quoi capturer la vue d'un mortel en Play Solo. Limites : `Client.AgonyClient` parcourt encore
   `Players` ; `Server.EscapeService` aussi, donc un bot mortel ne peut pas s'échapper. Code : `Server.DebugBots`,
   `Server.Roster`.
 

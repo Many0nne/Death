@@ -110,10 +110,11 @@ braises 4/s × 2,1 s) contre 122 avant (colonne 40/s × 1,6 s, volutes 14/s × 1
 modèle 18/s × 1,6 s), plus 16 traînées de 14 segments. La forme du voile passe avant le détail des textures, qui ne
 se voit que dans le faisceau d'une lampe. Le rendu ne dépend que des noms `Scythe` (la faux, cachée hors faisceau),
 `Tatters` et des os `Cxx_2`, `Cxx_3` (sans eux, une couronne de volutes au bas du corps). Rendu vu d'un mortel
-(salon éclairé) : ombre de près ![](mort/mortel-ombre.jpg), de profil ![](mort/mortel-ombre-profil.jpg), en
-déplacement ![](mort/mortel-ombre-mouvement.jpg), à 20 studs ![](mort/mortel-ombre-20-studs.jpg), à 28,7 studs
-![](mort/mortel-ombre-29-studs.jpg) (avant #90 : `v81/`), dans le
-faisceau ![](mort/mortel-faisceau.jpg) et de près ![](mort/mortel-faisceau-pres.jpg) (spectre sculpté, #89) ; la
+(salon éclairé, ombre sans liseré depuis #96) : ombre de près ![](mort/mortel-ombre.jpg), de profil
+![](mort/mortel-ombre-profil.jpg), en déplacement ![](mort/mortel-ombre-mouvement.jpg), à 20 studs
+![](mort/mortel-ombre-20-studs.jpg), à 28,6 studs ![](mort/mortel-ombre-29-studs.jpg) (avant #90 : `v81/`), dans le
+faisceau ![](mort/mortel-faisceau.jpg) et de près ![](mort/mortel-faisceau-pres.jpg) (spectre sculpté, #89). Prises
+en Play Solo avec un bot Mort (`DebugAddBot = "Death"`, revêtu du modèle) et rien de sélectionné ; la
 Mort à la lumière (vue d'elle-même) ![](mort/v81/mort-lumiere.jpg), en déplacement
 ![](mort/v81/mort-deplacement.jpg) ; vue du joueur Mort ![](mort/v81/vue-mort.jpg) (#81, pas refaites en #89).
 Captures de #76 et #80 : `docs/mort/v76/` ; de #81 : `docs/mort/v81/`.

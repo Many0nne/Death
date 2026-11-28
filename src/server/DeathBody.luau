@@ -7,7 +7,7 @@
 -- personnage d'origine sauf Animate (Health...) : les modules qui écoutent CharacterAdded le traitent comme une réapparition
 -- (Server.MatchSpawner le replace sur son point en manche). Rendre l'avatar : Player:LoadCharacterAsync() (le joueur
 -- réapparaît sur le SpawnLocation de la zone d'attente).
--- Limite : un faux joueur de debug (Server.DebugBots) garde son mannequin.
+-- Un faux joueur Mort de debug ne passe pas par ici : Server.DebugBots le crée directement dans ce modèle (#96).
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local DeathBody = {}

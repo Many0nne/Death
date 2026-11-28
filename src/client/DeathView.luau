@@ -1,6 +1,6 @@
 -- Rendu de la Mort (client), d'après les attributs du serveur (LightRole, DeathExposed, DeathInBeam) et les règles
 -- pures de Shared.DeathLook (#80) :
--- - pour un mortel : invisible dans l'ombre ; exposée, une ombre pleine (remplissage sombre, contour léger) qui épouse
+-- - pour un mortel : invisible dans l'ombre ; exposée, une ombre pleine (remplissage sombre, sans contour) qui épouse
 --   la silhouette et dont le bas se défait en volutes ondulantes (#90 : une traînée par chaîne d'os de la robe, plus de
 --   nuage rond), avec quelques fumerolles et braises claires, sans faux ; dans un faisceau de lampe, l'ombre se
 --   déchire (bouffée de fumée) et laisse voir le vrai corps et la faux ;
@@ -32,9 +32,8 @@ local SCYTHE_NAME = "Scythe"
 local TATTERS_NAME = "Tatters"
 -- Remplissage du voile de la Mort sur elle-même (inchangé depuis #4)
 local SELF_COLOR = Color3.fromRGB(0, 0, 0)
--- Ombre vue des mortels : noir bleuté plutôt que noir pur, contour gris violacé à peine visible
+-- Ombre vue des mortels : noir bleuté plutôt que noir pur, sans contour (#96, Shared.DeathLook.layers)
 local SHADOW_COLOR = Color3.fromRGB(9, 8, 13)
-local OUTLINE_COLOR = Color3.fromRGB(110, 98, 128)
 -- Textures de particules fournies avec Roblox
 local SMOKE_TEXTURE = "rbxasset://textures/particles/smoke_main.dds"
 local EMBER_TEXTURE = "rbxasset://textures/particles/sparkles_main.dds"
@@ -414,7 +413,7 @@ function DeathView.start()
 		local tatters = if state.view == View.Mortal then character:FindFirstChild(TATTERS_NAME, true) else nil
 		state.tatters = tatters
 		local color = if state.view == View.Self then SELF_COLOR else SHADOW_COLOR
-		local outline = if state.view == View.Self then SELF_COLOR else OUTLINE_COLOR
+		local outline = color
 		local groups = {}
 		local skip = {}
 		for _, s in { scythe, tatters } do
