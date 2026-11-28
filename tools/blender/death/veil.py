@@ -371,9 +371,8 @@ def shroud_shape_fn():
     cols = _shroud_columns()
 
     def fn(i, j):
-        """Cette méthode permet de placer le sommet (i autour, j du sommet au bas) du suaire : d'un seul tenant, il
-        épouse le crâne jusqu'à sa ligne de chute (menton, mâchoire, occiput), puis tombe en rideau sur le cou et les
-        épaules, plis verticaux, bord effiloché."""
+        """Cette méthode permet de placer le sommet (i autour, j du sommet au bas) du suaire : il épouse le crâne
+        jusqu'à sa ligne de chute (menton, mâchoire, occiput), puis tombe en rideau sur le cou et les épaules."""
         u = cols[i % SC]
         k = j / (SR - 1)
         rel = shroud_release(u)
@@ -517,6 +516,9 @@ STRIPS = 40
 STRIP_ROWS = 22
 STRIP_COLS = 3  # sommets en travers d'une lanière (gouttière en V adoucie par le lissage)
 STRIP_FLOOR = GROUND + 0.3  # une lanière se couche en traîne au-dessus du sol, sans le toucher
+# recul maximal derrière la racine (studs) : sans collision, une traîne plus longue passerait à travers un mur dos
+# auquel la Mort se cache et la trahirait dans la pièce voisine
+TRAIL_MAX = 2.6
 
 
 def strip_specs():
@@ -555,13 +557,25 @@ def strip_root(cloak, th):
 
 
 def strip_path(root, spec):
-    """Cette méthode permet de suivre l'axe d'une lanière depuis son attache : elle plonge en diagonale vers l'arrière,
-    de plus en plus couchée (d'autant plus qu'elle est attachée derrière), ondule comme une coulure, et son bout se
-    relève un peu au-dessus du sol comme une fumée (le spectre flotte, rien ne traîne par terre) ; renvoie les points."""
+    """Cette méthode permet de suivre l'axe d'une lanière depuis son attache, raccourcie au besoin pour ne pas reculer
+    au-delà de TRAIL_MAX derrière la racine ; renvoie les points."""
+    length = spec["length"]
+    for _ in range(8):
+        pts = _strip_axis(root, spec, length)
+        reach = -min(p.y for p in pts)
+        if reach <= TRAIL_MAX:
+            return pts
+        length *= max(0.2, (TRAIL_MAX + root.y) / max(1e-3, reach + root.y)) * 0.97
+    return pts
+
+
+def _strip_axis(root, spec, length):
+    """Cette méthode permet de tracer l'axe d'une lanière de longueur donnée : elle plonge en diagonale vers l'arrière,
+    de plus en plus couchée, ondule comme une coulure, et son bout se relève au-dessus du sol comme une fumée."""
     out = Vector((math.sin(spec["th"]), math.cos(spec["th"]), 0))
     side = Vector((math.cos(spec["th"]), -math.sin(spec["th"]), 0))
     back_k = 0.5 - 0.5 * math.cos(spec["th"])
-    step = spec["length"] / (STRIP_ROWS - 1)
+    step = length / (STRIP_ROWS - 1)
     pts = []
     p = root.copy()
     for k in range(STRIP_ROWS):

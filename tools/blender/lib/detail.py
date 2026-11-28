@@ -208,9 +208,8 @@ def displace(ob, size, strength, seed, kind="DISTORTED_NOISE"):
 
 
 def detailed_copy(ob, seed, levels=3, strokes=None, noise=(1.6, 0.035), fine=(0.12, 0.012), sculpted=None):
-    """Cette méthode permet de construire la version détaillée d'une pièce (nom `<pièce>_hi`, cachée au rendu des
-    vues) : subdivision (ou `sculpted`, la pièce sculptée à la brosse au niveau le plus fin, #89), sculpt par
-    script, bruit Geometry Nodes, déplacement fin ; renvoie l'objet."""
+    """Cette méthode permet de construire la version détaillée d'une pièce (`<pièce>_hi`) : subdivision, ou le sculpt
+    `sculpted` au niveau le plus fin (#89), puis traits, bruit et déplacement fin ; renvoie l'objet."""
     if sculpted is not None:
         hi = sculpted
     else:

@@ -88,9 +88,8 @@ def cc0_material(name, asset, dark, light, rough=(0.7, 1.0), scale=(6.0, 4.0), n
 
 
 def flesh_material(name, seed=0, tone=1.0):
-    """Cette méthode permet de créer la matière procédurale de la chair desséchée (cendre marbrée, veines, rides)
-    lorsqu'aucune peau CC0 ne convient ; les faces de `zone` 1 (griffes) prennent une corne jaunie ; `tone` assombrit
-    la chair (torse vu par les trous de la robe : une peau claire s'écrase sous la lampe)."""
+    """Cette méthode permet de créer la chair desséchée procédurale (cendre marbrée, veines, rides ; griffes en corne
+    jaunie pour la `zone` 1) ; `tone` l'assombrit (torse vu par les trous de la robe)."""
     mat = bpy.data.materials.new(name)
     mat.use_nodes = True
     nt = mat.node_tree

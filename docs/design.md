@@ -45,8 +45,10 @@ accomplir des objectifs pour fuir avant la fin de la nuit, en repérant les pré
 - **Ce que voit un mortel** (#80, règles `src/shared/DeathLook.luau`, rendu `Client.DeathView`) :
   - **dans l'ombre** : rien (ni corps, ni ombre portée, ni fumée) ;
   - **à la lumière ambiante** : une **ombre**, pas une figure transparente. Une masse sombre et pleine (noir bleuté,
-    contour gris à peine visible) à la silhouette du voile, dont le bas se défait en colonne de fumée qui traîne
-    derrière elle, avec des volutes sur les bords et quelques braises claires. **Pas de faux** ;
+    contour gris à peine visible) qui **épouse la silhouette** (suaire, épaules, manches, bras tendu), sans nuage ni
+    disque autour du bas (#90) : le bas se défait en **volutes** sombres, une par pli de la robe, qui ondulent et
+    s'étirent vers le bas et l'arrière dans le prolongement des lanières, et se couchent derrière elle quand elle
+    glisse ; quelques fumerolles sur les bords et quelques braises claires. **Pas de faux** ;
   - **dans le faisceau d'une lampe** (les 3 s avant la dissipation) : l'ombre se déchire (bouffée de fumée, 0,4 s) et
     laisse voir le **vrai corps** et la **faux** ; hors du faisceau, elle se referme en 0,8 s. Puis la dissipation se
     joue comme avant.

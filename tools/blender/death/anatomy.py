@@ -223,24 +223,25 @@ CLAW_RINGS, CLAW_SEGS = 12, 12  # anneaux le long, sommets autour (un sommet sur
 CLAW_ROOT = 0.045  # longueur de la griffe posée sur le dos de la dernière phalange, avant le bout du doigt
 
 
-def claw_creases(claw, tip, direction, up_hint, length):
-    """Cette méthode permet de garder vives la pointe et l'arête du dos d'une griffe (la subdivision et le sculpt
-    adouciraient le reste, au lieu des facettes de #81)."""
-    d = direction.normalized()
-    up = (up_hint - d * up_hint.dot(d)).normalized()
-    lat = d.cross(up)
+def claw_creases(claw):
+    """Cette méthode permet de garder vives la pointe et l'arête du dos d'une griffe (anneaux de build_claw, un sommet
+    sur l'arête à chaque anneau) lorsque la subdivision et le sculpt adouciraient le reste."""
     me = claw.data
     crease = me.attributes.new("crease_edge", "FLOAT", "EDGE")
-    tipk, ridge = [], []
-    for v in me.vertices:
-        rel = v.co - tip
-        tipk.append(rel.dot(d) / length > 0.72)
-        ridge.append(rel.dot(up) > 0 and abs(rel.dot(lat)) < 1e-4 + 0.0005)
+    ring_verts = (CLAW_RINGS + 1) * CLAW_SEGS  # puis les deux centres des bouchons
+    ridge = CLAW_SEGS // 4  # a = pi / 2 : le dos de l'ongle
+
+    def ring(k):
+        """Cette méthode permet de donner l'anneau d'un sommet (None pour un centre de bouchon)."""
+        return k // CLAW_SEGS if k < ring_verts else None
+
     for e in me.edges:
         a, b = e.vertices
-        if tipk[a] and tipk[b]:
+        ra, rb = ring(a), ring(b)
+        tip = all(r is None or r >= CLAW_RINGS * 0.72 for r in (ra, rb))
+        if tip:
             crease.data[e.index].value = 1.0
-        elif ridge[a] and ridge[b]:
+        elif ra is not None and rb is not None and a % CLAW_SEGS == ridge and b % CLAW_SEGS == ridge:
             crease.data[e.index].value = 0.7
 
 
@@ -303,7 +304,7 @@ def build_hands():
             organic.set_zone(claw, 1)
             # pointe et arête du dos gardées vives dans la version détaillée (la subdivision émousserait la pointe,
             # et la cuisson la raterait)
-            claw_creases(claw, tip, direction, hint, length)
+            claw_creases(claw)
             parts.append(claw)
     hands = organic.merge_objects("Hands", parts)
     # une seule matière (une MeshPart Roblox = une matière) : les griffes se distinguent par l'attribut de face
@@ -362,9 +363,8 @@ def costal_margin(th):
 
 
 def rib_relief(th, z):
-    """Cette méthode permet de donner la forme lisse du torse (multiplicateur du rayon) au point d'angle th (0 devant)
-    et de hauteur z : cage qui déborde du ventre au rebord costal, ventre rentré, clavicules, colonne ; les côtes
-    elles-mêmes sont sculptées à la brosse (death/sessions/torso.py)."""
+    """Cette méthode permet de donner la forme lisse du torse (multiplicateur du rayon) à l'angle th et à la hauteur z :
+    rebord costal, ventre rentré, clavicules, colonne ; les côtes sont sculptées (death/sessions/torso.py)."""
     front = math.cos(th)
     lateral = abs(math.sin(th))
     rel = 0.0
@@ -404,9 +404,8 @@ def torso_normal(th, z):
 
 
 def build_torso():
-    """Cette méthode permet de construire le torse décharné (pièce `Torso`) : cage en tonneau, rebord costal, ventre
-    creusé, clavicules, cou maigre ; ouvert en bas (caché dans la robe) et en haut (sous le suaire), sans épaisseur
-    (on ne le voit que du dehors, par les trous de la robe). Les côtes et le sternum sont sculptés à la brosse."""
+    """Cette méthode permet de construire le torse décharné (pièce `Torso`, base du sculpt), ouvert en haut et en bas,
+    sans épaisseur : on ne le voit que du dehors, par les trous de la robe."""
     rows = _torso_rows()
 
     def pt(i, j):

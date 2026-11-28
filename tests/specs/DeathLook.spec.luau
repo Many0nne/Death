@@ -169,7 +169,7 @@ return function(T, Loader)
 			T.expectEqual(DeathLook.bounds(CFrame.new(), {}), nil)
 		end)
 
-		T.it("colonne de fumée au bas du corps, bornée ; volutes sur tout le corps", function()
+		T.it("braises au bas du corps, volume borné ; fumerolles sur tout le corps", function()
 			local bounds = { bottom = -4, top = 3, radius = 1.5 }
 			local hemOffset, hemSize = DeathLook.hemBox(bounds)
 			T.expectNear(hemSize.Y, 7 * DeathLook.HEM_SHARE, 1e-6)
@@ -179,6 +179,66 @@ return function(T, Loader)
 			local bodyOffset, bodySize = DeathLook.bodyBox(bounds)
 			T.expectNear(bodyOffset.Y, -0.5, 1e-6)
 			T.expect(bodySize.Y < 7, "rentré dans la silhouette")
+		end)
+	end)
+
+	T.describe("DeathLook : ombre sans nuage, volutes du bas (#90)", function()
+		-- Cette méthode permet de donner les couches d'un mode, fondus terminés, lorsque le test vérifie les fumées.
+		local function settled(view, exposed, inBeam)
+			local mode = DeathLook.mode(view, exposed, inBeam)
+			local visibility, reveal = DeathLook.targets(mode, exposed)
+			return DeathLook.layers(view, visibility, reveal)
+		end
+
+		T.it("les fumées du modèle sont coupées dans l'ombre, rendues avec le vrai corps et pour la Mort", function()
+			T.expectEqual(settled(View.Mortal, true, false).modelSmoke, false, "pas de nuage rond autour du bas")
+			T.expectEqual(settled(View.Mortal, true, true).modelSmoke, true)
+			T.expectEqual(settled(View.Self, true, false).modelSmoke, true)
+		end)
+
+		local start = Vector3.new(0, 1, 0)
+		local out = Vector3.new(0, 0, 1)
+		local floorY = -2
+
+		T.it("immobile : la volute tombe sous son départ, s'écarte un peu de la robe, au-dessus du sol", function()
+			local tendril = DeathLook.tendril(start, out, Vector3.zero, 0, 0, 2, floorY)
+			T.expect(tendril.finish.Y < start.Y - 1, "elle tombe")
+			T.expect(tendril.finish.Y >= floorY + DeathLook.TENDRIL.FLOOR_GAP - 1e-6, "au-dessus du sol")
+			T.expect((tendril.finish - start).Magnitude <= 2 + DeathLook.TENDRIL.SWAY + 1e-6, "longueur bornée")
+			T.expect(tendril.startCurve > 0, "elle part vers le bas")
+		end)
+
+		T.it("en mouvement : elle se couche derrière, d'autant plus que la Mort va vite", function()
+			local still = DeathLook.tendril(start, out, Vector3.zero, 0, 0, 2, floorY)
+			local slow = DeathLook.tendril(start, out, Vector3.new(5, 0, 0), 0, 0, 2, floorY)
+			local fast = DeathLook.tendril(start, out, Vector3.new(16, 0, 0), 0, 0, 2, floorY)
+			T.expect(slow.finish.X < still.finish.X, "derrière la Mort qui avance en +X")
+			T.expect(fast.finish.X < slow.finish.X, "plus loin derrière à pleine vitesse")
+			T.expect(fast.finish.Y > still.finish.Y, "moins tombante : elle traîne")
+		end)
+
+		T.it("elle ondule avec le temps, sans dépasser l'amplitude", function()
+			local a = DeathLook.tendril(start, out, Vector3.zero, 0, 0, 2, floorY)
+			local b = DeathLook.tendril(start, out, Vector3.zero, 1, 0, 2, floorY)
+			T.expect((a.finish - b.finish).Magnitude > 0.05, "elle bouge")
+			for k = 0, 20 do
+				local c = DeathLook.tendril(start, out, Vector3.zero, k * 0.37, 1.1, 2, floorY)
+				T.expect(math.abs(c.endCurve) <= DeathLook.TENDRIL.SWAY + 1e-6)
+			end
+		end)
+
+		T.it("au ras du sol, elle glisse en gardant sa longueur au lieu de s'y enfoncer", function()
+			local from = Vector3.new(0, -1.8, 0)
+			local low = DeathLook.tendril(from, out, Vector3.zero, 0, 0, 2, floorY)
+			T.expectNear(low.finish.Y, floorY + DeathLook.TENDRIL.FLOOR_GAP, 1e-6)
+			local flat = Vector3.new(low.finish.X - from.X, 0, low.finish.Z - from.Z)
+			T.expect(flat.Magnitude > 1.5, "elle s'étire le long du sol")
+		end)
+
+		T.it("les volutes de derrière sont les plus longues", function()
+			T.expect(DeathLook.tendrilLength(1) > DeathLook.tendrilLength(0))
+			T.expectNear(DeathLook.tendrilLength(0), DeathLook.TENDRIL.FRONT_LENGTH, 1e-6)
+			T.expectNear(DeathLook.tendrilLength(2), DeathLook.TENDRIL.BACK_LENGTH, 1e-6, "bornée")
 		end)
 	end)
 end

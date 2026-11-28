@@ -44,9 +44,8 @@ BUILT = {}
 
 
 def build_all(drape=True, sculpted=True):
-    """Cette méthode permet de reconstruire tout le spectre : corps de substitution, drapés, anatomie, faux, armatures ;
-    les corps de substitution sont retirés à la fin ; `sculpted` plaque le sculpt versionné (False : bases à
-    sculpter, pour les séances)."""
+    """Cette méthode permet de reconstruire tout le spectre (drapés, anatomie, faux, armatures) ; `sculpted` plaque le
+    sculpt versionné (False : bases à sculpter, pour les séances)."""
     mesh.clear_scene()
     sculpt.clear()
     bpy.context.scene.frame_set(1)

@@ -30,8 +30,8 @@ def view3d():
 
 
 def begin(ob, levels):
-    """Cette méthode permet de préparer une pièce au sculpt : objet actif seul visible en mode sculpt, modificateur
-    multirésolution porté à `levels` niveaux (Catmull-Clark)."""
+    """Cette méthode permet de préparer une pièce au sculpt (objet actif, mode sculpt, multirésolution à `levels`
+    niveaux) lorsqu'une séance commence."""
     win, area, region = view3d()
     if bpy.context.object and bpy.context.object.mode != "OBJECT":
         bpy.ops.object.mode_set(mode="OBJECT")
@@ -127,9 +127,8 @@ def resample(points, step):
 
 def stroke(points, radius, strength=0.5, view=None, invert=False, brush=None, spacing=0.15, pressure=1.0,
            scale=None):
-    """Cette méthode permet de jouer un trait de brosse le long de `points` (monde) : rayon en studs, force,
-    inversion (creuser au lieu de lever), vue tournée vers le centre du trait depuis `view` ; renvoie le nombre de
-    touches posées sur la surface."""
+    """Cette méthode permet de jouer un trait de brosse le long de `points` (monde, rayon en studs), vu depuis `view`
+    lorsqu'une séance sculpte ; renvoie le nombre de touches posées."""
     if brush:
         use(brush)
     sculpt = bpy.context.tool_settings.sculpt

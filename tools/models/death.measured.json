@@ -39,13 +39,13 @@
       "tris": 10400,
       "center": [
         -0.0838,
-        -1.9111,
-        1.8277
+        -1.8942,
+        0.8718
       ],
       "size": [
         1.7412,
-        2.3815,
-        5.3425
+        2.3477,
+        3.4308
       ]
     },
     "Sleeves": {
@@ -100,7 +100,7 @@
       ],
       "size": [
         3.2117,
-        2.2973,
+        2.2974,
         0.1189
       ]
     },
@@ -129,7 +129,7 @@
       "size": [
         2.3487,
         1.1012,
-        0.0567
+        0.0587
       ]
     },
     "ScytheHead": {
@@ -329,6 +329,7 @@
     "grip_gap_mean": -0.0119,
     "grip_samples": 110,
     "grip_ends_max": 0.0097,
+    "grip_missed": 0,
     "skin_Hands": {
       "bones": 34,
       "unweighted": 0,
@@ -352,25 +353,25 @@
     "silhouette": {
       "top": 3.947,
       "height": 7.597,
-      "clearance": 0.548,
+      "clearance": 0.582,
       "scytheClearance": 0.13,
-      "trailBack": 4.499
+      "trailBack": 2.587
     }
   },
   "drape": {
     "frames": 70,
     "vertices": 2422,
     "fingerprint": "995cbf268752",
-    "sources": "790c20152156",
+    "sources": "b81112433c5a",
     "blender": "5.2.3 LTS"
   },
   "bakeSpikesPct": {
     "Cloak": 0.072,
     "Shroud": 0.045,
     "Sleeves": 0.12,
-    "Hands": 0.848,
+    "Hands": 0.852,
     "Torso": 0.011,
-    "Blade": 0.476,
+    "Blade": 0.474,
     "ScytheHead": 4.207,
     "Shaft": 0.969
   },

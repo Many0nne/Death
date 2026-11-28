@@ -62,8 +62,8 @@
         "subdiv": 2, "noise": [3.0, 0.006], "fine": [0.08, 0.003], "cage": [0.012, 0.03], "normal": false
       },
       "surface": {
-        "ColorMap": "rbxassetid://135716050555907",
-        "RoughnessMap": "rbxassetid://119965292301473"
+        "ColorMap": "rbxassetid://105612947296635",
+        "RoughnessMap": "rbxassetid://71853989674153"
       }
     },
     "Sleeves": {
@@ -90,9 +90,9 @@
         "spikesMax": 2.0, "_spikes": "griffes gardées vives et attaches des doigts : grandes corrections de normales voulues (vérifiées au rendu texturé), pas des taches"
       },
       "surface": {
-        "ColorMap": "rbxassetid://108725666976376",
-        "NormalMap": "rbxassetid://87893218655350",
-        "RoughnessMap": "rbxassetid://100974134303423"
+        "ColorMap": "rbxassetid://79851149970926",
+        "NormalMap": "rbxassetid://112317386561575",
+        "RoughnessMap": "rbxassetid://129206312120056"
       }
     },
     "Torso": {
@@ -117,9 +117,9 @@
         "spikesMax": 0.8, "_spikes": "piqûres profondes et parois des ébréchures : corrections de forme voulues (vérifiées au rendu texturé), pas des taches"
       },
       "surface": {
-        "ColorMap": "rbxassetid://139815672897318",
-        "NormalMap": "rbxassetid://79739371903467",
-        "RoughnessMap": "rbxassetid://133342919429039",
+        "ColorMap": "rbxassetid://100973389432163",
+        "NormalMap": "rbxassetid://106568898169561",
+        "RoughnessMap": "rbxassetid://137605208029463",
         "MetalnessMap": "rbxassetid://135284666481069"
       }
     },

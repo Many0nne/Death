@@ -19,7 +19,9 @@ tendent le tissu, des plis de tension en tombent vers le cou ; tête penchée, d
 lourde trouée sur une cage thoracique (côtes et sternum sous une chair desséchée, ventre creusé sous le rebord
 costal) ; manches très larges d'où sortent des bras maigres et des mains griffues (jointures noueuses, tendons,
 griffes qui naissent sur le dos de la dernière phalange ; la droite serre la faux, la gauche se tend) ; le bas se
-défait en 40 lanières de 0,3 à 4 studs qui plongent vers l'arrière en traîne et se relèvent au-dessus du sol. Avant /
+défait en 40 lanières de longueurs très inégales qui plongent vers l'arrière en traîne et se relèvent au-dessus du
+sol, sans reculer de plus de 2,6 studs derrière la racine (sans collision, une traîne plus longue traverserait le mur
+auquel la Mort s'adosse et la trahirait dans la pièce voisine ; contrôlé par `checks.py`). Avant /
 après : `docs/renders/death/v76/`, `v81/` et `docs/renders/death/` (`textured/` : textures cuites ; `silhouette/` :
 ombre pleine, ce que voit un mortel hors faisceau).
 
@@ -79,8 +81,8 @@ rig R15 de #73 :
 écart d'origine 0 ; relancé sur le modèle déjà remonté (second envoi), même résultat, sans avertissement. En jeu :
 sommet à 7,57 studs (faux comprise), bas de l'embout à 0,13 stud du sol.
 
-**Spectre sculpté (#89)**, mesuré dans Studio : modèle asset 72062636211130 (premier envoi 138707365299947, avant
-les côtes approfondies), 22 images neuves (suaire, lanières, mains, torse, manche ; lame et douille avec leur carte
+**Spectre sculpté (#89)**, mesuré dans Studio : modèle asset 122547302892751 (envois précédents 138707365299947 puis
+72062636211130, avant les côtes approfondies et la traîne plafonnée), 30 images neuves au fil des envois (suaire, lanières, mains, torse, manche ; lame et douille avec leur carte
 de métal ; robe et manches inchangées au bit près, non renvoyées). Remontage : 15 pièces remplacées, 65 os de robe,
 37 os du corps, écart d'origine 0, aucun avertissement ; relancé sans import, même résultat. Mémoire des textures
 (clone affiché) : 114,21 Mo avec le modèle #81, 124,55 Mo après le nouveau ; le cache des textures #81 ne se libère
@@ -96,10 +98,21 @@ studs/s (+20°), 38° entre 17,5 et 20 studs/s (+30°, pointes à 55°). Sur le 
 +24° à 14,7 studs/s (40° → 65°).
 
 Pour un mortel, la Mort exposée hors faisceau est une **ombre pleine** sans faux (`Client.DeathView`, #80 : un
-`Highlight` sombre par morceau visible du corps, fumées créées par le client), dont les lanières s'effacent à demi
-dans la fumée (#81) : la forme du voile passe avant le détail des textures, qui ne se voit que dans le faisceau d'une
-lampe. Le rendu ne dépend que des noms `Scythe` (la faux, cachée hors faisceau) et `Tatters`. Rendu vu d'un mortel
-(salon éclairé) : ombre de près ![](mort/mortel-ombre.jpg), à 20 studs ![](mort/mortel-ombre-20-studs.jpg), dans le
+`Highlight` sombre par morceau visible du corps), qui épouse la silhouette ; ses lanières s'effacent à demi (#81) et
+le bas se défait en **volutes** (#90) : une traînée sombre (`Beam` sans texture, pleine au départ, défaite au bout)
+par chaîne d'os de la robe, qui part du bas de la chaîne (elle suit la cape animée), ondule en S, plonge vers le bas
+et l'arrière et se couche derrière la Mort qui glisse (`Shared.DeathLook.tendril`, réglages `DeathLook.TENDRIL`).
+Plus de nuage rond : la colonne de fumée de #80 est retirée et la fumée du modèle (`HemSmoke`) est coupée tant que
+l'ombre la remplace (revenue avec le vrai corps). Mesuré en jeu (#90) : repérable nettement à 28,7 studs en
+diagonale du salon éclairé (#80 : 29,5) ; en glissant à 6 studs/s, le bout des volutes est à 1,5 stud derrière leur
+départ (−0,6 à l'arrêt) ; particules en vol en pleine ombre, débit × durée de vie : 18 (fumerolles 8/s × 1,15 s,
+braises 4/s × 2,1 s) contre 122 avant (colonne 40/s × 1,6 s, volutes 14/s × 1,15 s, braises 6/s × 2,1 s, fumée du
+modèle 18/s × 1,6 s), plus 16 traînées de 14 segments. La forme du voile passe avant le détail des textures, qui ne
+se voit que dans le faisceau d'une lampe. Le rendu ne dépend que des noms `Scythe` (la faux, cachée hors faisceau),
+`Tatters` et des os `Cxx_2`, `Cxx_3` (sans eux, une couronne de volutes au bas du corps). Rendu vu d'un mortel
+(salon éclairé) : ombre de près ![](mort/mortel-ombre.jpg), de profil ![](mort/mortel-ombre-profil.jpg), en
+déplacement ![](mort/mortel-ombre-mouvement.jpg), à 20 studs ![](mort/mortel-ombre-20-studs.jpg), à 28,7 studs
+![](mort/mortel-ombre-29-studs.jpg) (avant #90 : `v81/`), dans le
 faisceau ![](mort/mortel-faisceau.jpg) et de près ![](mort/mortel-faisceau-pres.jpg) (spectre sculpté, #89) ; la
 Mort à la lumière (vue d'elle-même) ![](mort/v81/mort-lumiere.jpg), en déplacement
 ![](mort/v81/mort-deplacement.jpg) ; vue du joueur Mort ![](mort/v81/vue-mort.jpg) (#81, pas refaites en #89).

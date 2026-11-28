@@ -150,8 +150,11 @@ def sources_hash(m):
     le drapé n'a changé que parce que ses sources ont changé."""
     h = hashlib.sha1()
     paths = [os.path.join(ROOT, m["script"])]
-    lib = os.path.join(HERE, "lib")
-    paths += sorted(os.path.join(lib, f) for f in os.listdir(lib) if f.endswith(".py"))
+    # bibliothèque et modules du modèle (death/ : robe, suaire, sculpt...), sous-dossiers compris
+    for sub in ("lib", os.path.splitext(os.path.basename(m["script"]))[0].removesuffix("_model")):
+        base = os.path.join(HERE, sub)
+        for dirpath, _dirs, files in sorted(os.walk(base)):
+            paths += sorted(os.path.join(dirpath, f) for f in files if f.endswith(".py"))
     for p in paths:
         with open(p, "rb") as f:
             h.update(f.read().replace(b"\r\n", b"\n"))

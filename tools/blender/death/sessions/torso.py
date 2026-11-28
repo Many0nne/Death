@@ -21,9 +21,8 @@ JITTER = [(0.012 * math.sin(k * 2.7 + 0.4), 0.02 * math.sin(k * 1.9 + 1.1)) for 
 
 
 def rib(k):
-    """Cette méthode permet de donner le trajet (angle, hauteur) d'une côte, côté droit, du dos vers l'avant : elle
-    part haut près de la colonne, plonge sur le flanc, puis son cartilage remonte vers le sternum (vraies côtes) ou
-    vers le rebord costal (fausses côtes) ; écarts un peu irréguliers."""
+    """Cette méthode permet de donner le trajet (angle, hauteur) d'une côte droite, du dos vers l'avant : haute près
+    de la colonne, elle plonge sur le flanc puis son cartilage remonte vers le sternum ou le rebord costal."""
     dz, dd = JITTER[k]
     zb = 2.04 - 0.088 * k - 0.0035 * k * k + dz
     if k < TRUE_RIBS:

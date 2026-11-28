@@ -8,8 +8,9 @@ modificateur multirésolution, qui porte le sculpt. À la construction :
   (« Apply Base » de la multirésolution : la base qui, subdivisée, approche le mieux le sculpt) ;
 - la version détaillée de la cuisson est le sculpt à son niveau le plus fin (detail.detailed_copy, `sculpted`).
 
-Garde-fou : l'empreinte de la base (sommets, faces, positions) est gardée avec le sculpt. Si le script construit une
-autre base (posture, grille changées), le sculpt est périmé : la chaîne échoue au lieu de plaquer un sculpt décalé.
+Garde-fou : la base du sculpt (gardée dans le fichier) est comparée sommet à sommet à la base construite (tolérance
+BASE_TOLERANCE). Si le script construit une autre base (posture, grille changées), le sculpt est périmé : la chaîne
+échoue au lieu de plaquer un sculpt décalé. L'empreinte (`fingerprint`) ne sert qu'aux mesures versionnées.
 Le rejouer : séance de la pièce dans Blender avec interface, puis `save`.
 """
 
@@ -21,13 +22,15 @@ import bpy
 ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
 FILE = os.path.join(ROOT, "assets", "sculpt", "death_sculpt.blend")
 SUFFIX = "__sculpt"
+# écart toléré entre la base construite et la base sculptée (stud) : au-delà, le sculpt est périmé
+BASE_TOLERANCE = 1e-4
 # sculpts relus par la dernière construction : {pièce: objet sculpt (caché)}
 LOADED = {}
 
 
 def fingerprint(ob):
-    """Cette méthode permet de résumer la base d'une pièce (nombre de sommets et de faces, positions arrondies au
-    dix-millième) lorsqu'on vérifie qu'un sculpt correspond toujours au script."""
+    """Cette méthode permet de résumer la base d'une pièce (sommets, faces, positions arrondies) pour les mesures
+    versionnées."""
     me = ob.data
     h = hashlib.sha1()
     h.update(f"{len(me.vertices)}/{len(me.polygons)}".encode())
@@ -41,10 +44,18 @@ def part_name(ob):
     return ob.data.name.split(".")[0].removesuffix(SUFFIX)
 
 
+def base_drift(part, sc):
+    """Cette méthode permet de mesurer l'écart (stud) entre la base construite et celle du sculpt, sommet à sommet ;
+    infini si leurs topologies diffèrent."""
+    a, b = part.data, sc.data
+    if len(a.vertices) != len(b.vertices) or len(a.polygons) != len(b.polygons):
+        return float("inf")
+    return max(((v.co - w.co).length for v, w in zip(a.vertices, b.vertices)), default=0.0)
+
+
 def save(objects, path=None):
-    """Cette méthode permet d'enregistrer les pièces sculptées (objets à multirésolution, Blender avec interface)
-    dans le fichier versionné : copie `<Pièce>__sculpt` de la base et de sa seule multirésolution, empreinte de la
-    base ; les sculpts déjà enregistrés des autres pièces sont gardés."""
+    """Cette méthode permet d'enregistrer les pièces sculptées (copie `<Pièce>__sculpt` de la base et de sa seule
+    multirésolution) dans le fichier versionné, en gardant les sculpts des autres pièces."""
     path = path or FILE
     keep = {}
     if os.path.isfile(path):
@@ -104,17 +115,16 @@ def load(name, path=None):
 
 
 def apply(part, path=None):
-    """Cette méthode permet de recaler la pièce jouable `part` sur son sculpt (mêmes sommets, positions de la base
-    qui approche le sculpt) lorsqu'il existe ; renvoie l'objet sculpt (gardé pour la cuisson) ou None ; erreur si le
-    sculpt est périmé."""
+    """Cette méthode permet de recaler la pièce jouable sur son sculpt (« Apply Base », mêmes sommets) lorsqu'il existe ;
+    renvoie l'objet sculpt (gardé pour la cuisson) ou None, erreur si le sculpt est périmé."""
     name = part_name(part)
     sc = load(name, path)
     if sc is None:
         return None
-    base = fingerprint(part)
-    if sc.get("base") != base:
-        raise RuntimeError(f"sculpt de {name} périmé : base {base} construite, {sc.get('base')} sculptée "
-                           f"(rejouer tools/blender/death/sessions/ dans Blender avec interface)")
+    drift = base_drift(part, sc)
+    if drift > BASE_TOLERANCE:
+        raise RuntimeError(f"sculpt de {name} périmé : la base construite s'écarte de {drift:.4f} stud de la base "
+                           f"sculptée (rejouer tools/blender/death/sessions/ dans Blender avec interface)")
     tmp = sc.copy()
     tmp.data = sc.data.copy()
     bpy.context.scene.collection.objects.link(tmp)

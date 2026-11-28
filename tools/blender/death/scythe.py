@@ -154,8 +154,7 @@ BLADE_ROWS = 80
 
 def build_blade():
     """Cette méthode permet de construire la lame (dos, plat, rainure, biseau), son fil ébréché et le fond de la
-    rainure (pièce Engraving, oxydée), trois MeshParts distinctes pour les skins ; les ébréchures mordent les deux
-    premières."""
+    rainure (Engraving), trois MeshParts pour les skins."""
     rows_s = [k / BLADE_ROWS for k in range(BLADE_ROWS + 1)]
 
     def strip(name, columns, mat):
@@ -200,7 +199,7 @@ def build_blade():
             row = []
             for w in cols:
                 p = blade_point(s, w, side)
-                p.y += side * 0.002
+                p.y += side * 0.003  # au-dessus de la lame sculptée (piqûres et coups hors de la rainure)
                 row.append(p)
             rows.append(row)
         g.grid(rows, closed_u=False)
